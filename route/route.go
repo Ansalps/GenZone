@@ -6,6 +6,7 @@ import (
 )
 
 func RegisterUrls(router *gin.Engine) {
+	//category
 	adminGroup := router.Group("admin/")
 	adminGroup.POST("/", admin.Login)
 	//adminCategory := router.Group("admin/Category/")
@@ -13,4 +14,7 @@ func RegisterUrls(router *gin.Engine) {
 	adminGroup.GET("category/add/", admin.CategoryAdd)
 	adminGroup.PUT("category/edit/:id", admin.CategoryEdit)
 	adminGroup.DELETE("category/delete/:id", admin.CategoryDelete)
+
+	//products
+	adminGroup.GET("product/", admin.Product)
 }
