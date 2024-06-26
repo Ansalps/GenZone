@@ -28,25 +28,16 @@ func Login(c *gin.Context) {
 }
 
 func Category(c *gin.Context) {
-	fmt.Println("hi")
-	var AdminCategory models.AdminCategory
-	err := c.BindJSON(&AdminCategory)
-	response := gin.H{
-		"status":  false,
-		"message": "failed to bind request",
-	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response)
-		return
-	}
-	database.DB.Find(&models.AdminCategory{})
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "done"})
+	var cy models.Category
+	database.DB.Find(&cy)
+	fmt.Println(cy)
+
 }
 
 func CategoryAdd(c *gin.Context) {
 	fmt.Println("hello")
-	var AdminCategory models.AdminCategory
-	err := c.BindJSON(&AdminCategory)
+	var Category models.Category
+	err := c.BindJSON(&Category)
 	response := gin.H{
 		"status":  false,
 		"message": "failed to bind request",
@@ -55,7 +46,8 @@ func CategoryAdd(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
-	database.DB.Create(&AdminCategory)
+
+	database.DB.Create(&Category)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "done"})
 
 }
@@ -64,8 +56,8 @@ func CategoryEdit(c *gin.Context) {
 	fmt.Println("hello")
 	CategoryID := c.Param("id")
 	fmt.Println(CategoryID)
-	var AdminCategory models.AdminCategory
-	err := c.BindJSON(&AdminCategory)
+	var Category models.Category
+	err := c.BindJSON(&Category)
 	response := gin.H{
 		"status":  false,
 		"message": "failed to bind request",
@@ -74,7 +66,7 @@ func CategoryEdit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
-	database.DB.Model(&models.AdminCategory{}).Where("id = ?", CategoryID).Updates(&AdminCategory)
+	database.DB.Model(&models.Category{}).Where("id = ?", CategoryID).Updates(&Category)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "done"})
 }
 
@@ -82,8 +74,8 @@ func CategoryDelete(c *gin.Context) {
 	fmt.Println("hello")
 	CategoryID := c.Param("id")
 	fmt.Println(CategoryID)
-	var AdminCategory models.AdminCategory
-	err := c.BindJSON(&AdminCategory)
+	var Category models.Category
+	err := c.BindJSON(&Category)
 	response := gin.H{
 		"status":  false,
 		"message": "failed to bind request",
@@ -92,6 +84,6 @@ func CategoryDelete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
-	database.DB.Where("id = ?", CategoryID).Delete(&models.AdminCategory{})
+	database.DB.Where("id = ?", CategoryID).Delete(&models.Category{})
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "done"})
 }

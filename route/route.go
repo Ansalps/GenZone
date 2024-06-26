@@ -17,4 +17,7 @@ func RegisterUrls(router *gin.Engine) {
 
 	//products
 	adminGroup.GET("product/", admin.Product)
+	adminGroup.GET("product/add/", admin.ProductAdd)
+	adminGroup.PUT("product/edit/:id", admin.ProductEdit)
+	adminGroup.DELETE("product/delete/:id", admin.ProductDelete)
 }

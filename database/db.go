@@ -20,5 +20,7 @@ func Initialize() {
 }
 
 func AutoMigrate() {
-	DB.AutoMigrate(&models.AdminCategory{})
+	DB.AutoMigrate(&models.Category{})
+	DB.AutoMigrate(&models.Product{})
+	DB.AutoMigrate(&models.AdminLogin{})
 }
