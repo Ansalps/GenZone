@@ -92,6 +92,7 @@ type CartItems struct {
 	Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
 	TotalAmount float64 `gorm:"type:decimal(10,2);default:0.00" json:"price" validate:"required"`
 	Qty         uint    `gorm:"default:0"`
+	Price       float64 `gorm:"type:decimal(10,2)" json:"product_price" validate:"required"`
 }
 
 type Order struct {
@@ -107,12 +108,13 @@ type Order struct {
 
 type OrderItems struct {
 	gorm.Model
-	OrderID   string  `validate:"required,numeric"`
-	Order     Order   `gorm:"foriegnkey:OrderID;references:ID"`
-	ProductID string  `validate:"required,numeric"`
-	Product   Product `gorm:"foriegnkey:ProductID;references:ID"`
-	Qty       uint
-	Price     float64
+	OrderID     string  `validate:"required,numeric"`
+	Order       Order   `gorm:"foriegnkey:OrderID;references:ID"`
+	ProductID   string  `validate:"required,numeric"`
+	Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
+	Qty         uint
+	Price       float64
+	TotalAmount float64
 }
 
 type Payments struct {

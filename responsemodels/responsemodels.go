@@ -34,8 +34,9 @@ type CartItems struct {
 	ProductID   string `validate:"required,numeric"`
 	ProductName string `json:"product_name" validate:"required"`
 	//Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
-	TotalAmount float64 `gorm:"type:decimal(10,2);default:0.00" json:"price" validate:"required"`
+	TotalAmount float64 `gorm:"type:decimal(10,2);default:0.00" json:"total_amount" validate:"required"`
 	Qty         uint    `gorm:"default:0"`
+	Price       float64 `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
 }
 
 type Address struct {
@@ -55,10 +56,21 @@ type Order struct {
 	gorm.Model
 	UserID string `validate:"required,numeric"`
 	//OrderDate   time.Time
-	AddressID uint
-	//Address     Address `gorm:"foriegnkey:AddressID;references:ID"`
+	AddressID   uint
+	Address     Address `gorm:"foriegnkey:AddressID;references:ID"`
 	TotalAmount float64
 	OrderStatus string `gorm:"type:varchar(10); check(status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
+}
+type OrderItems struct {
+	gorm.Model
+	OrderID string `validate:"required,numeric"`
+	//Order       Order   `gorm:"foriegnkey:OrderID;references:ID"`
+	ProductID string `validate:"required,numeric"`
+	//Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
+	ProductName string
+	Qty         uint
+	Price       float64
+	TotalAmount float64
 }
 
 type User struct {

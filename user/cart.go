@@ -29,7 +29,7 @@ func Cart(c *gin.Context) {
 	fmt.Println("print user id : ", userID)
 	var cart []responsemodels.CartItems
 	//tx := database.DB.Where("user_id = ?", UserID).Find(&cart)
-	tx := database.DB.Raw("SELECT * FROM cart_items join products on cart_items.product_id=products.id where user_id = ? AND cart_items.deleted_at IS NULL", userID).Scan(&cart)
+	tx := database.DB.Raw("SELECT * FROM cart_items join products on cart_items.product_id=products.id where user_id = ? AND cart_items.deleted_at IS NULL AND cart_items.qty != 0", userID).Scan(&cart)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,
@@ -122,6 +122,7 @@ func CartAdd(c *gin.Context) {
 			//ProductID:   Cart.ProductID,
 			TotalAmount: totalamount,
 			Qty:         quantity,
+			Price:       price,
 		}
 		database.DB.Model(&models.CartItems{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Updates(&cart)
 
@@ -146,6 +147,7 @@ func CartAdd(c *gin.Context) {
 		ProductID:   Cart.ProductID,
 		TotalAmount: price,
 		Qty:         1,
+		Price:       price,
 	}
 	database.DB.Create(&cart)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "product added to cart successfully"})

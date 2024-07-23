@@ -89,10 +89,11 @@ func Order(c *gin.Context) {
 		var price float64
 		database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Pluck("price", &price)
 		orderItem = models.OrderItems{
-			OrderID:   ID,
-			ProductID: v.ProductID,
-			Qty:       v.Qty,
-			Price:     price,
+			OrderID:     ID,
+			ProductID:   v.ProductID,
+			Qty:         v.Qty,
+			Price:       price,
+			TotalAmount: float64(v.Qty) * price,
 		}
 		database.DB.Create(&orderItem)
 	}

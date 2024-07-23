@@ -49,6 +49,7 @@ func RegisterUrls(router *gin.Engine) {
 	router.PUT("profile", helper.AuthMiddleware("user"), user.ProfileEdit)
 	router.GET("profile/useraddress", helper.AuthMiddleware("user"), user.AddressList)
 	router.GET("profile/userorders", helper.AuthMiddleware("user"), user.OrderList)
+	router.GET("profile/userorders/items/:order_id", helper.AuthMiddleware("user"), user.OrderItemsList)
 	router.PUT("profile/userorders/cancelorder/:order_id", helper.AuthMiddleware("user"), user.CancelOrder)
 	router.PUT("profile/changepassword", helper.AuthMiddleware("user"), user.PasswordChange)
 
