@@ -22,5 +22,14 @@ func Initialize() {
 func AutoMigrate() {
 	DB.AutoMigrate(&models.Category{})
 	DB.AutoMigrate(&models.Product{})
-	DB.AutoMigrate(&models.AdminLogin{})
+	DB.AutoMigrate(&models.Admin{})
+	DB.AutoMigrate(&models.User{})
+	DB.AutoMigrate(&models.OTP{})
+	DB.AutoMigrate(&models.TempUser{})
+	DB.AutoMigrate(&models.UserLoginMethod{})
+	DB.AutoMigrate(&models.Address{})
+	DB.AutoMigrate(&models.CartItems{})
+	DB.AutoMigrate(&models.Order{})
+	DB.AutoMigrate(&models.OrderItems{})
+	DB.AutoMigrate(&models.Payments{})
 }
