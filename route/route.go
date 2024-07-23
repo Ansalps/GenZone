@@ -43,7 +43,7 @@ func RegisterUrls(router *gin.Engine) {
 	router.GET("/auth/google/login", user.HandleGoogleLogin)
 	router.GET("/auth/google/callback", user.HandleGoogleCallback)
 
-	router.GET("searchproduct")
+	router.GET("searchproduct", helper.AuthMiddleware("user"), user.SearchProduct)
 
 	router.GET("profile", helper.AuthMiddleware("user"), user.Profile)
 	router.PUT("profile", helper.AuthMiddleware("user"), user.ProfileEdit)

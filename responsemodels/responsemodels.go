@@ -2,12 +2,20 @@ package responsemodels
 
 import "gorm.io/gorm"
 
+// type Category struct {
+// 	gorm.Model
+// 	//ID           uint   `gorm:"primary key" json:"id"`
+// 	CategoryName string ` gorm:"unique" json:"category_name" validate:"required"`
+// 	Description  string `json:"category_description" validate:"required"`
+// 	ImageUrl     string `json:"category_imageUrl" validate:"required"`
+// }
+
 type Product struct {
 	gorm.Model
 	//ID          uint     `gorm:"primary key" json:"id"`
 	CategoryID   uint   `json:"category_id" validate:"required"`
 	CategoryName string `json:"category_name" validate:"required"`
-	//Category    Category `gorm:"foriegnkey:CategoryID;references:ID" json:"category,omitempty"`
+	//Category     Category `gorm:"foriegnkey:CategoryID;references:ID" json:"category,omitempty"`
 	ProductName string  `json:"product_name" validate:"required"`
 	Description string  `json:"product_description" validate:"required"`
 	ImageUrl    string  `json:"product_imageUrl" validate:"required"`
