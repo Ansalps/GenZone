@@ -38,7 +38,7 @@ type UserSignUp struct {
 	FirstName       string `validate:"required,excludesall= " json:"name"`
 	LastName        string `validate:"required,nameOrInitials" json:"last_name"`
 	Email           string `gorm:"unique" validate:"required,email" json:"email"`
-	Password        string `validate:"required,min=6" json:"password"`
+	Password        string `validate:"required,min=8,password" json:"password"`
 	ConfirmPassword string `validate:"required" json:"confirmpassword"`
 	Phone           string `json:"phone" validate:"required,numeric,len=10"`
 }
@@ -50,6 +50,10 @@ type VerifyOTP struct {
 type UserLogin struct {
 	Email    string `gorm:"unique" validate:"required,email" json:"email"`
 	Password string `validate:"required" json:"password"`
+}
+
+type BlockUser struct {
+	UserID uint `validate:"required" json:"user_id"`
 }
 
 type AddressAdd struct {

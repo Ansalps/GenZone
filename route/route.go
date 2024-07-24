@@ -12,8 +12,8 @@ func RegisterUrls(router *gin.Engine) {
 	//users
 	adminGroup := router.Group("admin/")
 	adminGroup.GET("listusers", helper.AuthMiddleware("admin"), admin.ListUsers)
-	adminGroup.PUT("listusers/blockuser/:id", helper.AuthMiddleware("admin"), admin.BlockUser)
-	adminGroup.PUT("listusers/unblockuser/:id", helper.AuthMiddleware("admin"), admin.UnblockUser)
+	adminGroup.PUT("listusers/blockuser", helper.AuthMiddleware("admin"), admin.BlockUser)
+	adminGroup.PUT("listusers/unblockuser", helper.AuthMiddleware("admin"), admin.UnblockUser)
 	//category
 
 	adminGroup.POST("/", admin.Login)

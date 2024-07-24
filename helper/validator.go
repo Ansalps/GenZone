@@ -15,6 +15,31 @@ func validateNameOrInitials(fl validator.FieldLevel) bool {
 	nameRegex := regexp.MustCompile(`^[A-Za-z]+$`)
 	return initialsRegex.MatchString(value) || nameRegex.MatchString(value)
 }
+func passwordValidation(fl validator.FieldLevel) bool {
+	password := fl.Field().String()
+
+	// Check for at least one uppercase letter
+	if match, _ := regexp.MatchString(`[A-Z]`, password); !match {
+		return false
+	}
+
+	// Check for at least one lowercase letter
+	if match, _ := regexp.MatchString(`[a-z]`, password); !match {
+		return false
+	}
+
+	// Check for at least one digit
+	if match, _ := regexp.MatchString(`[0-9]`, password); !match {
+		return false
+	}
+
+	// Check for at least one special character
+	if match, _ := regexp.MatchString(`[!@#\$%\^&\*]`, password); !match {
+		return false
+	}
+
+	return true
+}
 func Validate(value interface{}) error {
 	// var translator = map[string]string{
 	// 	"Name_required":            "Please enter  Name",
@@ -30,6 +55,7 @@ func Validate(value interface{}) error {
 	// validate the struct body
 	validate := validator.New()
 	validate.RegisterValidation("nameOrInitials", validateNameOrInitials)
+	validate.RegisterValidation("password", passwordValidation)
 	err := validate.Struct(value)
 	if err != nil {
 		// var errs []string
@@ -55,6 +81,8 @@ func Validate(value interface{}) error {
 				return fmt.Errorf("%s shouls not contain space", e.Field())
 			case "nameOrInitials":
 				return fmt.Errorf("%s should be either initials or a regular name", e.Field())
+			case "password":
+				return fmt.Errorf("%s should contain at least one uppercase letter, one lowercase letter, one digit, and one special character", e.Field())
 			default:
 				return fmt.Errorf("validation error for field %s", e.Field())
 			}

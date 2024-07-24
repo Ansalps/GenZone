@@ -13,15 +13,36 @@ import (
 )
 
 func OrderList(c *gin.Context) {
-	var Order []responsemodels.Order
-	database.DB.Find(&Order)
+	var orders []responsemodels.Order
+	var address responsemodels.Address
+	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.order_status,addresses.created_at,addresses.updated_at,addresses.deleted_at,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
+	FROM orders
+	JOIN addresses ON orders.address_id = addresses.id
+	order by orders.id`).Scan(&orders)
+	//database.DB.Find(&Orders)
+	for i, v := range orders {
+		database.DB.Raw(`SELECT *
+	        FROM orders
+	        JOIN addresses ON orders.address_id = addresses.id
+	        WHERE orders.id = ?`, v.ID).Scan(&address)
+		orders[i].Address = address
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"Order": Order,
+		"Order": orders,
 	})
+
 }
 
 func ChangeOrderStatus(c *gin.Context) {
 	orderID := c.Param("id")
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ?`, orderID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order id does not exist",
+		})
+		return
+	}
 	var Order models.CancelOrder
 	err := c.BindJSON(&Order)
 	if err != nil {

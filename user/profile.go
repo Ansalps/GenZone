@@ -182,10 +182,10 @@ func OrderList(c *gin.Context) {
 	//database.DB.Where("user_id = ?", userID).Find(&Order)
 	// database.DB.Raw(`SELECT * FROM orders join addresses on orders.address_id = addresses.id where orders.user_id = ?`, userID).Scan(&Order)
 
-	database.DB.Raw(`SELECT *
+	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.order_status,addresses.created_at,addresses.updated_at,addresses.deleted_at,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
 	FROM orders
 	JOIN addresses ON orders.address_id = addresses.id
-	WHERE orders.user_id = ?`, userID).Scan(&orders)
+	WHERE orders.user_id = ? order by orders.id`, userID).Scan(&orders)
 	// database.DB.Raw(`SELECT *
 	//         FROM orders
 	//         JOIN addresses ON orders.address_id = addresses.id
@@ -195,7 +195,7 @@ func OrderList(c *gin.Context) {
 		database.DB.Raw(`SELECT *
 	        FROM orders
 	        JOIN addresses ON orders.address_id = addresses.id
-	        WHERE orders.user_id = ? AND order_id = ?`, userID, v.ID).Scan(&address)
+	        WHERE orders.user_id = ? AND orders.id = ?`, userID, v.ID).Scan(&address)
 		orders[i].Address = address
 	}
 
@@ -272,6 +272,21 @@ func OrderList(c *gin.Context) {
 //	}
 func OrderItemsList(c *gin.Context) {
 	orderId := c.Param("order_id")
+	//var order models.Order
+	// t := database.DB.Where("id = ?", orderId).Find(&order)
+	// if t.Error != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"message": "order id does not exist",
+	// 	})
+	// }
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ?`, orderId).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order id does not exist",
+		})
+		return
+	}
 	var orderitems []responsemodels.OrderItems
 	//tx := database.DB.Where("order_id = ?", orderId).Find(&orderitems)
 	tx := database.DB.Raw(`SELECT * FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`, orderId).Scan(&orderitems)
@@ -288,13 +303,22 @@ func OrderItemsList(c *gin.Context) {
 func CancelOrder(c *gin.Context) {
 	//userID:=c.Param("user_id")
 	orderID := c.Param("order_id")
-	var Order models.Order
-	tx := database.DB.Where("id = ?", orderID).First(&Order)
-	if tx.Error != nil {
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ?`, orderID).Scan(&count)
+	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Order_id does not exist in database",
+			"message": "order id does not exist",
 		})
+		return
 	}
+	//var Order models.Order
+	// tx := database.DB.Where("id = ?", orderID).First(&Order)
+	// if tx.Error != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"message": "Order_id does not exist in database",
+	// 	})
+	// 	return
+	// }
 	// err := c.BindJSON(&CancelOrder)
 	// if err != nil {
 	// 	c.JSON(http.StatusBadRequest, gin.H{

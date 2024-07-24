@@ -14,7 +14,7 @@ import (
 func Product(c *gin.Context) {
 	var product []responsemodels.Product
 	//tx := database.DB.Find(&product)
-	tx := database.DB.Raw(`SELECT * FROM categories join products on categories.id=products.category_id and products.deleted_at IS NULL`).Scan(&product)
+	tx := database.DB.Raw(`SELECT * FROM categories join products on categories.id=products.category_id and products.deleted_at IS NULL AND categories.deleted_at IS NULL`).Scan(&product)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,
@@ -75,7 +75,7 @@ func ProductAdd(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "done"})
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Product Added Successfully"})
 
 }
 func ProductEdit(c *gin.Context) {
@@ -83,6 +83,14 @@ func ProductEdit(c *gin.Context) {
 	productID := c.Param("id")
 	fmt.Println(productID)
 	fmt.Println("hi")
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM products WHERE id = ? AND deleted_at IS NULL`, productID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "product id does not exist",
+		})
+		return
+	}
 	var Product models.ProductEdit
 	err := c.BindJSON(&Product)
 	response := gin.H{
@@ -107,11 +115,16 @@ func ProductEdit(c *gin.Context) {
 }
 
 func ProductDelete(c *gin.Context) {
-	fmt.Println("hello")
 	ProductID := c.Param("id")
-	fmt.Println("hello")
 	fmt.Println(ProductID)
-	fmt.Println("hi")
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM products WHERE id = ? AND deleted_at IS NULL`, ProductID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "product id does not exist",
+		})
+		return
+	}
 
 	database.DB.Where("id = ?", ProductID).Delete(&models.Product{})
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "product deleted successfully"})

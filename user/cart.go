@@ -82,8 +82,15 @@ func CartAdd(c *gin.Context) {
 		})
 		return
 	}
+	// var product models.Product
+	// tx := database.DB.Where("id = ?",Cart.ProductID).Find(&product)
+	// if tx.Error != nil {
+	// 	c.JSON(http.StatusBadRequest,gin.H{
+	// 		"message":"pr"
+	// 	})
+	// }
 	var count1 int64
-	database.DB.Raw("SELECT COUNT(*) FROM products where id=?", Cart.ProductID).Scan(&count1)
+	database.DB.Raw("SELECT COUNT(*) FROM products where id=? AND deleted_at IS NULL", Cart.ProductID).Scan(&count1)
 	if count1 == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,

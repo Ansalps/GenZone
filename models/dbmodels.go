@@ -16,7 +16,7 @@ type Admin struct {
 type Category struct {
 	gorm.Model
 	//ID           uint   `gorm:"primary key" json:"id"`
-	CategoryName string ` gorm:"unique" json:"category_name" validate:"required"`
+	CategoryName string `json:"category_name" validate:"required"`
 	Description  string `json:"category_description" validate:"required"`
 	ImageUrl     string `json:"category_imageUrl" validate:"required"`
 }

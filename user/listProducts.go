@@ -11,7 +11,7 @@ import (
 func ListProducts(c *gin.Context) {
 	var Products []responsemodels.Product
 	//tx := database.DB.Select("*").Find(&Products)
-	tx := database.DB.Raw(`SELECT * FROM categories JOIN products on products.category_id=categories.id`).Scan(&Products)
+	tx := database.DB.Raw(`SELECT * FROM categories JOIN products ON products.category_id=categories.id WHERE products.deleted_at IS NULL AND categories.deleted_at IS NULL ORDER BY products.id`).Scan(&Products)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":     false,

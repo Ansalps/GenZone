@@ -9,7 +9,7 @@ import (
 )
 
 func SearchProduct(c *gin.Context) {
-	query := c.Query("q")
+	query := c.Query("search")
 	nameSort := c.Query("name_sort")
 	priceSort := c.Query("price_sort")
 	newArrivals := c.Query("new_arrivals")
