@@ -35,10 +35,10 @@ type CategoryEdit struct {
 	ImageUrl     string `json:"category_imageUrl" validate:"required"`
 }
 type UserSignUp struct {
-	FirstName       string `validate:"required" json:"name"`
-	LastName        string `validate:"required" json:"last_name"`
+	FirstName       string `validate:"required,excludesall= " json:"name"`
+	LastName        string `validate:"required,nameOrInitials" json:"last_name"`
 	Email           string `gorm:"unique" validate:"required,email" json:"email"`
-	Password        string `validate:"required" json:"password"`
+	Password        string `validate:"required,min=6" json:"password"`
 	ConfirmPassword string `validate:"required" json:"confirmpassword"`
 	Phone           string `json:"phone" validate:"required,numeric,len=10"`
 }

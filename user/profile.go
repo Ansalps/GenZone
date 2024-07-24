@@ -191,11 +191,11 @@ func OrderList(c *gin.Context) {
 	//         JOIN addresses ON orders.address_id = addresses.id
 	//         WHERE orders.user_id = ?`, userID).Scan(&Order)
 
-	for i, _ := range orders {
+	for i, v := range orders {
 		database.DB.Raw(`SELECT *
 	        FROM orders
 	        JOIN addresses ON orders.address_id = addresses.id
-	        WHERE orders.user_id = ?`, userID).Scan(&address)
+	        WHERE orders.user_id = ? AND order_id = ?`, userID, v.ID).Scan(&address)
 		orders[i].Address = address
 	}
 
