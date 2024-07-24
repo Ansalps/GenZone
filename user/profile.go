@@ -160,57 +160,8 @@ func AddressList(c *gin.Context) {
 	})
 }
 
-// func OrderList(c *gin.Context) {
-// 	//userID := c.Param("user_id")
-// 	claims, exists := c.Get("claims")
-// 	if !exists {
-// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
-// 		return
-// 	}
-
-// 	customClaims, ok := claims.(*helper.CustomClaims)
-// 	if !ok {
-// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
-// 		return
-// 	}
-
-// 	userID := customClaims.ID
-// 	fmt.Println("print user id : ", userID)
-// 	var orders []responsemodels.Order
-// 	var address responsemodels.Address
-// 	var Order responsemodels.Order
-// 	//database.DB.Where("user_id = ?", userID).Find(&Order)
-// 	// database.DB.Raw(`SELECT * FROM orders join addresses on orders.address_id = addresses.id where orders.user_id = ?`, userID).Scan(&Order)
-// 	database.DB.Raw(`SELECT *
-// 	FROM orders
-// 	JOIN addresses ON orders.address_id = addresses.id
-// 	WHERE orders.user_id = ?`, userID).Scan(&orders)
-// 	database.DB.Raw(`SELECT *
-// 	        FROM orders
-// 	        JOIN addresses ON orders.address_id = addresses.id
-// 	        WHERE orders.user_id = ?`, userID).Scan(&Order)
-// 	database.DB.Raw(`SELECT *
-// 	        FROM orders
-// 	        JOIN addresses ON orders.address_id = addresses.id
-// 	        WHERE orders.user_id = ?`, userID).Scan(&address)
-
-// 	for _, v := range orders {
-// 		v.Address = address
-// 	}
-
-// 	// query.Find(&Address)
-// 	c.JSON(http.StatusOK, gin.H{
-// 		"status":  true,
-// 		"message": "successfully retrieved user informations",
-// 		"data": gin.H{
-// 			//"Address": Address,
-// 			"Order": orders,
-// 		},
-// 	})
-// }
-
 func OrderList(c *gin.Context) {
-	// userID := c.Param("userID")
+	//userID := c.Param("user_id")
 	claims, exists := c.Get("claims")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
@@ -225,50 +176,100 @@ func OrderList(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-
 	var orders []responsemodels.Order
+	var address responsemodels.Address
+	//var Order responsemodels.Order
+	//database.DB.Where("user_id = ?", userID).Find(&Order)
+	// database.DB.Raw(`SELECT * FROM orders join addresses on orders.address_id = addresses.id where orders.user_id = ?`, userID).Scan(&Order)
 
-	query := `
-        SELECT *
-        FROM orders
-        JOIN addresses ON orders.address_id = addresses.id
-        WHERE orders.user_id = ?`
+	database.DB.Raw(`SELECT *
+	FROM orders
+	JOIN addresses ON orders.address_id = addresses.id
+	WHERE orders.user_id = ?`, userID).Scan(&orders)
+	// database.DB.Raw(`SELECT *
+	//         FROM orders
+	//         JOIN addresses ON orders.address_id = addresses.id
+	//         WHERE orders.user_id = ?`, userID).Scan(&Order)
 
-	rows, err := database.DB.Raw(query, userID).Rows()
-	if err != nil {
-		fmt.Println("Error fetching data:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to retrieve data"})
-		return
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var order responsemodels.Order
-		var address responsemodels.Address
-
-		err = rows.Scan(
-			&order.ID, &order.CreatedAt, &order.UpdatedAt, &order.DeletedAt, &order.UserID, &order.AddressID,
-			&order.TotalAmount, &order.OrderStatus,
-			&address.ID, &address.CreatedAt, &address.UpdatedAt, &address.DeletedAt, &address.UserID, &address.Country,
-			&address.State, &address.District, &address.StreetName, &address.PinCode, &address.Phone, &address.Default,
-		)
-		if err != nil {
-			fmt.Println("Error scanning data:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to scan data"})
-			return
-		}
-		order.Address = address
-		orders = append(orders, order)
+	for i, _ := range orders {
+		database.DB.Raw(`SELECT *
+	        FROM orders
+	        JOIN addresses ON orders.address_id = addresses.id
+	        WHERE orders.user_id = ?`, userID).Scan(&address)
+		orders[i].Address = address
 	}
 
+	// query.Find(&Address)
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "successfully retrieved user informations",
 		"data": gin.H{
+			//"Address": Address,
 			"Order": orders,
 		},
 	})
 }
+
+// func OrderList(c *gin.Context) {
+// 	// userID := c.Param("userID")
+// 	claims, exists := c.Get("claims")
+// 	if !exists {
+// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+// 		return
+// 	}
+
+// 	customClaims, ok := claims.(*helper.CustomClaims)
+// 	if !ok {
+// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+// 		return
+// 	}
+
+// 	userID := customClaims.ID
+// 	fmt.Println("print user id : ", userID)
+
+// 	var orders []responsemodels.Order
+
+// 	query := `
+//         SELECT *
+//         FROM orders
+//         JOIN addresses ON orders.address_id = addresses.id
+//         WHERE orders.user_id = ?`
+
+// 	rows, err := database.DB.Raw(query, userID).Rows()
+// 	if err != nil {
+// 		fmt.Println("Error fetching data:", err)
+// 		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to retrieve data"})
+// 		return
+// 	}
+// 	defer rows.Close()
+
+// 	for rows.Next() {
+// 		var order responsemodels.Order
+// 		var address responsemodels.Address
+
+// 		err = rows.Scan(
+// 			&order.ID, &order.CreatedAt, &order.UpdatedAt, &order.DeletedAt, &order.UserID, &order.AddressID,
+// 			&order.TotalAmount, &order.OrderStatus,
+// 			&address.ID, &address.CreatedAt, &address.UpdatedAt, &address.DeletedAt, &address.UserID, &address.Country,
+// 			&address.State, &address.District, &address.StreetName, &address.PinCode, &address.Phone, &address.Default,
+// 		)
+// 		if err != nil {
+// 			fmt.Println("Error scanning data:", err)
+// 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to scan data"})
+// 			return
+// 		}
+// 		order.Address = address
+// 		orders = append(orders, order)
+// 	}
+
+//		c.JSON(http.StatusOK, gin.H{
+//			"status":  true,
+//			"message": "successfully retrieved user informations",
+//			"data": gin.H{
+//				"Order": orders,
+//			},
+//		})
+//	}
 func OrderItemsList(c *gin.Context) {
 	orderId := c.Param("order_id")
 	var orderitems []responsemodels.OrderItems
