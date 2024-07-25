@@ -87,9 +87,13 @@ func ChangeOrderStatus(c *gin.Context) {
 			var stock uint
 			database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Pluck("stock", &stock)
 			fmt.Println("stock first", stock)
-			stock = stock - v.Qty
+			if stock == 0 {
+				continue
+			}
+			fmt.Println("qty", v.Qty)
+			stoc := stock - v.Qty
 			fmt.Println("stock : v.product_id v.qty", stock, v.ProductID, v.Qty)
-			database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Update("stock", stock)
+			database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Update("stock", stoc)
 		}
 	}
 	order := models.Order{

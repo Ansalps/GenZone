@@ -6,6 +6,7 @@ import (
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
+	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
@@ -20,7 +21,7 @@ func CheckOut(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -74,7 +75,29 @@ func CheckOut(c *gin.Context) {
 // }
 
 func CheckOutAddressEdit(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	fmt.Println("print user id : ", userID)
 	addressID := c.Param("address_id")
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses where id = ? AND user_id = ? and deleted_at IS NULL`, addressID, userID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "no such address_id exist for this particular user",
+		})
+		return
+	}
 	var Address models.AddressAdd
 	err := c.BindJSON(&Address)
 	if err != nil {
@@ -103,6 +126,6 @@ func CheckOutAddressEdit(c *gin.Context) {
 		Phone:      Address.Phone,
 		Default:    Address.Default,
 	}
-	database.DB.Model(&models.Address{}).Where("id = ?", addressID).Updates(&address)
+	database.DB.Model(&models.Address{}).Where("id = ? and user_id = ?", addressID, userID).Updates(&address)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Address updated successfully"})
 }

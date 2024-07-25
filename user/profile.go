@@ -6,6 +6,7 @@ import (
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
+	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
@@ -19,7 +20,7 @@ func Profile(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -46,7 +47,7 @@ func ProfileEdit(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -73,6 +74,14 @@ func ProfileEdit(c *gin.Context) {
 		})
 		return
 	}
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM users where phone = ?`, Profile.Phone).Scan(&count)
+	if count != 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "already registered mobile",
+		})
+		return
+	}
 	user := models.User{
 		FirstName: Profile.FirstName,
 		LastName:  Profile.LastName,
@@ -91,7 +100,7 @@ func PasswordChange(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -141,7 +150,7 @@ func AddressList(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -168,7 +177,7 @@ func OrderList(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -271,6 +280,20 @@ func OrderList(c *gin.Context) {
 //		})
 //	}
 func OrderItemsList(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	fmt.Println("print user id : ", userID)
 	orderId := c.Param("order_id")
 	//var order models.Order
 	// t := database.DB.Where("id = ?", orderId).Find(&order)
@@ -280,10 +303,10 @@ func OrderItemsList(c *gin.Context) {
 	// 	})
 	// }
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ?`, orderId).Scan(&count)
+	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ? AND user_id = ?`, orderId, userID).Scan(&count)
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "order id does not exist",
+			"message": "order id does not exist for this particular user",
 		})
 		return
 	}
@@ -301,13 +324,27 @@ func OrderItemsList(c *gin.Context) {
 }
 
 func CancelOrder(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	fmt.Println("print user id : ", userID)
 	//userID:=c.Param("user_id")
 	orderID := c.Param("order_id")
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ?`, orderID).Scan(&count)
+	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ? AND user_id = ?`, orderID, userID).Scan(&count)
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "order id does not exist",
+			"message": "order id does not exist for this particular user",
 		})
 		return
 	}

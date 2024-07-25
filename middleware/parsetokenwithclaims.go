@@ -1,4 +1,4 @@
-package helper
+package middleware
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 // CustomClaims struct
 
 // Secret key
-var secret = []byte("your-secret-key")
+var Secret = []byte("your-secret-key")
 
 func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 	fmt.Println("hi")
@@ -26,7 +26,7 @@ func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 
 		claims := &CustomClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return secret, nil
+			return Secret, nil
 		})
 
 		if err != nil || !token.Valid {

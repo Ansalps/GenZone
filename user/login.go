@@ -6,6 +6,7 @@ import (
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
+	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/gin-gonic/gin"
 )
@@ -65,7 +66,7 @@ func UserLogin(c *gin.Context) {
 	}
 	var id uint
 	database.DB.Model(&models.User{}).Where("email = ?", UserLogin.Email).Pluck("id", &id)
-	token, err := helper.CreateToken("user", UserLogin.Email, id)
+	token, err := middleware.CreateToken("user", UserLogin.Email, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
 		return

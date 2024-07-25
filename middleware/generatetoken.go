@@ -1,4 +1,4 @@
-package helper
+package middleware
 
 import (
 	"time"
@@ -26,5 +26,5 @@ func CreateToken(role string, email string, id uint) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(secret)
+	return token.SignedString(Secret)
 }

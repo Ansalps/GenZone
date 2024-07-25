@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/Ansalps/GeZOne/database"
-	"github.com/Ansalps/GeZOne/helper"
+	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
@@ -99,7 +99,7 @@ func HandleGoogleCallback(c *gin.Context) {
 	//generate JWT
 	var id uint
 	database.DB.Model(&models.User{}).Where("email = ?", User.Email).Pluck("id", &id)
-	jwttoken, err := helper.CreateToken("user", User.Email, id)
+	jwttoken, err := middleware.CreateToken("user", User.Email, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
 		return

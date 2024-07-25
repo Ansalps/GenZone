@@ -36,6 +36,14 @@ func UserSignUp(c *gin.Context) {
 		})
 		return
 	}
+	var count4 int64
+	database.DB.Raw(`SELECT COUNT(*) FROM users where phone = ?`, UserSignUp.Phone).Scan(&count4)
+	if count4 != 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "already registered mobile",
+		})
+		return
+	}
 	if UserSignUp.Password != UserSignUp.ConfirmPassword {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":     false,

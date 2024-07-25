@@ -6,6 +6,7 @@ import (
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
+	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/gin-gonic/gin"
 )
@@ -18,7 +19,7 @@ func Order(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -55,13 +56,23 @@ func Order(c *gin.Context) {
 		})
 		return
 	}
-	var address models.Address
-	tx := database.DB.Where("id = ?", OrderAdd.AddressID).Find(&address)
-	if tx.Error != nil {
+	fmt.Println("address id ", OrderAdd.AddressID)
+	fmt.Println("user id ", userID)
+	var count1 int64
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses where id = ? AND user_id = ? AND deleted_at IS NULL`, OrderAdd.AddressID, userID).Scan(&count1)
+	if count1 == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Address id does not exist",
+			"message": "address_id does not exist for this particular user",
 		})
+		return
 	}
+	// var address models.Address
+	// tx := database.DB.Where("id = ?", OrderAdd.AddressID).Find(&address)
+	// if tx.Error != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"message": "Address id does not exist",
+	// 	})
+	// }
 	var totalamount float64
 	//database.DB.Model(&models.CartItems{}).Where("user_id = ?", userID).Pluck("total_amount", &totalamount)
 	fmt.Println("hi order")

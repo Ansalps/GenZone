@@ -6,6 +6,7 @@ import (
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
+	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/gin-gonic/gin"
 )
@@ -37,7 +38,7 @@ func AddressAdd(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -80,7 +81,30 @@ func AddressAdd(c *gin.Context) {
 }
 
 func AddressEdit(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	fmt.Println("user id ", userID)
 	AddressID := c.Param("address_id")
+	fmt.Println("address id ", AddressID)
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? and deleted_at IS NULL`, AddressID, userID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "particular address id does not exist for this user",
+		})
+		return
+	}
 	var Address models.AddressAdd
 	err := c.BindJSON(&Address)
 	response := gin.H{
@@ -115,19 +139,41 @@ func AddressEdit(c *gin.Context) {
 }
 
 func AddressDelete(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	fmt.Println("user_id", userID)
 	AddressID := c.Param("address_id")
 	fmt.Println("Address id : ", AddressID)
-	var Address models.Address
-	//err := database.DB.Where("id =? AND deleted_at IS NULL", AddressID).First(&Address)
-	err := database.DB.Raw(`SELECT * FROM addresses WHERE id = ? AND deleted_at IS NULL`, AddressID).Scan(&Address).Error
-	if err != nil {
+	//var Address models.Address
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? and deleted_at IS NULL`, AddressID, userID).Scan(&count)
+	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  false,
-			"message": "no such address id exists",
-			"data":    gin.H{},
+			"message": "particular address id does not exist for this user",
 		})
 		return
 	}
+	//err := database.DB.Where("id =? AND deleted_at IS NULL", AddressID).First(&Address)
+	// err := database.DB.Raw(`SELECT * FROM addresses WHERE id = ? AND user_id = ? AND deleted_at IS NULL`, AddressID, userID).Scan(&Address).Error
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"status":  false,
+	// 		"message": "no such address id exists for this user",
+	// 		"data":    gin.H{},
+	// 	})
+	// 	return
+	// }
 	database.DB.Where("id = ?", AddressID).Delete(&models.Address{})
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Address deleted succesfully"})
 }

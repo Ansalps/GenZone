@@ -2,7 +2,7 @@ package route
 
 import (
 	"github.com/Ansalps/GeZOne/admin"
-	"github.com/Ansalps/GeZOne/helper"
+	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/user"
 	"github.com/gin-gonic/gin"
 )
@@ -11,27 +11,27 @@ func RegisterUrls(router *gin.Engine) {
 
 	//users
 	adminGroup := router.Group("admin/")
-	adminGroup.GET("listusers", helper.AuthMiddleware("admin"), admin.ListUsers)
-	adminGroup.PUT("listusers/blockuser", helper.AuthMiddleware("admin"), admin.BlockUser)
-	adminGroup.PUT("listusers/unblockuser", helper.AuthMiddleware("admin"), admin.UnblockUser)
+	adminGroup.GET("listusers", middleware.AuthMiddleware("admin"), admin.ListUsers)
+	adminGroup.PUT("listusers/blockuser", middleware.AuthMiddleware("admin"), admin.BlockUser)
+	adminGroup.PUT("listusers/unblockuser", middleware.AuthMiddleware("admin"), admin.UnblockUser)
 	//category
 
 	adminGroup.POST("/", admin.Login)
 	//adminCategory := router.Group("admin/Category/")
-	adminGroup.GET("category", helper.AuthMiddleware("admin"), admin.Category)
-	adminGroup.POST("category", helper.AuthMiddleware("admin"), admin.CategoryAdd)
-	adminGroup.PUT("category/:id", helper.AuthMiddleware("admin"), admin.CategoryEdit)
-	adminGroup.DELETE("category/:id", helper.AuthMiddleware("admin"), admin.CategoryDelete)
+	adminGroup.GET("category", middleware.AuthMiddleware("admin"), admin.Category)
+	adminGroup.POST("category", middleware.AuthMiddleware("admin"), admin.CategoryAdd)
+	adminGroup.PUT("category/:id", middleware.AuthMiddleware("admin"), admin.CategoryEdit)
+	adminGroup.DELETE("category/:id", middleware.AuthMiddleware("admin"), admin.CategoryDelete)
 
 	//products
-	adminGroup.GET("product", helper.AuthMiddleware("admin"), admin.Product)
-	adminGroup.POST("product", helper.AuthMiddleware("admin"), admin.ProductAdd)
-	adminGroup.PUT("product/:id", helper.AuthMiddleware("admin"), admin.ProductEdit)
-	adminGroup.DELETE("product/:id", helper.AuthMiddleware("admin"), admin.ProductDelete)
+	adminGroup.GET("product", middleware.AuthMiddleware("admin"), admin.Product)
+	adminGroup.POST("product", middleware.AuthMiddleware("admin"), admin.ProductAdd)
+	adminGroup.PUT("product/:id", middleware.AuthMiddleware("admin"), admin.ProductEdit)
+	adminGroup.DELETE("product/:id", middleware.AuthMiddleware("admin"), admin.ProductDelete)
 
 	//order
-	adminGroup.GET("orderlist", helper.AuthMiddleware("admin"), admin.OrderList)
-	adminGroup.PUT("order/changestatus/:id", helper.AuthMiddleware("admin"), admin.ChangeOrderStatus)
+	adminGroup.GET("orderlist", middleware.AuthMiddleware("admin"), admin.OrderList)
+	adminGroup.PUT("order/changestatus/:id", middleware.AuthMiddleware("admin"), admin.ChangeOrderStatus)
 
 	//user
 
@@ -39,32 +39,32 @@ func RegisterUrls(router *gin.Engine) {
 	router.POST("/login/", user.UserLogin)
 	router.POST("/signup/verifyotp/:email", user.VerifyOTPHandler)
 	router.POST("/signup/resendotp/:email", user.ResendOtp)
-	router.GET("/", helper.AuthMiddleware("user"), user.ListProducts)
+	router.GET("/", middleware.AuthMiddleware("user"), user.ListProducts)
 	router.GET("/auth/google/login", user.HandleGoogleLogin)
 	router.GET("/auth/google/callback", user.HandleGoogleCallback)
 
-	router.GET("searchproduct", helper.AuthMiddleware("user"), user.SearchProduct)
+	router.GET("searchproduct", middleware.AuthMiddleware("user"), user.SearchProduct)
 
-	router.GET("profile", helper.AuthMiddleware("user"), user.Profile)
-	router.PUT("profile", helper.AuthMiddleware("user"), user.ProfileEdit)
-	router.GET("profile/useraddress", helper.AuthMiddleware("user"), user.AddressList)
-	router.GET("profile/userorders", helper.AuthMiddleware("user"), user.OrderList)
-	router.GET("profile/userorders/items/:order_id", helper.AuthMiddleware("user"), user.OrderItemsList)
-	router.PUT("profile/userorders/cancelorder/:order_id", helper.AuthMiddleware("user"), user.CancelOrder)
-	router.PUT("profile/changepassword", helper.AuthMiddleware("user"), user.PasswordChange)
+	router.GET("profile", middleware.AuthMiddleware("user"), user.Profile)
+	router.PUT("profile", middleware.AuthMiddleware("user"), user.ProfileEdit)
+	router.GET("profile/useraddress", middleware.AuthMiddleware("user"), user.AddressList)
+	router.GET("profile/userorders", middleware.AuthMiddleware("user"), user.OrderList)
+	router.GET("profile/userorders/items/:order_id", middleware.AuthMiddleware("user"), user.OrderItemsList)
+	router.PUT("profile/userorders/cancelorder/:order_id", middleware.AuthMiddleware("user"), user.CancelOrder)
+	router.PUT("profile/changepassword", middleware.AuthMiddleware("user"), user.PasswordChange)
 
 	//router.GET("address", helper.AuthMiddleware("user"), user.Address)
-	router.POST("profile/useraddress", helper.AuthMiddleware("user"), user.AddressAdd)
-	router.PUT("profile/useraddress/:address_id", helper.AuthMiddleware("user"), user.AddressEdit)
-	router.DELETE("profile/useraddress/:address_id", helper.AuthMiddleware("user"), user.AddressDelete)
+	router.POST("profile/useraddress", middleware.AuthMiddleware("user"), user.AddressAdd)
+	router.PUT("profile/useraddress/:address_id", middleware.AuthMiddleware("user"), user.AddressEdit)
+	router.DELETE("profile/useraddress/:address_id", middleware.AuthMiddleware("user"), user.AddressDelete)
 
-	router.GET("cart", helper.AuthMiddleware("user"), user.Cart)
-	router.POST("cart", helper.AuthMiddleware("user"), user.CartAdd)
-	router.DELETE("cart", helper.AuthMiddleware("user"), user.CartRemove)
+	router.GET("cart", middleware.AuthMiddleware("user"), user.Cart)
+	router.POST("cart", middleware.AuthMiddleware("user"), user.CartAdd)
+	router.DELETE("cart", middleware.AuthMiddleware("user"), user.CartRemove)
 
-	router.GET("checkout", helper.AuthMiddleware("user"), user.CheckOut)
+	router.GET("checkout", middleware.AuthMiddleware("user"), user.CheckOut)
 	//router.GET("checkout/:user_id/address", helper.AuthMiddleware("user"), user.CheckOutAddress)
-	router.PUT("checkout/address/:address_id", helper.AuthMiddleware("user"), user.CheckOutAddressEdit)
-	router.POST("checkout/order", helper.AuthMiddleware("user"), user.Order)
+	router.PUT("checkout/address/:address_id", middleware.AuthMiddleware("user"), user.CheckOutAddressEdit)
+	router.POST("checkout/order", middleware.AuthMiddleware("user"), user.Order)
 
 }

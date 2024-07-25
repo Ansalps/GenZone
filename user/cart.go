@@ -6,6 +6,7 @@ import (
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
+	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
@@ -19,7 +20,7 @@ func Cart(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -54,7 +55,7 @@ func CartAdd(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return
@@ -169,7 +170,7 @@ func CartRemove(c *gin.Context) {
 		return
 	}
 
-	customClaims, ok := claims.(*helper.CustomClaims)
+	customClaims, ok := claims.(*middleware.CustomClaims)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
 		return

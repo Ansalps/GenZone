@@ -77,8 +77,8 @@ type OrderAdd struct {
 }
 
 type ProfileEdit struct {
-	FirstName string `validate:"required" json:"name"`
-	LastName  string `validate:"required" json:"last_name"`
+	FirstName string `validate:"required,excludesall= " json:"name"`
+	LastName  string `validate:"required,nameOrInitials" json:"last_name"`
 	//Email           string `gorm:"unique" validate:"required,email" json:"email"`
 	//Password        string `validate:"required" json:"password"`
 	//ConfirmPassword string `validate:"required" json:"confirmpassword"`
@@ -86,7 +86,7 @@ type ProfileEdit struct {
 }
 
 type PasswordChange struct {
-	Password        string `validate:"required" json:"password"`
+	Password        string `validate:"required,min=8,password" json:"password"`
 	ConfirmPassword string `validate:"required" json:"confirmpassword"`
 }
 
