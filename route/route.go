@@ -51,6 +51,7 @@ func RegisterUrls(router *gin.Engine) {
 	router.GET("profile/userorders", middleware.AuthMiddleware("user"), user.OrderList)
 	router.GET("profile/userorders/items/:order_id", middleware.AuthMiddleware("user"), user.OrderItemsList)
 	router.PUT("profile/userorders/cancelorder/:order_id", middleware.AuthMiddleware("user"), user.CancelOrder)
+	router.PUT("profile/userorders/cancelsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.CancelSingleOrderItem)
 	router.PUT("profile/changepassword", middleware.AuthMiddleware("user"), user.PasswordChange)
 
 	//router.GET("address", helper.AuthMiddleware("user"), user.Address)

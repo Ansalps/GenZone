@@ -43,6 +43,7 @@ func ChangeOrderStatus(c *gin.Context) {
 		})
 		return
 	}
+
 	var Order models.CancelOrder
 	err := c.BindJSON(&Order)
 	if err != nil {
@@ -60,10 +61,31 @@ func ChangeOrderStatus(c *gin.Context) {
 		})
 		return
 	}
+
 	p := Order.OrderStatus
-	if p != "delivered" && p != "cancelled" && p != "pending" {
+	if p != "delivered" && p != "cancelled" && p != "pending" && p != "shipped" && p != "failed" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "invalid order status",
+		})
+		return
+	}
+	var orderstatus string
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("order_status", &orderstatus)
+	if orderstatus == "cancelled" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Order has already been cancelled by user or Admin",
+		})
+		return
+	}
+	if orderstatus == "delivered" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Order has already been delivered",
+		})
+		return
+	}
+	if orderstatus == "failed" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Order has already failed",
 		})
 		return
 	}
@@ -84,23 +106,29 @@ func ChangeOrderStatus(c *gin.Context) {
 		database.DB.Where("order_id = ?", orderID).Find(&OrderItems)
 
 		for _, v := range OrderItems {
-			var stock uint
-			database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Pluck("stock", &stock)
-			fmt.Println("stock first", stock)
-			if stock == 0 {
-				continue
+			if v.OrderStatus != "cancelled" {
+				var stock uint
+				database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Pluck("stock", &stock)
+				fmt.Println("stock first", stock)
+				stock = stock - 1
+				database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Update("stock", stock)
 			}
-			fmt.Println("qty", v.Qty)
-			stoc := stock - v.Qty
-			fmt.Println("stock : v.product_id v.qty", stock, v.ProductID, v.Qty)
-			database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Update("stock", stoc)
+
+			// if stock == 0 {
+			// 	continue
+			// }
+			//fmt.Println("qty", v.Qty)
+			//stoc := stock - v.Qty
+			//fmt.Println("stock : v.product_id v.qty", stock, v.ProductID, v.Qty)
+
 		}
 	}
 	order := models.Order{
 		OrderStatus: Order.OrderStatus,
 	}
 	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Updates(&order)
+	database.DB.Model(&models.OrderItems{}).Where("order_id = ? and order_status != 'cancelled'", orderID).Update("order_status", Order.OrderStatus)
 	c.JSON(http.StatusOK, gin.H{
-		"meassage": "order status changed successfully",
+		"message": "order status changed successfully",
 	})
 }

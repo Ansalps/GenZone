@@ -312,7 +312,7 @@ func OrderItemsList(c *gin.Context) {
 	}
 	var orderitems []responsemodels.OrderItems
 	//tx := database.DB.Where("order_id = ?", orderId).Find(&orderitems)
-	tx := database.DB.Raw(`SELECT * FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`, orderId).Scan(&orderitems)
+	tx := database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`, orderId).Scan(&orderitems)
 	if tx.Error != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "order_id does not exist",
@@ -377,6 +377,92 @@ func CancelOrder(c *gin.Context) {
 	// cancelorder := models.Order{
 	// 	OrderStatus: CancelOrder.OrderStatus,
 	// }
+	var orderstatus string
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("order_status", &orderstatus)
+	if orderstatus == "shipped" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order, items are already shipped",
+		})
+		return
+	}
+	if orderstatus == "delivered" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order, items are delivered",
+		})
+		return
+	}
+	if orderstatus == "failed" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "your order is already failed due to some inventory issues",
+		})
+		return
+	}
 	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Update("order_status", "cancelled")
+	database.DB.Model(&models.OrderItems{}).Where("order_id = ?", orderID).Update("order_status", "cancelled")
+	//database.DB.Raw(`UPDATE order_items SET order_status = 'cancelled' WHERE `)
 	c.JSON(http.StatusOK, gin.H{"message": "Order cancelled successfully"})
+}
+
+func CancelSingleOrderItem(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	fmt.Println("print user id : ", userID)
+	ItemID := c.Param("orderitem_id")
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM order_items where id = ?`, ItemID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order item id does not exist for this particular user",
+		})
+		return
+	}
+	var orderstatus string
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_status", &orderstatus)
+	if orderstatus == "shipped" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order item, item is already shipped",
+		})
+		return
+	}
+	if orderstatus == "delivered" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order item, item is delivered",
+		})
+		return
+	}
+	if orderstatus == "failed" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "your order is already failed due to some inventory issues",
+		})
+		return
+	}
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Update("order_status", "cancelled")
+	var price float64
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("price", &price)
+	var orderid uint
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_id", &orderid)
+	fmt.Println("price :", price)
+	var totalamount float64
+	database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("total_amount", &totalamount)
+	totalamount = totalamount - price
+	database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("total_amount", totalamount)
+	database.DB.Model(&models.Payments{}).Where("order_id = ?", orderid).Update("total_amount", totalamount)
+	var count1 int
+	database.DB.Raw(`SELECT COUNT(*) FROM order_items WHERE order_id = ?`, orderid).Scan(&count1)
+	fmt.Println("count1", count1)
+	if count1 == 1 {
+		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("order_status", "cancelled")
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Order item cancelled successfully"})
 }

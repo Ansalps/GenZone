@@ -68,9 +68,10 @@ type OrderItems struct {
 	ProductID string `validate:"required,numeric"`
 	//Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
 	ProductName string
-	Qty         uint
+	//Qty         uint
 	Price       float64
-	TotalAmount float64
+	OrderStatus string
+	//TotalAmount float64
 }
 
 type User struct {

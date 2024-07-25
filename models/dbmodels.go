@@ -103,18 +103,19 @@ type Order struct {
 	Address     Address `gorm:"foriegnkey:AddressID;references:ID"`
 	TotalAmount float64
 	// OrderStatus string `gorm:"type:varchar(10); check(order_status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
-	OrderStatus string `gorm:"type:varchar(10);check:order_status IN ('pending', 'delivered', 'cancelled');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered cancelled"`
+	OrderStatus string `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
 }
 
 type OrderItems struct {
 	gorm.Model
-	OrderID     string  `validate:"required,numeric"`
-	Order       Order   `gorm:"foriegnkey:OrderID;references:ID"`
-	ProductID   string  `validate:"required,numeric"`
-	Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
-	Qty         uint
-	Price       float64
-	TotalAmount float64
+	OrderID   uint    `validate:"required"`
+	Order     Order   `gorm:"foriegnkey:OrderID;references:ID"`
+	ProductID string  `validate:"required,numeric"`
+	Product   Product `gorm:"foriegnkey:ProductID;references:ID"`
+	//Qty         uint
+	Price float64
+	//TotalAmount float64
+	OrderStatus string `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
 }
 
 type Payments struct {
