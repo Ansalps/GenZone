@@ -32,7 +32,7 @@ type Product struct {
 	Price       float64  `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
 	Stock       uint     `json:"stock"`
 	Popular     bool     `gorm:"type:boolean;default:false" json:"popular" validate:"required"`
-	Size        string   `gorm:"type:varchar(10); check(size IN ('Medium', 'Small', 'Large'))" json:"size" validate:"required"`
+	Size        string   `gorm:"type:varchar(10); check:size IN ('Medium', 'Small', 'Large')" json:"size" validate:"required,oneof=Medium Small Large"`
 }
 
 // user

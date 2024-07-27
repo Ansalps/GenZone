@@ -32,6 +32,29 @@ func OrderList(c *gin.Context) {
 	})
 
 }
+func OrderItemsList(c *gin.Context) {
+	orderId := c.Param("order_id")
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ?`, orderId).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order id does not exist",
+		})
+		return
+	}
+	var orderitems []responsemodels.OrderItems
+	//tx := database.DB.Where("order_id = ?", orderId).Find(&orderitems)
+	tx := database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderId).Scan(&orderitems)
+	if tx.Error != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order_id does not exist",
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"order items": orderitems,
+	})
+
+}
 
 func ChangeOrderStatus(c *gin.Context) {
 	orderID := c.Param("id")
@@ -71,6 +94,14 @@ func ChangeOrderStatus(c *gin.Context) {
 	}
 	var orderstatus string
 	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("order_status", &orderstatus)
+	if orderstatus == "shipped" {
+		if Order.OrderStatus == "pending" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "Cannot change the order status back to pending, since items are already shipped",
+			})
+			return
+		}
+	}
 	if orderstatus == "cancelled" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Order has already been cancelled by user or Admin",

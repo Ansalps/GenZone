@@ -1,6 +1,7 @@
 package user
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/Ansalps/GeZOne/database"
@@ -21,21 +22,17 @@ func SearchProduct(c *gin.Context) {
 
 	// Apply search query filter
 	if query != "" {
-		sql += ` WHERE (products.product_name ILIKE '%` + query + `%' OR products.description ILIKE '%` + query + `%')`
+		sql += ` WHERE (products.product_name ILIKE '%` + query + `%')`
 	}
 
 	// Apply category filter
+	fmt.Println("category", category)
 	if category != "" {
 		if query != "" {
 			sql += ` AND categories.category_name = '` + category + `'`
 		} else {
 			sql += ` WHERE categories.category_name = '` + category + `'`
 		}
-	}
-
-	// Apply new arrivals filter
-	if newArrivals == "true" {
-		sql += ` ORDER BY products.created_at DESC`
 	}
 
 	// Apply name sort filter
@@ -47,9 +44,27 @@ func SearchProduct(c *gin.Context) {
 
 	// Apply price sort filter
 	if priceSort == "low-high" {
-		sql += ` ORDER BY products.price ASC`
+		if nameSort != "" {
+			sql += `, products.price ASC`
+		} else {
+			sql += ` ORDER BY products.price ASC`
+		}
+
 	} else if priceSort == "high-low" {
-		sql += ` ORDER BY products.price DESC`
+		if nameSort != "" {
+			sql += `, products.price DESC`
+		} else {
+			sql += ` ORDER BY products.price DESC`
+		}
+	}
+
+	// Apply new arrivals filter
+	if newArrivals == "true" {
+		if nameSort != "" || priceSort != "" {
+			sql += `, products.created_at DESC`
+		} else {
+			sql += ` ORDER BY products.created_at DESC`
+		}
 	}
 
 	// Execute the raw SQL query

@@ -31,6 +31,7 @@ func RegisterUrls(router *gin.Engine) {
 
 	//order
 	adminGroup.GET("orderlist", middleware.AuthMiddleware("admin"), admin.OrderList)
+	adminGroup.GET("orderlist/items/:order_id", middleware.AuthMiddleware("admin"), admin.OrderItemsList)
 	adminGroup.PUT("order/changestatus/:id", middleware.AuthMiddleware("admin"), admin.ChangeOrderStatus)
 
 	//user

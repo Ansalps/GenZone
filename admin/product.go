@@ -47,20 +47,32 @@ func ProductAdd(c *gin.Context) {
 		fmt.Println("", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":     false,
-			"message":    err.Error(),
 			"error_code": http.StatusBadRequest,
 		})
 		return
 	}
+	p := Product.Size
+	fmt.Println("---", Product.Size)
+	if p != "Medium" && p != "Small" && p != "Large" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Unknown size",
+		})
+		return
+	}
+
+	fmt.Println("product.categoryname ", Product.CategoryName)
 	var count int64
-	err = database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE id=? and deleted_at is NULL`, Product.CategoryID).Scan(&count).Error
+	err = database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE categories.category_name=? and categories.deleted_at is NULL`, Product.CategoryName).Scan(&count).Error
 	if err != nil {
 		fmt.Println("failed to execute query", err)
 	}
+	fmt.Println("count", count)
 	if count != 0 {
+		var categoryid uint
+		database.DB.Raw(`SELECT id from categories where category_name = ?`, Product.CategoryName).Scan(&categoryid)
 		//var product models.Product
 		product := models.Product{
-			CategoryID:  Product.CategoryID,
+			CategoryID:  categoryid,
 			ProductName: Product.ProductName,
 			Description: Product.Description,
 			ImageUrl:    Product.ImageUrl,
@@ -110,8 +122,39 @@ func ProductEdit(c *gin.Context) {
 		})
 		return
 	}
-	database.DB.Model(&models.Product{}).Where("id = ?", productID).Updates(&Product)
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "done"})
+	p := Product.Size
+	fmt.Println("---", Product.Size)
+	if p != "Medium" && p != "Small" && p != "Large" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Unknown size",
+		})
+		return
+	}
+	var count1 int64
+	err = database.DB.Raw(`SELECT COUNT(*) FROM categories join products on categories.id=products.category_id WHERE categories.category_name=? and categories.deleted_at is NULL`, Product.CategoryName).Scan(&count1).Error
+	if err != nil {
+		fmt.Println("failed to execute query", err)
+	}
+	if count1 != 0 {
+		var categoryid uint
+		database.DB.Raw(`SELECT id from categories where category_name = ?`, Product.CategoryName).Scan(&categoryid)
+		//var product models.Product
+		product := models.Product{
+			CategoryID:  categoryid,
+			ProductName: Product.ProductName,
+			Description: Product.Description,
+			ImageUrl:    Product.ImageUrl,
+			Price:       Product.Price,
+			Stock:       Product.Stock,
+			Popular:     Product.Popular,
+			Size:        Product.Size,
+		}
+		database.DB.Model(&models.Product{}).Where("id = ?", productID).Updates(&product)
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Category does not exist"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "product updated successfully"})
 }
 
 func ProductDelete(c *gin.Context) {

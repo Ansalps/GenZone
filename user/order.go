@@ -26,15 +26,7 @@ func Order(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&count)
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "false",
-			"message": "cart empty, order can't be placed",
-		})
-		return
-	}
+	//addressid verifying
 	var OrderAdd models.OrderAdd
 	err := c.BindJSON(&OrderAdd)
 	response := gin.H{
@@ -60,6 +52,26 @@ func Order(c *gin.Context) {
 	if count1 == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "address_id does not exist for this particular user",
+		})
+		return
+	}
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&count)
+	fmt.Println("count ", count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "false",
+			"message": "cart empty, order can't be placed",
+		})
+		return
+	}
+	var totalquantity uint
+	database.DB.Raw(`SELECT SUM(qty) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&totalquantity)
+	fmt.Println("total quantity", totalquantity)
+	if totalquantity == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "false",
+			"message": "cart empty, order can't be placed",
 		})
 		return
 	}
@@ -122,7 +134,7 @@ func Order(c *gin.Context) {
 	var order1 responsemodels.Order
 	var address responsemodels.Address
 	var orderitems1 []responsemodels.OrderItems
-	database.DB.Raw(`SELECT * FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
+	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.order_status FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
 	fmt.Println("-----------------")
 	fmt.Println("user id ", userID)
 	var orderid uint
@@ -133,7 +145,7 @@ func Order(c *gin.Context) {
 	fmt.Println("address id", addressid)
 	database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, addressid).Scan(&address)
 	order1.Address = address
-	database.DB.Raw(`SELECT * FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`, orderid).Scan(&orderitems1)
+	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)
 	c.JSON(http.StatusOK, gin.H{"message": "Order added successfully",
 		"Order":       order1,
 		"Order items": orderitems1})

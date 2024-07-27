@@ -39,7 +39,8 @@ func UserLogin(c *gin.Context) {
 		fmt.Println("failed to execute query", err)
 	}
 	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User does not exist"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
+		//User does not exist
 		return
 	} else {
 		fmt.Println("user exists")

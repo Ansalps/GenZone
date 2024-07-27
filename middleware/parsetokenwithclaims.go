@@ -19,11 +19,11 @@ func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 		// Get token from cookie
 		tokenString, err := c.Cookie("jwt_token")
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization cookie required"})
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Please Log In"})
 			c.Abort()
 			return
 		}
-
+		//Authorization cookie required
 		claims := &CustomClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return Secret, nil
@@ -37,10 +37,11 @@ func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 
 		// Check user role
 		if claims.Role != requiredRole {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient privileges"})
+			c.JSON(http.StatusForbidden, gin.H{"message": "Log in to continue"})
 			c.Abort()
 			return
 		}
+		//Insufficient privileges
 
 		// Set claims in context
 		//c.Set("claims", claims)

@@ -3,6 +3,7 @@ package helper
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/go-playground/validator"
 )
@@ -40,6 +41,18 @@ func passwordValidation(fl validator.FieldLevel) bool {
 
 	return true
 }
+
+// Function to check for leading and trailing spaces
+func validateNoLeadingTrailingSpaces(fl validator.FieldLevel) bool {
+	name := fl.Field().String()
+	return !strings.HasPrefix(name, " ") && !strings.HasSuffix(name, " ")
+}
+
+// Function to check for repeating spaces
+func validateNoRepeatingSpaces(fl validator.FieldLevel) bool {
+	name := fl.Field().String()
+	return !strings.Contains(name, "  ")
+}
 func Validate(value interface{}) error {
 	// var translator = map[string]string{
 	// 	"Name_required":            "Please enter  Name",
@@ -56,6 +69,8 @@ func Validate(value interface{}) error {
 	validate := validator.New()
 	validate.RegisterValidation("nameOrInitials", validateNameOrInitials)
 	validate.RegisterValidation("password", passwordValidation)
+	validate.RegisterValidation("no_leading_trailing_spaces", validateNoLeadingTrailingSpaces)
+	validate.RegisterValidation("no_repeating_spaces", validateNoRepeatingSpaces)
 	err := validate.Struct(value)
 	if err != nil {
 		// var errs []string
@@ -83,6 +98,16 @@ func Validate(value interface{}) error {
 				return fmt.Errorf("%s should be either initials or a regular name", e.Field())
 			case "password":
 				return fmt.Errorf("%s should contain at least one uppercase letter, one lowercase letter, one digit, and one special character", e.Field())
+			case "no_leading_trailing_spaces":
+				return fmt.Errorf("%s should not have leading or trailing spaces", e.Field())
+			case "no_repeating_spaces":
+				return fmt.Errorf("%s  should not have repeating spaces", e.Field())
+			case "max":
+				return fmt.Errorf("%s exceeds the maximum length", e.Field())
+			case "alpha":
+				return fmt.Errorf("%s should contain only alphabetic characters", e.Field())
+			case "gt":
+				return fmt.Errorf("%s must be greater than zero", e.Field())
 			default:
 				return fmt.Errorf("validation error for field %s", e.Field())
 			}
