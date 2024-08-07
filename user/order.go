@@ -55,6 +55,7 @@ func Order(c *gin.Context) {
 		})
 		return
 	}
+
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&count)
 	fmt.Println("count ", count)
@@ -75,13 +76,36 @@ func Order(c *gin.Context) {
 		})
 		return
 	}
-
 	var totalamount float64
 	database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount)
+	var Finalamount float64
+	var discountamount float64
+	fmt.Println("coupon code----", OrderAdd.CouponCode)
+	if OrderAdd.CouponCode != "" {
+		fmt.Println("is it here?")
+		var count2 int64
+		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ?`, OrderAdd.CouponCode).Scan(&count2)
+		if count2 == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "such coupon does not exists",
+			})
+			return
+		}
+		var minpurchase float64
+		database.DB.Model(&models.Coupon{}).Where("code = ?", OrderAdd.CouponCode).Pluck("min_purchase", &minpurchase)
+		if totalamount > minpurchase {
+
+			database.DB.Model(&models.Coupon{}).Where("code = ?", OrderAdd.CouponCode).Pluck("discount", &discountamount)
+
+		}
+	}
+	Finalamount = totalamount - discountamount
 	order := models.Order{
-		UserID:      userID,
-		AddressID:   OrderAdd.AddressID,
-		TotalAmount: totalamount,
+		UserID:         userID,
+		AddressID:      OrderAdd.AddressID,
+		TotalAmount:    totalamount,
+		DiscountAmount: discountamount,
+		FinalAmount:    Finalamount,
 	}
 	database.DB.Create(&order)
 	var CartItems []models.CartItems
@@ -102,7 +126,8 @@ func Order(c *gin.Context) {
 		}
 		for i := 0; i < int(v.Qty); i++ {
 			var price float64
-			database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Pluck("price", &price)
+			database.DB.Model(&models.CartItems{}).Where("product_id = ?", v.ProductID).Pluck("price", &price)
+			fmt.Println("order_item price", price)
 			fmt.Println("id", ID)
 			orderItem := models.OrderItems{
 				OrderID:   ID,
@@ -127,14 +152,14 @@ func Order(c *gin.Context) {
 	Payment := models.Payments{
 		UserID:      userID,
 		OrderID:     order.ID,
-		TotalAmount: totalamount,
+		TotalAmount: Finalamount,
 	}
 	database.DB.Create(&Payment)
 	database.DB.Where("user_id = ?", userID).Delete(&models.CartItems{})
 	var order1 responsemodels.Order
 	var address responsemodels.Address
 	var orderitems1 []responsemodels.OrderItems
-	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.order_status FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
+	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.discount_amount,orders.final_amount,orders.order_status FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
 	fmt.Println("-----------------")
 	fmt.Println("user id ", userID)
 	var orderid uint

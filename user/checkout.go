@@ -31,7 +31,8 @@ func CheckOut(c *gin.Context) {
 	fmt.Println("print user id : ", userID)
 	type mix struct {
 		CartItem    []responsemodels.CartItems
-		totalamount float64
+		Totalamount float64
+		Address     []responsemodels.Address
 	}
 	//var CartItem models.CartItems
 	var Mix mix
@@ -41,24 +42,27 @@ func CheckOut(c *gin.Context) {
 	var count int64
 	database.DB.Raw("SELECT COUNT(*) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&count)
 	if count != 0 {
-		err := database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&Mix.totalamount).Error
+		err := database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&Mix.Totalamount).Error
+		fmt.Println("-----------", Mix.Totalamount)
 		if err != nil {
 			fmt.Println("failed to execute query", err)
 		}
 	}
 
-	var Address []responsemodels.Address
-	database.DB.Where("user_id = ?", userID).Find(&Address)
+	//var Address []responsemodels.Address
+	database.DB.Where("user_id = ?", userID).Find(&Mix.Address)
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":  true,
-		"message": "successfully retrieved total amount",
-		"data": gin.H{
-			"cart item":    Mix.CartItem,
-			"Total Amount": Mix.totalamount,
-			"Address":      Address,
-		},
-	})
+	finalResult := helper.Responses("Showing CheckOut Page", Mix, nil)
+	c.JSON(http.StatusOK, finalResult)
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"status":  true,
+	// 	"message": "successfully retrieved total amount",
+	// 	"data": gin.H{
+	// 		"cart item":    Mix.CartItem,
+	// 		"Total Amount": Mix.totalamount,
+	// 		"Address":      Address,
+	// 	},
+	// })
 }
 
 // func CheckOutAddress(c *gin.Context) {

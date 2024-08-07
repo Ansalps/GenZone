@@ -30,7 +30,7 @@ func Cart(c *gin.Context) {
 	fmt.Println("print user id : ", userID)
 	var cart []responsemodels.CartItems
 	//tx := database.DB.Where("user_id = ?", UserID).Find(&cart)
-	tx := database.DB.Raw("SELECT * FROM cart_items join products on cart_items.product_id=products.id where user_id = ? AND cart_items.deleted_at IS NULL AND cart_items.qty != 0", userID).Scan(&cart)
+	tx := database.DB.Raw("SELECT cart_items.user_id,cart_items.product_id,products.product_name,cart_items.total_amount,cart_items.qty,cart_items.price FROM cart_items join products on cart_items.product_id=products.id where user_id = ? AND cart_items.deleted_at IS NULL AND cart_items.qty != 0", userID).Scan(&cart)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,
@@ -104,6 +104,15 @@ func CartAdd(c *gin.Context) {
 	if count != 0 {
 		var price float64
 		database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("price", &price)
+		var hasoffer bool
+		database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("has_offer", &hasoffer)
+		if hasoffer {
+			var discountpercentage uint
+			database.DB.Model(&models.Offer{}).Where("product_id = ?", Cart.ProductID).Pluck("discount_percentage", &discountpercentage)
+			price = price - (price * float64(discountpercentage) / 100)
+			fmt.Println("price---inside", price)
+		}
+		fmt.Println("price---outside", price)
 		var totalamount float64
 		database.DB.Model(&models.CartItems{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("total_amount", &totalamount)
 		fmt.Println("total amount:", totalamount)
@@ -150,6 +159,17 @@ func CartAdd(c *gin.Context) {
 	}
 	var price float64
 	database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("price", &price)
+	var hasoffer bool
+	database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("has_offer", &hasoffer)
+	fmt.Println("has offer==", hasoffer)
+	if hasoffer {
+		fmt.Println("is it entering in has offer ------")
+		var discountpercentage uint
+		database.DB.Model(&models.Offer{}).Where("product_id = ?", Cart.ProductID).Pluck("discount_percentage", &discountpercentage)
+		price = price - (price * float64(discountpercentage) / 100)
+		fmt.Println("price---", price)
+	}
+	fmt.Println("price---outside", price)
 	cart := models.CartItems{
 		UserID:      userID,
 		ProductID:   Cart.ProductID,
@@ -215,7 +235,7 @@ func CartRemove(c *gin.Context) {
 		database.DB.Model(&models.CartItems{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).Update("qty", quantity)
 
 		var price float64
-		database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("price", &price)
+		database.DB.Model(&models.CartItems{}).Where("product_id = ?", Cart.ProductID).Pluck("price", &price)
 		fmt.Println("product price:", price)
 		var totalamount float64
 		database.DB.Model(&models.CartItems{}).

@@ -32,4 +32,9 @@ func AutoMigrate() {
 	DB.AutoMigrate(&models.Order{})
 	DB.AutoMigrate(&models.OrderItems{})
 	DB.AutoMigrate(&models.Payments{})
+	DB.AutoMigrate(&models.TempAddress{})
+	DB.AutoMigrate(&models.Wallet{})
+	DB.AutoMigrate(&models.Wishlist{})
+	DB.AutoMigrate(&models.Coupon{})
+	DB.AutoMigrate(&models.Offer{})
 }

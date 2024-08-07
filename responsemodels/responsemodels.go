@@ -56,10 +56,12 @@ type Order struct {
 	gorm.Model
 	UserID string `validate:"required,numeric"`
 	//OrderDate   time.Time
-	AddressID   uint
-	Address     Address `gorm:"foriegnkey:AddressID;references:ID"`
-	TotalAmount float64
-	OrderStatus string `gorm:"type:varchar(10); check(status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
+	AddressID      uint
+	Address        Address `gorm:"foriegnkey:AddressID;references:ID"`
+	TotalAmount    float64
+	OrderStatus    string `gorm:"type:varchar(10); check(status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
+	DiscountAmount float64
+	FinalAmount    float64
 }
 type OrderItems struct {
 	gorm.Model

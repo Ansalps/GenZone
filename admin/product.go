@@ -12,9 +12,17 @@ import (
 )
 
 func Product(c *gin.Context) {
+	listorder := c.Query("list_order")
 	var product []responsemodels.Product
 	//tx := database.DB.Find(&product)
-	tx := database.DB.Raw(`SELECT * FROM categories join products on categories.id=products.category_id and products.deleted_at IS NULL AND categories.deleted_at IS NULL`).Scan(&product)
+	// tx := database.DB.Raw(`SELECT * FROM categories join products on categories.id=products.category_id and products.deleted_at IS NULL AND categories.deleted_at IS NULL`).Scan(&product)
+	sql := `SELECT * FROM categories join products on categories.id=products.category_id and products.deleted_at IS NULL AND categories.deleted_at IS NULL`
+	if listorder == "" || listorder == "ASC" {
+		sql += ` ORDER BY products.id ASC`
+	} else if listorder == "DSC" {
+		sql += ` ORDER BY products.id DESC`
+	}
+	tx := database.DB.Raw(sql).Scan(&product)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,

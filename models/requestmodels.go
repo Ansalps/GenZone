@@ -75,7 +75,8 @@ type CartAdd struct {
 }
 
 type OrderAdd struct {
-	AddressID uint `json:"address_id" validate:"required"`
+	AddressID  uint   `json:"address_id" validate:"required"`
+	CouponCode string `json:"coupon_code"`
 }
 
 type ProfileEdit struct {
@@ -94,4 +95,22 @@ type PasswordChange struct {
 
 type CancelOrder struct {
 	OrderStatus string `json:"order_status" validate:"required"`
+}
+
+// type RazorPayOrder struct {
+// 	UserID    uint `validate:"required"`
+// 	AddressID uint `json:"address_id" validate:"required"`
+// }
+type WishlistAdd struct {
+	ProductID uint `json:"product_id" validate:"required"`
+}
+
+type CouponAdd struct {
+	Code        string  `validate:"required" json:"code"`
+	Discount    float64 `validate:"required" json:"discount"`
+	MinPurchase float64 `validate:"required" json:"min_purchase"`
+}
+type OfferAdd struct {
+	ProductID          uint `validate:"required" json:"product_id"`
+	DiscountPercentage uint `validate:"required" json:"discount_percentage"`
 }

@@ -13,12 +13,22 @@ import (
 )
 
 func OrderList(c *gin.Context) {
+	listorder := c.Query("list_order")
 	var orders []responsemodels.Order
 	var address responsemodels.Address
-	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.order_status,addresses.created_at,addresses.updated_at,addresses.deleted_at,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
+	// database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.order_status,addresses.created_at,addresses.updated_at,addresses.deleted_at,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
+	// FROM orders
+	// JOIN addresses ON orders.address_id = addresses.id
+	// order by orders.id`).Scan(&orders)
+	sql := `SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.order_status,addresses.created_at,addresses.updated_at,addresses.deleted_at,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
 	FROM orders
-	JOIN addresses ON orders.address_id = addresses.id
-	order by orders.id`).Scan(&orders)
+	JOIN addresses ON orders.address_id = addresses.id`
+	if listorder == "" || listorder == "ASC" {
+		sql += ` ORDER BY orders.id ASC`
+	} else if listorder == "DSC" {
+		sql += ` ORDER BY orders.id DESC`
+	}
+	database.DB.Raw(sql).Scan(&orders)
 	//database.DB.Find(&Orders)
 	for i, v := range orders {
 		database.DB.Raw(`SELECT *
@@ -34,6 +44,7 @@ func OrderList(c *gin.Context) {
 }
 func OrderItemsList(c *gin.Context) {
 	orderId := c.Param("order_id")
+	listorder := c.Query("list_order")
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ?`, orderId).Scan(&count)
 	if count == 0 {
@@ -44,12 +55,19 @@ func OrderItemsList(c *gin.Context) {
 	}
 	var orderitems []responsemodels.OrderItems
 	//tx := database.DB.Where("order_id = ?", orderId).Find(&orderitems)
-	tx := database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderId).Scan(&orderitems)
-	if tx.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "order_id does not exist",
-		})
+	// tx := database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderId).Scan(&orderitems)
+	// if tx.Error != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"message": "order_id does not exist",
+	// 	})
+	// }
+	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
+	if listorder == "" || listorder == "ASC" {
+		sql += ` ORDER BY order_items.id ASC`
+	} else if listorder == "DSC" {
+		sql += ` ORDER BY order_items.id DESC`
 	}
+	database.DB.Raw(sql, orderId).Scan(&orderitems)
 	c.JSON(http.StatusOK, gin.H{
 		"order items": orderitems,
 	})

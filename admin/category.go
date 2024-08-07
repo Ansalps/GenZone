@@ -13,8 +13,16 @@ import (
 )
 
 func Category(c *gin.Context) {
+	listorder := c.Query("list_order")
 	var category []models.Category
-	tx := database.DB.Find(&category)
+	//tx := database.DB.Find(&category)
+	sql := `SELECT * FROM categories WHERE deleted_at IS NULL`
+	if listorder == "" || listorder == "ASC" {
+		sql += ` ORDER BY categories.id ASC`
+	} else if listorder == "DSC" {
+		sql += ` ORDER BY categories.id DESC`
+	}
+	tx := database.DB.Raw(sql).Scan(&category)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,

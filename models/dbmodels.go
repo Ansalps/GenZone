@@ -33,6 +33,7 @@ type Product struct {
 	Stock       uint     `json:"stock"`
 	Popular     bool     `gorm:"type:boolean;default:false" json:"popular" validate:"required"`
 	Size        string   `gorm:"type:varchar(10); check:size IN ('Medium', 'Small', 'Large')" json:"size" validate:"required,oneof=Medium Small Large"`
+	HasOffer    bool     `gorm:"default:false"`
 }
 
 // user
@@ -77,6 +78,11 @@ type Address struct {
 	Default    bool   `gorm:"default:false" validate:"required"`
 }
 
+type TempAddress struct {
+	AddressID  uint   `json:"address_id" validate:"required"`
+	CouponCode string `json:"coupon_code"`
+}
+
 //	type Cart struct {
 //		gorm.Model
 //		UserID string `validate:"required,numeric"`
@@ -90,9 +96,9 @@ type CartItems struct {
 	// Cart        Cart    `gorm:"foriegnkey:CartID;references:ID"`
 	ProductID   string  `validate:"required,numeric"`
 	Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
-	TotalAmount float64 `gorm:"type:decimal(10,2);default:0.00" json:"price" validate:"required"`
+	TotalAmount float64 `gorm:"type:decimal(10,2);default:0.00"  `
 	Qty         uint    `gorm:"default:0"`
-	Price       float64 `gorm:"type:decimal(10,2)" json:"product_price" validate:"required"`
+	Price       float64 `gorm:"type:decimal(10,2)" `
 }
 
 type Order struct {
@@ -103,7 +109,11 @@ type Order struct {
 	Address     Address `gorm:"foriegnkey:AddressID;references:ID"`
 	TotalAmount float64
 	// OrderStatus string `gorm:"type:varchar(10); check(order_status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
-	OrderStatus string `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
+	PaymentMethod  string `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_method" validate:"required"`
+	OrderStatus    string `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
+	CouponID       uint
+	DiscountAmount float64 `gorm:"type:decimal(10,2);default:0.00"`
+	FinalAmount    float64 `gorm:"type:decimal(10,2);not null"`
 }
 
 type OrderItems struct {
@@ -115,7 +125,8 @@ type OrderItems struct {
 	//Qty         uint
 	Price float64
 	//TotalAmount float64
-	OrderStatus string `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
+	OrderStatus   string `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed','return');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed return"`
+	PaymentMethod string `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_method" validate:"required"`
 }
 
 type Payments struct {
@@ -125,6 +136,31 @@ type Payments struct {
 	TotalAmount   float64 `validate:"required,numeric"`
 	TransactionID string
 	PaymentDate   string
-	PaymentType   string `gorm:"type:varchar(10); check(status IN ('COD', 'online payment')) ;default:'COD'" json:"payment_type" validate:"required"`
+	PaymentType   string `gorm:"type:varchar(10); check(status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_type" validate:"required"`
 	PaymentStatus string `gorm:"type:varchar(10); check(status IN ('pending', 'paid', 'refund')) ;default:'pending'" json:"payment_status" validate:"required"`
+}
+
+type Wallet struct {
+	gorm.Model
+	UserID  uint    `gorm:"not null"`
+	Balance float64 `gorm:"type:decimal(10,2);default:0.00"`
+}
+
+type Wishlist struct {
+	gorm.Model
+	UserID    uint `gorm:"not null"`
+	ProductID uint `gorm:"not null"`
+}
+
+type Coupon struct {
+	gorm.Model
+	Code        string  `gorm:"unique;not null"`
+	Discount    float64 `gorm:"type:decimal(5,2);not null"`
+	MinPurchase float64 `gorm:"type:decimal(10,2)"`
+}
+
+type Offer struct {
+	gorm.Model
+	ProductID          uint `gorm:"not null"`
+	DiscountPercentage uint `gorm:"not null"`
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,6 +30,41 @@ import (
 // 		},
 // 	})
 // }
+
+func AddressList(c *gin.Context) {
+	//userID := c.Param("user_id")
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	fmt.Println("print user id : ", userID)
+	listorder := c.Query("list_order")
+	var Address []responsemodels.Address
+	//database.DB.Where("user_id = ? and deleted_at IS NULL", userID).Find(&Address)
+	sql := `SELECT * FROM addresses WHERE user_id = ? AND deleted_at IS NULL`
+	if listorder == "" || listorder == "ASC" {
+		sql += ` ORDER BY addresses.id ASC`
+	} else if listorder == "DSC" {
+		sql += ` ORDER BY addresses.id DESC`
+	}
+	database.DB.Raw(sql, userID).Scan(&Address)
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "successfully retrieved user informations",
+		"data": gin.H{
+			"Address": Address,
+		},
+	})
+}
 
 func AddressAdd(c *gin.Context) {
 	//UserID := c.Param("user_id")

@@ -74,8 +74,9 @@ func UserLogin(c *gin.Context) {
 	}
 	fmt.Println("", token)
 	// Set token as cookie
-	c.SetCookie("jwt_token", token, 3600, "/", "", true, true)
-
+	//c.SetCookie("jwt_token", token, 3600, "/", "", true, true)
+	// Set the token in the Authorization header
+	c.Header("Authorization", "Bearer "+token)
 	c.JSON(http.StatusOK, gin.H{"message": "User Login successful", "token": token})
 
 }

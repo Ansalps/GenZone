@@ -9,8 +9,16 @@ import (
 )
 
 func ListUsers(c *gin.Context) {
+	listorder := c.Query("list_order")
 	var users []models.User
-	tx := database.DB.Find(&users)
+	//tx := database.DB.Find(&users)
+	sql := `SELECT * FROM users`
+	if listorder == "" || listorder == "ASC" {
+		sql += ` ORDER BY users.id ASC`
+	} else if listorder == "DSC" {
+		sql += ` ORDER BY users.id DESC`
+	}
+	tx := database.DB.Raw(sql).Scan(&users)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,
