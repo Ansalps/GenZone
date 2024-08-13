@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"time"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -13,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Order(c *gin.Context) {
+func WalletListing(c *gin.Context) {
 	claims, exists := c.Get("claims")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
@@ -27,6 +28,52 @@ func Order(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
+	var wallet models.Wallet
+	database.DB.Raw(`SELECT * from wallets where user_id = ?`, userID).Scan(&wallet)
+	c.JSON(http.StatusOK, gin.H{
+		"data":    wallet,
+		"message": "listing wallet",
+	})
+}
+
+func WalletTransactionListing(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	var wallettransaction []models.WalletTransaction
+	database.DB.Raw(`SELECT * from wallet_transactions where user_id = ?`, userID).Scan(&wallettransaction)
+	c.JSON(http.StatusOK, gin.H{
+		"data":    wallettransaction,
+		"message": "listing wallettransactions",
+	})
+
+}
+
+func WalletOrder(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+
 	//addressid verifying
 	var OrderAdd models.OrderAdd
 	err := c.BindJSON(&OrderAdd)
@@ -87,7 +134,7 @@ func Order(c *gin.Context) {
 	if OrderAdd.CouponCode != "" {
 		fmt.Println("is it here?")
 		var count2 int64
-		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ? and deleted_at IS NULL`, OrderAdd.CouponCode).Scan(&count2)
+		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ? AND deleted_at IS NULL`, OrderAdd.CouponCode).Scan(&count2)
 		if count2 == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"message": "such coupon does not exists",
@@ -102,25 +149,48 @@ func Order(c *gin.Context) {
 
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "A minimum purchase amount is required to apply this coupon",
+				"message": "coupon cannot be applied, because there is a minimum purchase amount to apply this coupon",
 			})
 			return
 		}
 	}
 	var offerapplied float64
 	database.DB.Raw(`SELECT SUM(discount) FROM cart_items WHERE deleted_at IS NULL`).Scan(&offerapplied)
-
 	Finalamount = totalamount - discountamount
+	var balance float64
+	database.DB.Raw(`SELECT balance FROM wallets WHERE user_id = ?`, userID).Scan(&balance)
+	fmt.Println("wallet balance--", balance)
+	if balance-Finalamount < 0.00 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order can't be placed because not enough money in wallet",
+		})
+		return
+	}
 	order := models.Order{
 		UserID:         userID,
 		AddressID:      OrderAdd.AddressID,
 		TotalAmount:    totalamount,
 		OfferApplied:   offerapplied,
+		PaymentMethod:  "Wallet",
 		CouponCode:     OrderAdd.CouponCode,
 		DiscountAmount: discountamount,
 		FinalAmount:    Finalamount,
 	}
 	database.DB.Create(&order)
+	balance = balance - Finalamount
+	fmt.Println("wallet balance after deducting--", balance)
+
+	result := database.DB.Exec(`UPDATE wallets SET balance = ? WHERE user_id = ?`, balance, userID)
+	if result.Error != nil {
+		fmt.Println("--", result.Error)
+	}
+	transaction := models.WalletTransaction{
+		UserID:          userID,
+		Amount:          Finalamount,
+		TransactionType: "Debit",
+		Description:     "Purchase through Wallet",
+	}
+	database.DB.Create(&transaction)
 	var CartItems []models.CartItems
 	database.DB.Where("user_id = ?", userID).Find(&CartItems)
 
@@ -137,7 +207,6 @@ func Order(c *gin.Context) {
 		if v.Qty == 0 {
 			continue
 		}
-
 		for i := 0; i < int(v.Qty); i++ {
 			var price float64
 			database.DB.Model(&models.CartItems{}).Where("product_id = ?", v.ProductID).Pluck("price", &price)
@@ -156,19 +225,19 @@ func Order(c *gin.Context) {
 			database.DB.Model(&models.Order{}).Where("id = ?", ID).Pluck("total_amount", &totalamount)
 			coupondiscount = (price / totalamount1) * discountamount
 			coupondiscount = math.Round(coupondiscount*100) / 100
-			fmt.Println("coupon discount---", coupondiscount)
 			totaldiscount := offerdiscount + coupondiscount
-			//paidamount := price - totaldiscount
+			paidamount := price - totaldiscount
 			orderItem := models.OrderItems{
 				OrderID:   ID,
 				ProductID: v.ProductID,
 				//Qty:         v.Qty,
 				Price: price,
 				//TotalAmount: float64(v.Qty) * price,
-				OfferDiscount:  offerdiscount,
+				PaymentMethod:  "Wallet",
 				CouponDiscount: coupondiscount,
+				OfferDiscount:  offerdiscount,
 				TotalDiscount:  totaldiscount,
-				//PaidAmount:     paidamount,
+				PaidAmount:     paidamount,
 			}
 			fmt.Println("order id", orderItem.OrderID)
 			fmt.Println("order item create hi")
@@ -183,17 +252,22 @@ func Order(c *gin.Context) {
 
 	//database.DB.Create(&orderItem)
 	//var Payment models.Payments
+	now := time.Now()
+	today := now.Format("2006-01-02")
 	Payment := models.Payments{
-		UserID:      userID,
-		OrderID:     order.ID,
-		TotalAmount: Finalamount,
+		UserID:        userID,
+		OrderID:       order.ID,
+		TotalAmount:   Finalamount,
+		PaymentDate:   today,
+		PaymentType:   "Wallet",
+		PaymentStatus: "paid",
 	}
 	database.DB.Create(&Payment)
 	database.DB.Where("user_id = ?", userID).Delete(&models.CartItems{})
 	var order1 responsemodels.Order
 	var address responsemodels.Address
 	var orderitems1 []responsemodels.OrderItems
-	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_applied,orders.coupon_code,orders.discount_amount,orders.final_amount FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
+	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_applied,orders.payment_method,orders.order_status,orders.coupon_code,orders.discount_amount,orders.final_amount FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
 	fmt.Println("-----------------")
 	fmt.Println("user id ", userID)
 	var orderid uint
@@ -209,5 +283,3 @@ func Order(c *gin.Context) {
 		"Order":       order1,
 		"Order items": orderitems1})
 }
-
-//Address selection, clearing cart, updating payments table

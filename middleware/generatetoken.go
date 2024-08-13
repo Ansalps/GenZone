@@ -20,7 +20,7 @@ func CreateToken(role string, email string, id uint) (string, error) {
 		Role:  role,
 		ID:    id,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Hour * 1).Unix(),
+			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(),
 			IssuedAt:  time.Now().Unix(),
 			Issuer:    "GenZone",
 		},

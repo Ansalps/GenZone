@@ -40,6 +40,14 @@ func CouponAdd(c *gin.Context) {
 		})
 		return
 	}
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM coupons WHERE code = ? AND deleted_at IS NULL`, couponadd.Code).Scan(&count)
+	if count != 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "coupon code already exists",
+		})
+		return
+	}
 	coupon := models.Coupon{
 		Code:        couponadd.Code,
 		Discount:    couponadd.Discount,

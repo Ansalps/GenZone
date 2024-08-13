@@ -44,6 +44,10 @@ func RegisterUrls(router *gin.Engine) {
 	adminGroup.POST("offer", middleware.AuthMiddleware("admin"), admin.OfferAdd)
 	adminGroup.DELETE("offer/:id", middleware.AuthMiddleware("admin"), admin.OfferRemove)
 
+	//salesreport
+	adminGroup.POST("salesreport", middleware.AuthMiddleware("admin"), admin.GenerateSalesReport)
+	adminGroup.GET("salesreport", middleware.AuthMiddleware("admin"), admin.FilterSalesReport)
+	adminGroup.GET("salesreportdownload", middleware.AuthMiddleware("admin"), admin.FilterSalesReportPdfExcel)
 	//user
 
 	router.POST("/signup/", user.UserSignUp)
@@ -63,6 +67,9 @@ func RegisterUrls(router *gin.Engine) {
 	router.PUT("profile/userorders/cancelorder/:order_id", middleware.AuthMiddleware("user"), user.CancelOrder)
 	router.PUT("profile/userorders/cancelsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.CancelSingleOrderItem)
 	router.PUT("profile/userorders/returnsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.ReturnSingleOrderItem)
+	//wallet listing
+	router.GET("proflie/wallet", middleware.AuthMiddleware("user"), user.WalletListing)
+	router.GET("profile/wallettransaction", middleware.AuthMiddleware("user"), user.WalletTransactionListing)
 	router.GET("profile/wishlist", middleware.AuthMiddleware("user"), user.Wishlist)
 	router.POST("profile/wishlist", middleware.AuthMiddleware("user"), user.WishlistAdd)
 	router.DELETE("profile/wishlist", middleware.AuthMiddleware("user"), user.WishlistRemove)
@@ -84,5 +91,6 @@ func RegisterUrls(router *gin.Engine) {
 	router.POST("checkout/order", middleware.AuthMiddleware("user"), user.Order)
 	router.POST("checkout/razorpay", middleware.AuthMiddleware("user"), user.CreateOrder)
 	router.POST("checkout/razorpay/paymentverification", middleware.AuthMiddleware("user"), user.PaymentWebhook)
+	router.POST("checkout/wallet", middleware.AuthMiddleware("user"), user.WalletOrder)
 
 }

@@ -25,6 +25,14 @@ func SearchProduct(c *gin.Context) {
 		sql += ` WHERE (products.product_name ILIKE '%` + query + `%')`
 	}
 
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE category_name = ? AND deleted_at IS NULL`, category).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "such category does not exist",
+		})
+		return
+	}
 	// Apply category filter
 	fmt.Println("category", category)
 	if category != "" {
@@ -34,14 +42,24 @@ func SearchProduct(c *gin.Context) {
 			sql += ` WHERE categories.category_name = '` + category + `'`
 		}
 	}
-
+	if nameSort != "aA-zZ" && nameSort != "zZ-aA" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"messsage": "Apply correct names sort filter",
+		})
+		return
+	}
 	// Apply name sort filter
 	if nameSort == "aA-zZ" {
 		sql += ` ORDER BY products.product_name ASC`
 	} else if nameSort == "zZ-aA" {
 		sql += ` ORDER BY products.product_name DESC`
 	}
-
+	if priceSort != "low-high" && priceSort != "high-low" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"messsage": "Apply correct price sort filter",
+		})
+		return
+	}
 	// Apply price sort filter
 	if priceSort == "low-high" {
 		if nameSort != "" {
@@ -57,7 +75,12 @@ func SearchProduct(c *gin.Context) {
 			sql += ` ORDER BY products.price DESC`
 		}
 	}
-
+	if newArrivals != "true" && newArrivals != "false" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"messsage": "new arrivals can either be true or false",
+		})
+		return
+	}
 	// Apply new arrivals filter
 	if newArrivals == "true" {
 		if nameSort != "" || priceSort != "" {

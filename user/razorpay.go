@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"time"
 
@@ -98,12 +99,14 @@ func CreateOrder(c *gin.Context) {
 	}
 
 	var totalamount float64
-	database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount)
+	database.DB.Raw("SELECT SUM(final_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount)
+	var totalamount1 float64
+	database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount1)
 	var Finalamount float64
 	var discountamount float64
 	if tempaddress.CouponCode != "" {
 		var count2 int64
-		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ?`, tempaddress.CouponCode).Scan(&count2)
+		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ? AND deleted_at IS NULL`, tempaddress.CouponCode).Scan(&count2)
 		if count2 == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"message": "such coupon does not exists",
@@ -112,12 +115,20 @@ func CreateOrder(c *gin.Context) {
 		}
 		var minpurchase float64
 		database.DB.Model(&models.Coupon{}).Where("code = ?", tempaddress.CouponCode).Pluck("min_purchase", &minpurchase)
-		if totalamount > minpurchase {
+		if totalamount1 > minpurchase {
 
 			database.DB.Model(&models.Coupon{}).Where("code = ?", tempaddress.CouponCode).Pluck("discount", &discountamount)
 
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "there is a minimum purchase amount to apply the coupon",
+			})
+			return
 		}
 	}
+	//added code
+
+	//code
 	Finalamount = totalamount - discountamount
 	data := map[string]interface{}{
 		"amount":   Finalamount * 100, // amount in smallest currency unit (e.g., 50000 paise = 500 INR)
@@ -216,11 +227,22 @@ func PaymentWebhook(c *gin.Context) {
 		// Process the payment event
 		fmt.Println("Payment verified:", payload)
 		var totalamount float64
-		database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount)
+		database.DB.Raw("SELECT SUM(final_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount)
+		var totalamount1 float64
+		database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount1)
 		var addressid uint
 		database.DB.Raw(`SELECT address_id from temp_addresses`).Scan(&addressid)
 		var couponcode string
-		database.DB.Raw(`SELECT coupon_code from temp_addresses`).Scan(&couponcode)
+		var count int64
+		result := database.DB.Raw(`SELECT COUNT(*) FROM temp_addresses WHERE coupon_code != ''`).Scan(&count)
+		if result.Error != nil {
+			panic(result.Error)
+		}
+		fmt.Println("count printing--", count)
+
+		if count != 0 {
+			database.DB.Raw(`SELECT coupon_code from temp_addresses`).Scan(&couponcode)
+		}
 		var Finalamount float64
 		var discountamount float64
 		if couponcode != "" {
@@ -234,19 +256,23 @@ func PaymentWebhook(c *gin.Context) {
 			}
 			var minpurchase float64
 			database.DB.Model(&models.Coupon{}).Where("code = ?", couponcode).Pluck("min_purchase", &minpurchase)
-			if totalamount > minpurchase {
+			if totalamount1 > minpurchase {
 
 				database.DB.Model(&models.Coupon{}).Where("code = ?", couponcode).Pluck("discount", &discountamount)
 
 			}
 
 		}
+		var offerapplied float64
+		database.DB.Raw(`SELECT SUM(discount) FROM cart_items WHERE deleted_at IS NULL`).Scan(&offerapplied)
 		Finalamount = totalamount - discountamount
 		order := models.Order{
 			UserID:         userID,
 			AddressID:      addressid,
 			TotalAmount:    totalamount,
 			PaymentMethod:  "RazorPay",
+			OfferApplied:   offerapplied,
+			CouponCode:     couponcode,
 			DiscountAmount: discountamount,
 			FinalAmount:    Finalamount,
 		}
@@ -269,15 +295,35 @@ func PaymentWebhook(c *gin.Context) {
 			}
 			for i := 0; i < int(v.Qty); i++ {
 				var price float64
-				database.DB.Model(&models.CartItems{}).Where("id = ?", v.ProductID).Pluck("price", &price)
+				database.DB.Model(&models.CartItems{}).Where("product_id = ?", v.ProductID).Pluck("price", &price)
 				fmt.Println("id", ID)
+				fmt.Println("price printing--", price)
+				var offerdiscount float64
+				var coupondiscount float64
+				var hasoffer bool
+				database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Pluck("has_offer", &hasoffer)
+				if hasoffer {
+					var discountpercentage uint
+					database.DB.Model(&models.Offer{}).Where("product_id = ?", v.ProductID).Pluck("discount_percentage", &discountpercentage)
+					offerdiscount = price * float64(discountpercentage) / 100
+				}
+				var totalamount float64
+				database.DB.Model(&models.Order{}).Where("id = ?", ID).Pluck("total_amount", &totalamount)
+				coupondiscount = (price / totalamount1) * discountamount
+				coupondiscount = math.Round(coupondiscount*100) / 100
+				totaldiscount := offerdiscount + coupondiscount
+				paidamount := price - totaldiscount
 				orderItem := models.OrderItems{
 					OrderID:   ID,
 					ProductID: v.ProductID,
 					//Qty:         v.Qty,
 					Price: price,
 					//TotalAmount: float64(v.Qty) * price,
-					PaymentMethod: "RazorPay",
+					PaymentMethod:  "RazorPay",
+					OfferDiscount:  offerdiscount,
+					CouponDiscount: coupondiscount,
+					TotalDiscount:  totaldiscount,
+					PaidAmount:     paidamount,
 				}
 				fmt.Println("order id", orderItem.OrderID)
 				fmt.Println("order item create hi")
@@ -301,7 +347,7 @@ func PaymentWebhook(c *gin.Context) {
 		var order1 responsemodels.Order
 		var address responsemodels.Address
 		var orderitems1 []responsemodels.OrderItems
-		database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.discount_amount,orders.final_amount,orders.order_status FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
+		database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_applied,orders.coupon_code,orders.discount_amount,orders.final_amount,orders.order_status,orders.payment_method FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
 		fmt.Println("-----------------")
 		fmt.Println("user id ", userID)
 		var orderid uint
@@ -312,8 +358,11 @@ func PaymentWebhook(c *gin.Context) {
 		fmt.Println("address id", addressid)
 		database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, addressid).Scan(&address)
 		order1.Address = address
-		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)
-		database.DB.Raw(`TRUNCATE temp_addresses`)
+		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)
+		result = database.DB.Exec("TRUNCATE temp_addresses")
+		if result.Error != nil {
+			panic(result.Error)
+		}
 		c.JSON(http.StatusOK, gin.H{"message": "Order added successfully",
 			"Order":       order1,
 			"Order items": orderitems1,

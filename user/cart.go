@@ -30,7 +30,7 @@ func Cart(c *gin.Context) {
 	fmt.Println("print user id : ", userID)
 	var cart []responsemodels.CartItems
 	//tx := database.DB.Where("user_id = ?", UserID).Find(&cart)
-	tx := database.DB.Raw("SELECT cart_items.user_id,cart_items.product_id,products.product_name,cart_items.total_amount,cart_items.qty,cart_items.price FROM cart_items join products on cart_items.product_id=products.id where user_id = ? AND cart_items.deleted_at IS NULL AND cart_items.qty != 0", userID).Scan(&cart)
+	tx := database.DB.Raw("SELECT cart_items.user_id,cart_items.product_id,products.product_name,cart_items.total_amount,cart_items.qty,cart_items.price,cart_items.discount,cart_items.final_amount FROM cart_items join products on cart_items.product_id=products.id where user_id = ? AND cart_items.deleted_at IS NULL AND cart_items.qty != 0", userID).Scan(&cart)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,
@@ -83,19 +83,12 @@ func CartAdd(c *gin.Context) {
 		})
 		return
 	}
-	// var product models.Product
-	// tx := database.DB.Where("id = ?",Cart.ProductID).Find(&product)
-	// if tx.Error != nil {
-	// 	c.JSON(http.StatusBadRequest,gin.H{
-	// 		"message":"pr"
-	// 	})
-	// }
 	var count1 int64
 	database.DB.Raw("SELECT COUNT(*) FROM products where id=? AND deleted_at IS NULL", Cart.ProductID).Scan(&count1)
 	if count1 == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,
-			"message": "failed to retrieve data from the database, or the data doesn't exists",
+			"message": "product id doesn't exists",
 		})
 		return
 	}
@@ -106,17 +99,30 @@ func CartAdd(c *gin.Context) {
 		database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("price", &price)
 		var hasoffer bool
 		database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("has_offer", &hasoffer)
+		var finalamount float64
+		finalamount = price
+		var discount float64
 		if hasoffer {
 			var discountpercentage uint
 			database.DB.Model(&models.Offer{}).Where("product_id = ?", Cart.ProductID).Pluck("discount_percentage", &discountpercentage)
-			price = price - (price * float64(discountpercentage) / 100)
+			discount = price * float64(discountpercentage) / 100
+			//discount = math.Round(discount*100) / 100
+			fmt.Println("disount----", discount)
+			database.DB.Raw(`UPDATE cart_items SET dicount = ? WHERE product_id = ?`, discount, Cart.ProductID)
+			finalamount = price - discount
 			fmt.Println("price---inside", price)
 		}
-		fmt.Println("price---outside", price)
+		fmt.Println("price---outside", finalamount)
 		var totalamount float64
 		database.DB.Model(&models.CartItems{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("total_amount", &totalamount)
 		fmt.Println("total amount:", totalamount)
 		totalamount = totalamount + price
+		var FinalAmount1 float64
+		database.DB.Model(&models.CartItems{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("final_amount", &FinalAmount1)
+		FinalAmount1 = FinalAmount1 + finalamount
+		var Discount1 float64
+		database.DB.Model(&models.CartItems{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("discount", &Discount1)
+		Discount1 = Discount1 + discount
 		fmt.Println("total amount:", totalamount)
 		var quantity uint
 		database.DB.Model(&models.CartItems{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("qty", &quantity)
@@ -140,6 +146,8 @@ func CartAdd(c *gin.Context) {
 			TotalAmount: totalamount,
 			Qty:         quantity,
 			Price:       price,
+			Discount:    Discount1,
+			FinalAmount: FinalAmount1,
 		}
 		database.DB.Model(&models.CartItems{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Updates(&cart)
 
@@ -161,21 +169,26 @@ func CartAdd(c *gin.Context) {
 	database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("price", &price)
 	var hasoffer bool
 	database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("has_offer", &hasoffer)
-	fmt.Println("has offer==", hasoffer)
+	var discount float64
+	var finalamount float64
+	finalamount = price
 	if hasoffer {
 		fmt.Println("is it entering in has offer ------")
 		var discountpercentage uint
 		database.DB.Model(&models.Offer{}).Where("product_id = ?", Cart.ProductID).Pluck("discount_percentage", &discountpercentage)
-		price = price - (price * float64(discountpercentage) / 100)
-		fmt.Println("price---", price)
+		discount = price * float64(discountpercentage) / 100
+		finalamount = price - (price * float64(discountpercentage) / 100)
+		fmt.Println("price---", finalamount)
 	}
-	fmt.Println("price---outside", price)
+	fmt.Println("final amount here --", finalamount)
 	cart := models.CartItems{
 		UserID:      userID,
 		ProductID:   Cart.ProductID,
 		TotalAmount: price,
 		Qty:         1,
 		Price:       price,
+		Discount:    discount,
+		FinalAmount: finalamount,
 	}
 	database.DB.Create(&cart)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "product added to cart successfully"})
@@ -238,34 +251,34 @@ func CartRemove(c *gin.Context) {
 		database.DB.Model(&models.CartItems{}).Where("product_id = ?", Cart.ProductID).Pluck("price", &price)
 		fmt.Println("product price:", price)
 		var totalamount float64
-		database.DB.Model(&models.CartItems{}).
-			Select("total_amount").
-			Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).
-			Order("total_amount DESC").
-			Limit(1).
+		database.DB.Model(&models.CartItems{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).
 			Pluck("total_amount", &totalamount)
 		fmt.Println("t a-", totalamount)
 		totalamount = totalamount - price
 		fmt.Println("t a--", totalamount)
 		database.DB.Model(&models.CartItems{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).Order("total_amount DESC").Update("total_amount", totalamount)
-
-		// database.DB.Model(&models.CartItems{}).
-		// 	Select("qty").
-		// 	Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).
-		// 	Order("qty DESC").
-		// 	Limit(1).
-		// 	Pluck("quantity", &quantity)
-
-		// var latestCartItemID uint
-		// subQuery := database.DB.Model(&models.CartItems{}).
-		// 	Select("id").
-		// 	Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).
-		// 	Order("created_at DESC").
-		// 	Limit(1)
-		// subQuery.Scan(&latestCartItemID)
-		// database.DB.Where("id = ?", latestCartItemID).Delete(&models.CartItems{})
-		//database.DB.Where("id = (?)", subQuery).Delete(&models.CartItems{})
-		//database.DB.Where("user_id = ? and product_id = ?", UserID, Cart.ProductID).Delete(&models.CartItems{})
+		var hasoffer bool
+		database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("has_offer", &hasoffer)
+		fmt.Println("has offer==", hasoffer)
+		var discount float64
+		var finalamount float64
+		if hasoffer {
+			fmt.Println("is it entering in has offer ------")
+			var discountpercentage uint
+			database.DB.Model(&models.Offer{}).Where("product_id = ?", Cart.ProductID).Pluck("discount_percentage", &discountpercentage)
+			discount = price * float64(discountpercentage) / 100
+			finalamount = price - (price * float64(discountpercentage) / 100)
+			fmt.Println("price---", finalamount)
+		}
+		fmt.Println("price---outside", finalamount)
+		var FinalAmount1 float64
+		database.DB.Model(&models.CartItems{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("final_amount", &FinalAmount1)
+		FinalAmount1 = FinalAmount1 - finalamount
+		database.DB.Model(&models.CartItems{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).Update("final_amount", FinalAmount1)
+		var Discount1 float64
+		database.DB.Model(&models.CartItems{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("discount", &Discount1)
+		Discount1 = Discount1 - discount
+		database.DB.Model(&models.CartItems{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).Update("discount", Discount1)
 
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "product removed from cart successfully"})
 		return

@@ -37,4 +37,6 @@ func AutoMigrate() {
 	DB.AutoMigrate(&models.Wishlist{})
 	DB.AutoMigrate(&models.Coupon{})
 	DB.AutoMigrate(&models.Offer{})
+	DB.AutoMigrate(&models.SalesReportItem{})
+	DB.AutoMigrate(&models.WalletTransaction{})
 }

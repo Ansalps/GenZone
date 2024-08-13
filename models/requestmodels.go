@@ -114,3 +114,6 @@ type OfferAdd struct {
 	ProductID          uint `validate:"required" json:"product_id"`
 	DiscountPercentage uint `validate:"required" json:"discount_percentage"`
 }
+type CouponCheckout struct {
+	CouponCode string `json:"coupon_code"`
+}

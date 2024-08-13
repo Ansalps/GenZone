@@ -77,6 +77,18 @@ func UserLogin(c *gin.Context) {
 	//c.SetCookie("jwt_token", token, 3600, "/", "", true, true)
 	// Set the token in the Authorization header
 	c.Header("Authorization", "Bearer "+token)
+	var count1 int64
+	database.DB.Raw(`SELECT COUNT(*) FROM wallets WHERE user_id = ?`, id).Scan(&count1)
+	if count1 == 0 {
+		wallet := models.Wallet{
+			UserID:  id,
+			Balance: 0.00,
+		}
+		database.DB.Create(&wallet)
+	} else {
+		fmt.Println("user already has a walet")
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "User Login successful", "token": token})
 
 }

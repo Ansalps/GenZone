@@ -16,13 +16,15 @@ type Product struct {
 	CategoryID   uint   `json:"category_id" validate:"required"`
 	CategoryName string `json:"category_name" validate:"required"`
 	//Category     Category `gorm:"foriegnkey:CategoryID;references:ID" json:"category,omitempty"`
-	ProductName string  `json:"product_name" validate:"required"`
-	Description string  `json:"product_description" validate:"required"`
-	ImageUrl    string  `json:"product_imageUrl" validate:"required"`
-	Price       float64 `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
-	Stock       int     `json:"stock"`
-	Popular     bool    `gorm:"type:boolean;default:false" json:"popular" validate:"required"`
-	Size        string  `gorm:"type:varchar(10); check(size IN ('Medium', 'Small', 'Large'))" json:"size" validate:"required"`
+	ProductName          string  `json:"product_name" validate:"required"`
+	Description          string  `json:"product_description" validate:"required"`
+	ImageUrl             string  `json:"product_imageUrl" validate:"required"`
+	Price                float64 `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
+	Stock                int     `json:"stock"`
+	Popular              bool    `gorm:"type:boolean;default:false" json:"popular" validate:"required"`
+	Size                 string  `gorm:"type:varchar(10); check(size IN ('Medium', 'Small', 'Large'))" json:"size" validate:"required"`
+	HasOffer             bool
+	OfferDiscountPercent uint
 }
 
 type CartItems struct {
@@ -37,6 +39,8 @@ type CartItems struct {
 	TotalAmount float64 `gorm:"type:decimal(10,2);default:0.00" json:"total_amount" validate:"required"`
 	Qty         uint    `gorm:"default:0"`
 	Price       float64 `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
+	Discount    float64
+	FinalAmount float64
 }
 
 type Address struct {
@@ -59,7 +63,10 @@ type Order struct {
 	AddressID      uint
 	Address        Address `gorm:"foriegnkey:AddressID;references:ID"`
 	TotalAmount    float64
+	PaymentMethod  string
 	OrderStatus    string `gorm:"type:varchar(10); check(status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
+	OfferApplied   float64
+	CouponCode     string
 	DiscountAmount float64
 	FinalAmount    float64
 }
@@ -74,6 +81,11 @@ type OrderItems struct {
 	Price       float64
 	OrderStatus string
 	//TotalAmount float64
+	PaymentMethod  string
+	CouponDiscount float64
+	OfferDiscount  float64
+	TotalDiscount  float64
+	PaidAmount     float64
 }
 
 type User struct {
@@ -85,4 +97,36 @@ type User struct {
 	Password  string `validate:"required"`
 	Phone     string `json:"phone" validate:"required,numeric,len=10"`
 	Status    string `gorm:"type:varchar(10); check(status IN ('Active', 'Blocked', 'Deleted')) ;default:'Active'" json:"status" validate:"required"`
+}
+
+type Wishlist struct {
+	gorm.Model
+	UserID               uint `gorm:"not null"`
+	ProductID            uint `gorm:"not null"`
+	ProductName          string
+	CategoryName         string
+	Description          string
+	ImageUrl             string
+	Price                float64
+	Stock                uint
+	Popular              bool
+	Size                 string
+	HasOffer             bool
+	OfferDiscountPercent uint
+}
+
+type Offer struct {
+	gorm.Model
+	ProductID            uint `gorm:"not null"`
+	DiscountPercentage   uint `gorm:"not null"`
+	ProductName          string
+	CategoryName         string
+	Description          string
+	ImageUrl             string
+	Price                float64
+	Stock                uint
+	Popular              bool
+	Size                 string
+	HasOffer             bool
+	OfferDiscountPercent uint
 }
