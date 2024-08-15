@@ -280,6 +280,6 @@ func WalletOrder(c *gin.Context) {
 	order1.Address = address
 	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)
 	c.JSON(http.StatusOK, gin.H{"message": "Order added successfully",
-		"Order":       order1,
-		"Order items": orderitems1})
+		"order":       order1,
+		"order_items": orderitems1})
 }

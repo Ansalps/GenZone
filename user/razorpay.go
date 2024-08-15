@@ -130,8 +130,9 @@ func CreateOrder(c *gin.Context) {
 
 	//code
 	Finalamount = totalamount - discountamount
+	amountInPaise := int(Finalamount * 100)
 	data := map[string]interface{}{
-		"amount":   Finalamount * 100, // amount in smallest currency unit (e.g., 50000 paise = 500 INR)
+		"amount":   amountInPaise, // amount in smallest currency unit (e.g., 50000 paise = 500 INR)
 		"currency": "INR",
 	}
 
@@ -364,8 +365,8 @@ func PaymentWebhook(c *gin.Context) {
 			panic(result.Error)
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "Order added successfully",
-			"Order":       order1,
-			"Order items": orderitems1,
+			"order":       order1,
+			"order_items": orderitems1,
 			"status":      "success"})
 
 	} else {

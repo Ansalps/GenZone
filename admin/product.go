@@ -59,6 +59,13 @@ func ProductAdd(c *gin.Context) {
 		})
 		return
 	}
+	if Product.Price != float64(int(Product.Price)) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "price should not contain decimal places",
+		})
+		return
+	}
+
 	p := Product.Size
 	fmt.Println("---", Product.Size)
 	if p != "Medium" && p != "Small" && p != "Large" {

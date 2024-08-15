@@ -130,3 +130,7 @@ type Offer struct {
 	HasOffer             bool
 	OfferDiscountPercent uint
 }
+type BestSelling struct {
+	Count        int
+	CategoryName string
+}

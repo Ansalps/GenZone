@@ -48,6 +48,11 @@ func RegisterUrls(router *gin.Engine) {
 	adminGroup.POST("salesreport", middleware.AuthMiddleware("admin"), admin.GenerateSalesReport)
 	adminGroup.GET("salesreport", middleware.AuthMiddleware("admin"), admin.FilterSalesReport)
 	adminGroup.GET("salesreportdownload", middleware.AuthMiddleware("admin"), admin.FilterSalesReportPdfExcel)
+
+	//best selling
+	adminGroup.GET("bestselling", middleware.AuthMiddleware("admin"), admin.BestSelling)
+	adminGroup.GET("invoice/:order_id", middleware.AuthMiddleware("admin"), admin.GenerateInvoice)
+
 	//user
 
 	router.POST("/signup/", user.UserSignUp)

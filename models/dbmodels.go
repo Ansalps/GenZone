@@ -198,3 +198,15 @@ type WalletTransaction struct {
 	TransactionType string  `gorm:"size:50;not null"`
 	Description     string  `gorm:"size:255"`
 }
+
+type Invoice struct {
+	No             int
+	ProductID      string
+	ProductName    string
+	Quantity       uint
+	MRP            float64
+	CouponDiscount float64
+	OfferDiscount  float64
+	TotalDiscount  float64
+	FinalPrice     float64
+}

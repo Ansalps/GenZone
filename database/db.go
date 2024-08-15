@@ -39,4 +39,5 @@ func AutoMigrate() {
 	DB.AutoMigrate(&models.Offer{})
 	DB.AutoMigrate(&models.SalesReportItem{})
 	DB.AutoMigrate(&models.WalletTransaction{})
+	DB.AutoMigrate(&models.Invoice{})
 }

@@ -95,6 +95,55 @@ func FilterSalesReport(c *gin.Context) {
 	day := c.Query("day")
 	month := c.Query("month")
 	year := c.Query("year")
+
+	// Attempt to parse the date string
+	if day != "" {
+		_, err := time.Parse("2006-01-02", day)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "Invalid Date Format",
+			}) // The date is invalid
+			return
+		}
+	}
+
+	if month != "" {
+		int1, err := strconv.Atoi(month)
+		if err != nil {
+			fmt.Println("Error converting string to int:", err)
+		}
+
+		if int1 >= 1 && int1 <= 12 {
+			fmt.Println("ok")
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "invalid month format",
+			})
+			return
+		}
+	}
+
+	if year != "" {
+		// Parse the year string to an integer
+		yearint, err := strconv.Atoi(year)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "invalid year format",
+			})
+			return
+		}
+
+		// Get the current year
+		currentYear := time.Now().Year()
+
+		if yearint < 1900 || yearint > currentYear {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "year out of range, must be between 1900 and current year",
+			})
+			return
+		}
+	}
+
 	var salesreportitem []models.SalesReportItem
 	type SalesReportSummary struct {
 		TotalQuantity   uint    `json:"total_quantity"`
@@ -146,6 +195,7 @@ func FilterSalesReportPdfExcel(c *gin.Context) {
 	day := c.Query("day")
 	month := c.Query("month")
 	year := c.Query("year")
+
 	var salesreportitem []models.SalesReportItem
 
 	var summary SalesReportSummary
@@ -198,11 +248,11 @@ func FilterSalesReportPdfExcel(c *gin.Context) {
 	// os.Remove(filePath)
 
 	c.JSON(http.StatusOK, gin.H{
-		"sales report":         salesreportitem,
+		"sales_report":         salesreportitem,
 		"message":              "sales report generated successfully",
-		"Overall Sales Count":  summary.TotalQuantity,
-		"Overall Order Amount": summary.TotalPaidAmount,
-		"Overall Discount":     summary.TotalDiscount,
+		"overall_sales_count":  summary.TotalQuantity,
+		"overall_order_amount": summary.TotalPaidAmount,
+		"overall_discount":     summary.TotalDiscount,
 	})
 }
 

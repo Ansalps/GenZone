@@ -59,7 +59,7 @@ func OrderItemsList(c *gin.Context) {
 	}
 	database.DB.Raw(sql, orderId).Scan(&orderitems)
 	c.JSON(http.StatusOK, gin.H{
-		"order items": orderitems,
+		"order_items": orderitems,
 	})
 
 }
