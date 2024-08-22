@@ -145,6 +145,15 @@ func CreateOrder(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order"})
 		return
 	}
+
+	// Convert the amount from paise to rupees
+	if order["amount"] != nil {
+		amountInPaise := order["amount"].(float64)
+		amountInRupees := amountInPaise / 100
+		order["amount"] = amountInRupees
+		order["amount_due"] = amountInRupees
+	}
+
 	tempaddress1 := models.TempAddress{
 		AddressID:  tempaddress.AddressID,
 		CouponCode: tempaddress.CouponCode,

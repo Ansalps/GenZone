@@ -42,7 +42,7 @@ func Cart(c *gin.Context) {
 		"status":  true,
 		"message": "successfully retrieved user informations",
 		"data": gin.H{
-			"Cart Items": cart,
+			"cart_items": cart,
 		},
 	})
 }

@@ -7,11 +7,12 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
 
 func CouponList(c *gin.Context) {
-	var coupon []models.Coupon
+	var coupon []responsemodels.Coupon
 	database.DB.Raw(`SELECT * FROM coupons WHERE deleted_at IS NULL`).Scan(&coupon)
 	c.JSON(http.StatusOK, gin.H{
 		"data":    coupon,

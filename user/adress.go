@@ -61,7 +61,7 @@ func AddressList(c *gin.Context) {
 		"status":  true,
 		"message": "successfully retrieved user informations",
 		"data": gin.H{
-			"Address": Address,
+			"address": Address,
 		},
 	})
 }

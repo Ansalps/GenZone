@@ -4,13 +4,13 @@ import (
 	"net/http"
 
 	"github.com/Ansalps/GeZOne/database"
-	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
 
 func ListUsers(c *gin.Context) {
 	listorder := c.Query("list_order")
-	var users []models.User
+	var users []responsemodels.User
 	//tx := database.DB.Find(&users)
 	sql := `SELECT * FROM users`
 	if listorder == "" || listorder == "ASC" {

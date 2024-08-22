@@ -9,6 +9,7 @@ import (
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 	"github.com/jung-kurt/gofpdf/v2"
 	"github.com/xuri/excelize/v2"
@@ -84,7 +85,7 @@ func GenerateSalesReport(c *gin.Context) {
 		database.DB.Create(&salesreport)
 
 	}
-	var salesreportitem []models.SalesReportItem
+	var salesreportitem []responsemodels.SalesReportItem
 	database.DB.Find(&salesreportitem)
 	c.JSON(http.StatusOK, gin.H{
 		"sales report": salesreportitem,
@@ -144,7 +145,7 @@ func FilterSalesReport(c *gin.Context) {
 		}
 	}
 
-	var salesreportitem []models.SalesReportItem
+	var salesreportitem []responsemodels.SalesReportItem
 	type SalesReportSummary struct {
 		TotalQuantity   uint    `json:"total_quantity"`
 		TotalPaidAmount float64 `json:"total_paid_amount"`
@@ -177,11 +178,11 @@ func FilterSalesReport(c *gin.Context) {
 	fmt.Println("---", summary.TotalQuantity)
 
 	c.JSON(http.StatusOK, gin.H{
-		"sales report":         salesreportitem,
+		"sales_report":         salesreportitem,
 		"message":              "sales report generated succesfully",
-		"Overall Sales Count":  summary.TotalQuantity,
-		"Overall Order Amount": summary.TotalPaidAmount,
-		"Overall Discount":     summary.TotalDiscount,
+		"overall_sales_count":  summary.TotalQuantity,
+		"overall_order_amount": summary.TotalPaidAmount,
+		"overall_discount":     summary.TotalDiscount,
 	})
 }
 

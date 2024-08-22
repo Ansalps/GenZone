@@ -3,6 +3,7 @@ package helper
 import (
 	"fmt"
 	"net/smtp"
+	"os"
 	"strings"
 )
 
@@ -14,7 +15,7 @@ func SendOTPEmail(email string, otp string) error {
 	fmt.Println("hi")
 	// auth := smtp.PlainAuth("", "john.doe@gmail.com", "extremely_secret_pass", "smtp.gmail.com")
 	from := "genzoneapi@gmail.com"
-	password := "qqeg rvju rbim wcdk" // TODO: Replace with your email password or use a secure method to fetch it
+	password := os.Getenv("password") // TODO: Replace with your email password or use a secure method to fetch it
 	to := []string{email}
 	subject := "OTP for Signup"
 	body := "Your OTP is: " + otp

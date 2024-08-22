@@ -8,13 +8,14 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 func Category(c *gin.Context) {
 	listorder := c.Query("list_order")
-	var category []models.Category
+	var category []responsemodels.Category
 	//tx := database.DB.Find(&category)
 	sql := `SELECT * FROM categories WHERE deleted_at IS NULL`
 	if listorder == "" || listorder == "ASC" {

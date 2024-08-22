@@ -163,7 +163,7 @@ func OrderList(c *gin.Context) {
 	var orders []responsemodels.Order
 	var address responsemodels.Address
 
-	sql := `SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_applied,orders.order_status,orders.coupon_code,orders.discount_amount,orders.final_amount,orders.payment_method,addresses.created_at,addresses.updated_at,addresses.deleted_at,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
+	sql := `SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_applied,orders.order_status,orders.coupon_code,orders.discount_amount,orders.final_amount,orders.payment_method,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
 	FROM orders
 	JOIN addresses ON orders.address_id = addresses.id where orders.user_id = ?`
 	if listorder == "" || listorder == "ASC" {

@@ -180,9 +180,9 @@ type Wishlist struct {
 
 type Coupon struct {
 	gorm.Model
-	Code        string  `gorm:"not null"`
-	Discount    float64 `gorm:"type:decimal(5,2);not null"`
-	MinPurchase float64 `gorm:"type:decimal(10,2)"`
+	Code        string  `gorm:"not null" json:"code"`
+	Discount    float64 `gorm:"type:decimal(5,2);not null" json:"discount"`
+	MinPurchase float64 `gorm:"type:decimal(10,2)" json:"min_purchase"`
 }
 
 type Offer struct {

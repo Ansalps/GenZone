@@ -55,12 +55,12 @@ func CheckOut(c *gin.Context) {
 	}
 
 	type mix struct {
-		CartItem            []responsemodels.CartItems
-		Totalamount         float64
-		OfferApplied        float64
-		CouponDiscount      float64
-		CouponAppliedAmount float64
-		Address             []responsemodels.Address
+		CartItem            []responsemodels.CartItems `json:"cart_items"`
+		Totalamount         float64                    `json:"total_amount"`
+		OfferApplied        float64                    `json:"offer_applied"`
+		CouponDiscount      float64                    `json:"coupon_discount"`
+		CouponAppliedAmount float64                    `json:"coupon_applied_amount"`
+		Address             []responsemodels.Address   `json:"address"`
 	}
 	//var CartItem models.CartItems
 	var Mix mix

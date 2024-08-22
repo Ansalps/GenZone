@@ -28,7 +28,7 @@ func WalletListing(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	var wallet models.Wallet
+	var wallet responsemodels.Wallet
 	database.DB.Raw(`SELECT * from wallets where user_id = ?`, userID).Scan(&wallet)
 	c.JSON(http.StatusOK, gin.H{
 		"data":    wallet,
@@ -50,7 +50,7 @@ func WalletTransactionListing(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	var wallettransaction []models.WalletTransaction
+	var wallettransaction []responsemodels.WalletTransaction
 	database.DB.Raw(`SELECT * from wallet_transactions where user_id = ?`, userID).Scan(&wallettransaction)
 	c.JSON(http.StatusOK, gin.H{
 		"data":    wallettransaction,
