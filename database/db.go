@@ -12,7 +12,7 @@ var DB *gorm.DB
 
 func Initialize() {
 	var err error
-	dsn := "postgres://postgres:123@localhost:5432/genzone"
+	dsn := "postgres://postgres@localhost:5432/genzone"
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		fmt.Println("connection failed due to ", err)
