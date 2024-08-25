@@ -21,6 +21,10 @@ import (
 
 var RazorpayClient *razorpay.Client
 
+type OrderID struct {
+	Orderid string
+}
+
 func CreateOrder(c *gin.Context) {
 	RazorpayClient := razorpay.NewClient("rzp_test_I0KzQyB0QDtMcB", "5nCtZw13gRp79G3ptqHut3Fl")
 	claims, exists := c.Get("claims")
@@ -159,8 +163,12 @@ func CreateOrder(c *gin.Context) {
 		CouponCode: tempaddress.CouponCode,
 	}
 	database.DB.Create(&tempaddress1)
-
-	c.JSON(http.StatusOK, order)
+	fmt.Println("razor pay order id", order["id"])
+	order_id := order["id"].(string)
+	c.HTML(http.StatusOK, "razorpay.html", OrderID{
+		Orderid: order_id,
+	})
+	//c.JSON(http.StatusOK, order)
 }
 
 // type Order struct {

@@ -92,7 +92,7 @@ func CheckOut(c *gin.Context) {
 	Mix.CouponDiscount = coupondiscount
 	Mix.CouponAppliedAmount = Mix.Totalamount - coupondiscount
 	//var Address []responsemodels.Address
-	database.DB.Where("user_id = ?", userID).Find(&Mix.Address)
+	database.DB.Where("user_id = ? and deleted_at is null", userID).Find(&Mix.Address)
 
 	finalResult := helper.Responses("Showing CheckOut Page", Mix, nil)
 	c.JSON(http.StatusOK, finalResult)

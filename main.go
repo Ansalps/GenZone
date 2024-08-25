@@ -17,7 +17,7 @@ func main() {
 
 	router := gin.Default()
 	route.RegisterUrls(router)
-
+	router.LoadHTMLGlob("templates/*")
 	router.Run(":8080")
 
 }
