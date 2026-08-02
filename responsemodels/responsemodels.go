@@ -7,7 +7,7 @@ type Category struct {
 	ID           uint   ` json:"id"`
 	CategoryName string ` gorm:"unique" json:"category_name" validate:"required"`
 	Description  string `json:"category_description" validate:"required"`
-	ImageUrl     string `json:"category_imageUrl" validate:"required"`
+	ImageUrl     string `json:"category_image_url" validate:"required"`
 }
 
 type Product struct {

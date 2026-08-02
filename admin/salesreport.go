@@ -266,19 +266,19 @@ func GenerateExcelReport(salesReportItems []models.SalesReportItem, filePath str
 	// Create a new sheet
 	index, _ := f.NewSheet("SalesReport")
 
-	fmt.Println("Hello 2")
+	
 	// Set headers
 	headers := []string{"Order ID", "Product ID", "Product Name", "Quantity", "Price", "Order Status", "Payment Method", "Coupon Discount", "Offer Discount", "Total Discount", "Paid Amount", "Order Date"}
 	fmt.Println("hello 3")
 	for i, header := range headers {
-		fmt.Println("hello 4")
+		
 		col := string('A' + i)
 		f.SetCellValue("SalesReport", col+"1", header)
 	}
 
 	// Fill in data
 	for i, item := range salesReportItems {
-		fmt.Println("hello 5")
+		
 		row := strconv.Itoa(i + 2)
 		f.SetCellValue("SalesReport", "A"+row, item.OrderID)
 		f.SetCellValue("SalesReport", "B"+row, item.ProductID)
@@ -299,14 +299,14 @@ func GenerateExcelReport(salesReportItems []models.SalesReportItem, filePath str
 	// Set the active sheet
 	f.SetActiveSheet(index)
 
-	fmt.Println("hello 7")
+	
 	// Save the spreadsheet
 	if err := f.SaveAs(filePath); err != nil {
 		fmt.Println("Error saving file:", err)
 		return err
 	}
 
-	fmt.Println("hello 8")
+
 	return nil
 }
 func GeneratePDFReport(salesReportItems []models.SalesReportItem, summary SalesReportSummary, filePath string) error {

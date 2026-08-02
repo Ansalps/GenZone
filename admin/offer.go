@@ -7,6 +7,7 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +23,7 @@ func OfferList(c *gin.Context) {
 }
 
 func OfferAdd(c *gin.Context) {
-	var offeradd models.OfferAdd
+	var offeradd requestmodemodels.OfferAdd
 	err := c.BindJSON(&offeradd)
 	response := gin.H{
 		"status":  false,

@@ -7,13 +7,14 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/gin-gonic/gin"
 )
 
 func UnblockUser(c *gin.Context) {
 	//unblockID := c.Param("id")
 	//fmt.Println(unblockID)
-	var blockuser models.BlockUser
+	var blockuser requestmodemodels.BlockUser
 	err := c.BindJSON(&blockuser)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

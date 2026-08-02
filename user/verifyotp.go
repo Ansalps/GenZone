@@ -7,27 +7,27 @@ import (
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/gin-gonic/gin"
 )
 
 func VerifyOTPHandler(c *gin.Context) {
-	fmt.Println("HI")
+	
 	Email := c.Param("email")
-	var VerifyOTP models.VerifyOTP
+	var VerifyOTP requestmodemodels.VerifyOTP
 	if err := c.BindJSON(&VerifyOTP); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("", VerifyOTP.Otp)
-	fmt.Println("HELLO")
+	
 	var otp string
 	database.DB.Model(&models.OTP{}).Where("email = ?", Email).Pluck("otp", &otp)
-	fmt.Println("", otp)
+	
 	var otptime time.Time
 	database.DB.Model(&models.OTP{}).Where("email = ?", Email).Pluck("otp_expiry", &otptime)
 	if VerifyOTP.Otp != otp || time.Now().After(otptime) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired OTP"})
-		fmt.Println("hi hello")
+		
 		return
 	} else {
 		// var User models.User

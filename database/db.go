@@ -2,8 +2,11 @@ package database
 
 import (
 	"fmt"
+	"log"
+	"os"
 
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -11,8 +14,15 @@ import (
 var DB *gorm.DB
 
 func Initialize() {
-	var err error
-	dsn := "postgres://postgres:123@localhost:5432/genzone"
+
+	// Load the .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+	// Reads your string variable
+	dsn := os.Getenv("DATABASE_URL")
+	fmt.Println("Your DSN is:", dsn)
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		fmt.Println("connection failed due to ", err)
@@ -40,4 +50,9 @@ func AutoMigrate() {
 	DB.AutoMigrate(&models.SalesReportItem{})
 	DB.AutoMigrate(&models.WalletTransaction{})
 	DB.AutoMigrate(&models.Invoice{})
+	admin:=models.Admin{
+		Email: "admin@example.com",
+		Password: "admin",
+	}
+	DB.Model(&models.Admin{}).Create(&admin)
 }

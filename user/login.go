@@ -8,11 +8,12 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/gin-gonic/gin"
 )
 
 func UserLogin(c *gin.Context) {
-	var UserLogin models.UserLogin
+	var UserLogin requestmodemodels.UserLogin
 	//get the json from the request
 	if err := c.BindJSON(&UserLogin); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

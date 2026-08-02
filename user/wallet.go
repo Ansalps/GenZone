@@ -10,6 +10,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -75,7 +76,7 @@ func WalletOrder(c *gin.Context) {
 	userID := customClaims.ID
 
 	//addressid verifying
-	var OrderAdd models.OrderAdd
+	var OrderAdd requestmodemodels.OrderAdd
 	err := c.BindJSON(&OrderAdd)
 	response := gin.H{
 		"status":  false,

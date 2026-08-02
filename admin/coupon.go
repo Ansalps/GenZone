@@ -7,6 +7,7 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -21,7 +22,7 @@ func CouponList(c *gin.Context) {
 }
 
 func CouponAdd(c *gin.Context) {
-	var couponadd models.CouponAdd
+	var couponadd requestmodemodels.CouponAdd
 	err := c.BindJSON(&couponadd)
 	response := gin.H{
 		"status":  false,

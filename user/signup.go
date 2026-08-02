@@ -8,6 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +17,7 @@ import (
 
 // sign up
 func UserSignUp(c *gin.Context) {
-	var UserSignUp models.UserSignUp
+	var UserSignUp requestmodemodels.UserSignUp
 	err := c.BindJSON(&UserSignUp)
 	response := gin.H{
 		"status":  false,

@@ -9,6 +9,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -56,7 +57,7 @@ func ProfileEdit(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var Profile models.ProfileEdit
+	var Profile requestmodemodels.ProfileEdit
 	err := c.BindJSON(&Profile)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -109,7 +110,7 @@ func PasswordChange(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var PasswordChange models.PasswordChange
+	var PasswordChange requestmodemodels.PasswordChange
 	err := c.BindJSON(&PasswordChange)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -701,7 +702,7 @@ func WishlistAdd(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var wishlistadd models.WishlistAdd
+	var wishlistadd requestmodemodels.WishlistAdd
 	err := c.BindJSON(&wishlistadd)
 	response := gin.H{
 		"status":  false,
@@ -752,7 +753,7 @@ func WishlistRemove(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var wishlistadd models.WishlistAdd
+	var wishlistadd requestmodemodels.WishlistAdd
 	err := c.BindJSON(&wishlistadd)
 	response := gin.H{
 		"status":  false,

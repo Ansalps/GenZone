@@ -8,6 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -75,7 +76,7 @@ func ChangeOrderStatus(c *gin.Context) {
 		return
 	}
 
-	var Order models.CancelOrder
+	var Order requestmodemodels.CancelOrder
 	err := c.BindJSON(&Order)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

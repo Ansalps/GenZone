@@ -8,6 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -63,7 +64,7 @@ func CartAdd(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var Cart models.CartAdd
+	var Cart requestmodemodels.CartAdd
 	err := c.BindJSON(&Cart)
 	response := gin.H{
 		"status":  false,
@@ -211,7 +212,7 @@ func CartRemove(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var Cart models.CartAdd
+	var Cart requestmodemodels.CartAdd
 	err := c.BindJSON(&Cart)
 	response := gin.H{
 		"status":  false,

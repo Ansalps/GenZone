@@ -8,6 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -29,7 +30,7 @@ func CheckOut(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var couponcheckout models.CouponCheckout
+	var couponcheckout requestmodemodels.CouponCheckout
 	err := c.BindJSON(&couponcheckout)
 	response := gin.H{
 		"status":  false,
@@ -144,7 +145,7 @@ func CheckOutAddressEdit(c *gin.Context) {
 		})
 		return
 	}
-	var Address models.AddressAdd
+	var Address requestmodemodels.AddressAdd
 	err := c.BindJSON(&Address)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

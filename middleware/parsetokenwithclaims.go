@@ -3,7 +3,6 @@ package middleware
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -15,34 +14,20 @@ import (
 var Secret = []byte("your-secret-key")
 
 func AuthMiddleware(requiredRole string) gin.HandlerFunc {
-	fmt.Println("hi")
+	
 	return func(c *gin.Context) {
+		
 		//Get token from cookie
-		// tokenString, err := c.Cookie("jwt_token")
-		// if err != nil {
-		// 	c.JSON(http.StatusUnauthorized, gin.H{"message": "Please Log In"})
-		// 	c.Abort()
-		// 	return
-		// }
-		// //Authorization cookie required...
-		// claims := &CustomClaims{}
-		// token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		// 	return Secret, nil
-		// })
-
-		// // Get the token from the Authorization header
-		authHeader := c.GetHeader("Authorization")
-		fmt.Println("---", authHeader)
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+		tokenString, err := c.Cookie("jwt_token")
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Please Log In"})
 			c.Abort()
 			return
 		}
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		fmt.Println("-----------------------", tokenString)
-		//claims := &CustomClaims{}
+		claims := &CustomClaims{}
 		// Parse and validate the token
-		token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return Secret, nil
 		})
 

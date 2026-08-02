@@ -7,6 +7,7 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -41,7 +42,7 @@ func Product(c *gin.Context) {
 }
 func ProductAdd(c *gin.Context) {
 	fmt.Println("hello")
-	var Product models.ProductAdd
+	var Product requestmodemodels.ProductAdd
 	err := c.BindJSON(&Product)
 	response := gin.H{
 		"status":  false,
@@ -118,7 +119,7 @@ func ProductEdit(c *gin.Context) {
 		})
 		return
 	}
-	var Product models.ProductEdit
+	var Product requestmodemodels.ProductEdit
 	err := c.BindJSON(&Product)
 	response := gin.H{
 		"status":  false,

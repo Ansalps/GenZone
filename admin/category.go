@@ -1,26 +1,33 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-func Category(c *gin.Context) {
+func ReadCategory(c *gin.Context) {
 	listorder := c.Query("list_order")
 	var category []responsemodels.Category
 	//tx := database.DB.Find(&category)
 	sql := `SELECT * FROM categories WHERE deleted_at IS NULL`
-	if listorder == "" || listorder == "ASC" {
+
+	switch listorder {
+	case "":
 		sql += ` ORDER BY categories.id ASC`
-	} else if listorder == "DSC" {
+	case "ASC":
+		sql += ` ORDER BY categories.id ASC`
+	case "DSC":
 		sql += ` ORDER BY categories.id DESC`
 	}
 	tx := database.DB.Raw(sql).Scan(&category)
@@ -39,10 +46,43 @@ func Category(c *gin.Context) {
 		},
 	})
 }
+func ReadCategoryById(c *gin.Context) {
+	categoryID := c.Param("id")
 
-func CategoryAdd(c *gin.Context) {
-	fmt.Println("hello")
-	var Category models.CategoryEdit
+	var category models.Category
+
+	// Pass the pointer &category as the target for First()
+	err := database.DB.First(&category, "id = ?", categoryID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"status":  false,
+				"message": "category id does not exist",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "database error while reading category by id",
+		})
+		return
+	}
+
+	// Map your database model to your response model
+	c.JSON(http.StatusOK, gin.H{
+		"status": true,
+		"data": responsemodels.Category{
+			ID:   category.ID,
+			CategoryName: category.CategoryName,
+			Description: category.Description, 
+			ImageUrl: category.ImageUrl,
+		},
+	})
+}
+func AddCategory(c *gin.Context) {
+
+	var Category models.Category
 	err := c.BindJSON(&Category)
 	response := gin.H{
 		"status":  false,
@@ -62,16 +102,7 @@ func CategoryAdd(c *gin.Context) {
 		})
 		return
 	}
-	// var category models.Category
-	// tx := database.DB.Where("category_name = ?", Category.CategoryName).Find(&category)
-	// fmt.Println("", category)
-	// fmt.Println("--", Category.CategoryName)
-	// if tx.Error == nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{
-	// 		"message": "category name already exists",
-	// 	})
-	// 	return
-	// }
+
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM categories where category_name = ? AND deleted_at IS NULL`, Category.CategoryName).Scan(&count)
 	if count != 0 {
@@ -86,16 +117,19 @@ func CategoryAdd(c *gin.Context) {
 		ImageUrl:     Category.ImageUrl,
 	}
 
-	database.DB.Create(&category)
+	err = database.DB.Create(&category).Error
+	if err != nil {
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "database error while adding category"})
+	}
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Category Added"})
 
 }
 
-func CategoryEdit(c *gin.Context) {
-	fmt.Println("hello")
+func EditCategory(c *gin.Context) {
+
 	CategoryID := c.Param("id")
-	var category models.Category
-	fmt.Println(CategoryID)
+	var category requestmodemodels.Category
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE id = ? AND deleted_at IS NULL`, CategoryID).Scan(&count)
 	if count == 0 {
@@ -104,7 +138,7 @@ func CategoryEdit(c *gin.Context) {
 		})
 		return
 	}
-	var Category models.CategoryEdit
+	var Category models.Category
 	err := c.BindJSON(&Category)
 	response := gin.H{
 		"status":  false,
@@ -123,7 +157,7 @@ func CategoryEdit(c *gin.Context) {
 		})
 		return
 	}
-	category = models.Category{
+	category = requestmodemodels.Category{
 		CategoryName: Category.CategoryName,
 		Description:  Category.Description,
 		ImageUrl:     Category.ImageUrl,

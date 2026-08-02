@@ -1,4 +1,4 @@
-package models
+package requestmodemodels
 
 type AdminLogin struct {
 	Email    string `json:"email" validate:"required,email"`
@@ -30,7 +30,7 @@ type ProductEdit struct {
 	Popular      bool    `json:"popular" validate:"required"`
 	Size         string  ` json:"size" validate:"required"`
 }
-type CategoryEdit struct {
+type Category struct {
 	//ID           uint   `gorm:"primary key" json:"id"`
 	CategoryName string ` gorm:"unique" json:"category_name" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50"`
 	Description  string `json:"category_description" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=100"`

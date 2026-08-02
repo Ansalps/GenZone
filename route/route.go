@@ -9,62 +9,66 @@ import (
 
 func RegisterUrls(router *gin.Engine) {
 
-	//users
-	adminGroup := router.Group("admin/")
+	adminGroup := router.Group("admin")
+	
+	//admin login
+	adminGroup.POST("/login", admin.Login)
+	adminGroup.POST("/logout", admin.Logout)
+
+	//user management
 	adminGroup.GET("listusers", middleware.AuthMiddleware("admin"), admin.ListUsers)
 	adminGroup.PUT("listusers/blockuser", middleware.AuthMiddleware("admin"), admin.BlockUser)
 	adminGroup.PUT("listusers/unblockuser", middleware.AuthMiddleware("admin"), admin.UnblockUser)
-	//category
-
-	adminGroup.POST("/", admin.Login)
-	//adminCategory := router.Group("admin/Category/")
-	adminGroup.GET("category", middleware.AuthMiddleware("admin"), admin.Category)
-	adminGroup.POST("category", middleware.AuthMiddleware("admin"), admin.CategoryAdd)
-	adminGroup.PUT("category/:id", middleware.AuthMiddleware("admin"), admin.CategoryEdit)
+	
+	//category management
+	adminGroup.GET("category", middleware.AuthMiddleware("admin"), admin.ReadCategory)
+	adminGroup.GET("category/:id",middleware.AuthMiddleware("admin"),admin.ReadCategoryById)
+	adminGroup.POST("category", middleware.AuthMiddleware("admin"), admin.AddCategory)
+	adminGroup.PUT("category/:id", middleware.AuthMiddleware("admin"), admin.EditCategory)
 	adminGroup.DELETE("category/:id", middleware.AuthMiddleware("admin"), admin.CategoryDelete)
 
-	//products
+	//products management
 	adminGroup.GET("product", middleware.AuthMiddleware("admin"), admin.Product)
 	adminGroup.POST("product", middleware.AuthMiddleware("admin"), admin.ProductAdd)
 	adminGroup.PUT("product/:id", middleware.AuthMiddleware("admin"), admin.ProductEdit)
 	adminGroup.DELETE("product/:id", middleware.AuthMiddleware("admin"), admin.ProductDelete)
 
-	//order
+	//order management
 	adminGroup.GET("orderlist", middleware.AuthMiddleware("admin"), admin.OrderList)
 	adminGroup.GET("orderlist/items/:order_id", middleware.AuthMiddleware("admin"), admin.OrderItemsList)
 	adminGroup.PUT("order/changestatus/:id", middleware.AuthMiddleware("admin"), admin.ChangeOrderStatus)
 
-	//coupon
+	//coupon management
 	adminGroup.GET("coupon", middleware.AuthMiddleware("admin"), admin.CouponList)
 	adminGroup.POST("coupon", middleware.AuthMiddleware("admin"), admin.CouponAdd)
 	adminGroup.DELETE("coupon/:id", middleware.AuthMiddleware("admin"), admin.CouponRemove)
 
-	//productoffer
+	//productoffer management
 	adminGroup.GET("offer", middleware.AuthMiddleware("admin"), admin.OfferList)
 	adminGroup.POST("offer", middleware.AuthMiddleware("admin"), admin.OfferAdd)
 	adminGroup.DELETE("offer/:id", middleware.AuthMiddleware("admin"), admin.OfferRemove)
 
-	//salesreport
+	//salesreport generation
 	adminGroup.POST("salesreport", middleware.AuthMiddleware("admin"), admin.GenerateSalesReport)
 	adminGroup.GET("salesreport", middleware.AuthMiddleware("admin"), admin.FilterSalesReport)
 	adminGroup.GET("salesreportdownload", middleware.AuthMiddleware("admin"), admin.FilterSalesReportPdfExcel)
 
-	//best selling
+	//best selling, invoice generation
 	adminGroup.GET("bestselling", middleware.AuthMiddleware("admin"), admin.BestSelling)
 	adminGroup.GET("invoice/:order_id", middleware.AuthMiddleware("admin"), admin.GenerateInvoice)
 
+	//public
+	router.POST("signup", user.UserSignUp)
+	router.POST("signup/verifyotp/:email", user.VerifyOTPHandler)
+	router.POST("signup/resendotp/:email", user.ResendOtp)
+	router.POST("login", user.UserLogin)
+	router.GET("auth/google/login", user.HandleGoogleLogin)
+	router.GET("auth/google/callback", user.HandleGoogleCallback)
+
+	router.GET("", user.ListProducts)
+	router.GET("searchproduct",  user.SearchProduct)
+
 	//user
-
-	router.POST("/signup/", user.UserSignUp)
-	router.POST("/login/", user.UserLogin)
-	router.POST("/signup/verifyotp/:email", user.VerifyOTPHandler)
-	router.POST("/signup/resendotp/:email", user.ResendOtp)
-	router.GET("/", middleware.AuthMiddleware("user"), user.ListProducts)
-	router.GET("/auth/google/login", user.HandleGoogleLogin)
-	router.GET("/auth/google/callback", user.HandleGoogleCallback)
-
-	router.GET("searchproduct", middleware.AuthMiddleware("user"), user.SearchProduct)
-
 	router.GET("profile", middleware.AuthMiddleware("user"), user.Profile)
 	router.PUT("profile", middleware.AuthMiddleware("user"), user.ProfileEdit)
 	router.GET("profile/userorders", middleware.AuthMiddleware("user"), user.OrderList)

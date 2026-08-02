@@ -8,22 +8,25 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/gin-gonic/gin"
 )
 
 func Login(c *gin.Context) {
-	var AdminLogin models.AdminLogin
+	var AdminLogin requestmodemodels.AdminLogin
 	err := c.BindJSON(&AdminLogin)
 	response := gin.H{
 		"status":  false,
 		"message": "failed to bind request",
 	}
 	if err != nil {
+		fmt.Println("error",err)
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 	err = helper.Validate(AdminLogin)
 	if err != nil {
+		fmt.Println("error",err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": err.Error(),
@@ -34,6 +37,7 @@ func Login(c *gin.Context) {
 	var Admin models.Admin
 	tx := database.DB.Where("email =? AND deleted_at IS NULL", AdminLogin.Email).First(&Admin)
 	if tx.Error != nil {
+		fmt.Println("error",err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "invalid email or password",
@@ -61,10 +65,21 @@ func Login(c *gin.Context) {
 	}
 	fmt.Println("", token)
 	// Set token as cookie
-	//c.SetCookie("jwt_token", token, 3600, "/", "", true, true)
+
+	//c.SetSameSite(http.SameSiteLaxMode)
+	// Clean, built-in helper method:
+	c.SetCookie(
+		"jwt_token", // Name (the key before '=')
+		token,       // Value
+		86400,       // MaxAge in seconds (1 day)
+		"/",         // Path
+		"localhost", // Domain
+		false,       // Secure (true in production for HTTPS)
+		true,        // HttpOnly (crucial for XSS protection!)
+	)
 
 	// Set the token in the Authorization header
-	c.Header("Authorization", "Bearer "+token)
+	//c.Header("Authorization", "Bearer "+token)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Admin Login successful", "token": token})
 }
