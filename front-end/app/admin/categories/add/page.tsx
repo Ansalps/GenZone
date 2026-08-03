@@ -1,9 +1,12 @@
 'use client'
 import CategoryForm from "@/components/category-from"
 import axios from "axios"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 export default function AddCategory(){
+    const router=useRouter();
+    const [isLoading,setIsLoading]=useState(false);
     //single state object holding form values
         const [formData,setFormData]=useState({
             categoryName:'',
@@ -24,7 +27,7 @@ export default function AddCategory(){
 
         // 3. formData is already a JS object containing all current values
         console.log('Form Data from State:', formData);
-
+        setIsLoading(true);
         try {
             const response = await axios.post('http://localhost:8080/admin/category', 
                 {
@@ -36,13 +39,15 @@ export default function AddCategory(){
             );
             if (response.status==200){
                 console.log('success')
-                window.location.href='/admin/categories'
+               router.push("/admin/categories");
             }
             console.log(response.data);
         } catch (error) {
             
             console.error(error);
-        }
+        } finally{
+            setIsLoading(false)
+        } 
     };
     return (
         <>
@@ -54,6 +59,7 @@ export default function AddCategory(){
                     <CategoryForm
                         formData={formData} 
                         onChange={handleChange}
+                        isLoading={isLoading}
                     />
                 </form>
             </div>

@@ -3,23 +3,25 @@ import axios from 'axios';
 import Link from 'next/link'; 
 import { useEffect, useState } from 'react';
 
-interface Category {
+interface Product {
     id: number;
+    category_id:number;
     category_name: string;
+    product_name:string;
     category_description: string;
     category_image_url?: string; 
 }
 
 export default function Categories(){
-    const [categories, setCategories] = useState<Category[]>([]);
-    
+    const [categories, setCategories] = useState<Product[]>([]);
+
     useEffect(()=>{
         async function fetchData() {
             try {
-                const response = await axios.get('http://localhost:8080/admin/category', {
+                const response = await axios.get('http://localhost:8080/admin/product', {
                     withCredentials: true
                 });
-                if (response.data?.status && response.data?.data?.categories) {
+                if (response.data?.status && response.data?.data?.products) {
                     setCategories(response.data.data.categories);
                 }
             } catch (error) {
@@ -38,7 +40,7 @@ export default function Categories(){
 
     try {
         await axios.delete(
-            `http://localhost:8080/admin/category/${id}`,
+            `http://localhost:8080/admin/product/${id}`,
             {
                 withCredentials: true,
             }

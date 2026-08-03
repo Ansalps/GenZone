@@ -18,11 +18,16 @@ func Product(c *gin.Context) {
 	//tx := database.DB.Find(&product)
 	// tx := database.DB.Raw(`SELECT * FROM categories join products on categories.id=products.category_id and products.deleted_at IS NULL AND categories.deleted_at IS NULL`).Scan(&product)
 	sql := `SELECT * FROM categories join products on categories.id=products.category_id and products.deleted_at IS NULL AND categories.deleted_at IS NULL`
-	if listorder == "" || listorder == "ASC" {
+
+	switch listorder{
+	case "":
 		sql += ` ORDER BY products.id ASC`
-	} else if listorder == "DSC" {
-		sql += ` ORDER BY products.id DESC`
+	case "ASC":
+		sql += ` ORDER BY products.id ASC`
+	case "DSC":
+		sql += ` ORDER BY products.id ASC`
 	}
+	
 	tx := database.DB.Raw(sql).Scan(&product)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{

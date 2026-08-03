@@ -1,11 +1,12 @@
 'use client'
 import axios from "axios";
 import { useEffect,useState } from "react"
-import { useParams } from 'next/navigation'
+import { useParams,useRouter } from 'next/navigation'
 import CategoryForm from "@/components/category-from";
 
 
 export default function EditCategory(){
+    const router = useRouter();
     const params = useParams();
     const id = params.id; // Extracts 'id' directly from the URL route
     const [formData,setFormData]=useState({
@@ -58,7 +59,7 @@ export default function EditCategory(){
             );
             if (response.status==200){
                 console.log('success')
-                window.location.href='/admin/categories'
+                router.push('/admin/categories');
             }
             console.log(response.data);
         } catch (error) {
