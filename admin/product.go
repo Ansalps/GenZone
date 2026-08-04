@@ -45,15 +45,16 @@ func Product(c *gin.Context) {
 	})
 
 }
-func ProductAdd(c *gin.Context) {
-	fmt.Println("hello")
-	var Product requestmodemodels.ProductAdd
+func AddProduct(c *gin.Context) {
+	
+	var Product requestmodemodels.Product
 	err := c.BindJSON(&Product)
 	response := gin.H{
 		"status":  false,
 		"message": "failed to bind request",
 	}
 	if err != nil {
+		fmt.Println(err)
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}

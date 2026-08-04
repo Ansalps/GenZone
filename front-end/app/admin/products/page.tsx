@@ -3,17 +3,27 @@ import axios from 'axios';
 import Link from 'next/link'; 
 import { useEffect, useState } from 'react';
 
+
+
 interface Product {
     id: number;
     category_id:number;
     category_name: string;
     product_name:string;
-    category_description: string;
-    category_image_url?: string; 
+    product_description:string;
+    product_image_url:string;
+    price:number;
+    stock:number;
+    popular:boolean;
+    size:string;
+    has_offer:boolean;
+    offer_discount_percent:number
 }
 
 export default function Categories(){
-    const [categories, setCategories] = useState<Product[]>([]);
+    
+
+    const [products, setProducts] = useState<Product[]>([]);
 
     useEffect(()=>{
         async function fetchData() {
@@ -22,7 +32,7 @@ export default function Categories(){
                     withCredentials: true
                 });
                 if (response.data?.status && response.data?.data?.products) {
-                    setCategories(response.data.data.categories);
+                    setProducts(response.data.data.products);
                 }
             } catch (error) {
                 console.error("Failed to load categories:", error);
@@ -46,8 +56,8 @@ export default function Categories(){
             }
         );
 
-        setCategories(prev =>
-            prev.filter(category => category.id !== id)
+        setProducts(prev =>
+            prev.filter(product => product.id !== id)
         );
     } catch (error) {
         console.error(error);
@@ -59,13 +69,13 @@ export default function Categories(){
             {/* Header Layout */}
             <div className="flex justify-between items-center w-full h-24 text-2xl bg-green-700 text-amber-50 p-6 border-b">
                 <div className='font-bold'>
-                    Categories Management
+                    Products Management
                 </div>
                 <Link 
-                    href="/admin/categories/add" 
+                    href="/admin/products/add" 
                     className="bg-blue-600 hover:bg-blue-700 text-sm font-medium text-amber-50 cursor-pointer py-2 px-4 rounded transition-colors"
                 >
-                    + Add Category
+                    + Add Product
                 </Link>
             </div>
 
@@ -73,59 +83,92 @@ export default function Categories(){
             <div className="p-6 w-full max-w-6xl mx-auto flex flex-col gap-2">
                 
                 {/* 1. Adjusted Header Grid Columns to allocate 2 tracks for Actions */}
-                <div className='grid grid-cols-12 bg-gray-200 p-3 rounded font-bold text-base text-gray-700 shadow-sm border border-gray-300'>
-                    <div className='col-span-1 text-center'>S.NO.</div>
-                    <div className='col-span-3'>Category Name</div>
-                    <div className='col-span-4'>Category Description</div> {/* Changed from col-span-5 to 4 */}
-                    <div className='col-span-2'>Category Image URL</div>   {/* Changed from col-span-3 to 2 */}
-                    <div className='col-span-2 text-center'>Actions</div>   {/* 2 columns for buttons */}
+               <div className="grid grid-cols-20 bg-gray-200 p-3 rounded font-bold text-sm text-gray-700 border">
+                    <div className="col-span-1 text-center">S.No</div>
+                    <div className="col-span-2">Category</div>
+                    <div className="col-span-2">Product</div>
+                    <div className="col-span-4">Description</div>
+                    <div className="col-span-2">Image URL</div>
+                    <div className="col-span-1 text-center">Price</div>
+                    <div className="col-span-1 text-center">Stock</div>
+                    <div className="col-span-1 text-center">Popular</div>
+                    <div className="col-span-1 text-center">Offer</div>
+                    <div className="col-span-2 text-center">Discount %</div>
+                    <div className="col-span-3 text-center">Actions</div>
                 </div>
 
-                {categories.length === 0 ? (
+                {products.length === 0 ? (
                     <div className="text-center text-gray-500 py-8 border border-dashed rounded mt-2">
-                        No categories found. Click Add Category to create one.
+                        No Products found. Click Add Product to create one.
                     </div>
                 ) : (
-                    categories.map((category, index) => (
+                    products.map((product, index) => (
                         /* 2. Matched data row layout with header grid allocation */
-                        <div 
-                            key={category.id} 
-                            className='grid grid-cols-12 items-center bg-white p-3 rounded text-sm text-gray-600 border border-gray-200 hover:bg-gray-50 shadow-xs transition-colors'
+                        <div
+                            key={product.id}
+                            className="grid grid-cols-20 items-center bg-white p-3 rounded border hover:bg-gray-50 text-sm"
                         >
-                            <div className='col-span-1 text-center font-semibold text-gray-800'>
+                            <div className="col-span-1 text-center">
                                 {index + 1}
                             </div>
-                            
-                            <div className='col-span-3 font-medium text-gray-900 capitalize'>
-                                {category.category_name}
-                            </div>
-                            
-                            <div className='col-span-4 pr-4 truncate' title={category.category_description}>
-                                {category.category_description}
-                            </div>
-                            
-                            <div className='col-span-2 truncate font-mono text-xs text-blue-500' title={category.category_image_url}>
-                                {category.category_image_url || "No image"}
+
+                            <div className="col-span-2 truncate">
+                                {product.category_name}
                             </div>
 
-                            {/* 3. Actions Column with Next.js Link passing dynamic Category ID */}
-                            <div className='col-span-2 flex justify-between items-center'>
+                            <div className="col-span-2 truncate">
+                                {product.product_name}
+                            </div>
+
+                            <div
+                                className="col-span-4 truncate"
+                                title={product.product_description}
+                            >
+                                {product.product_description}
+                            </div>
+
+                            <div
+                                className="col-span-2 truncate text-blue-600"
+                                title={product.product_image_url}
+                            >
+                                {product.product_image_url || "No image"}
+                            </div>
+
+                            <div className="col-span-1 text-center">
+                                ₹{product.price}
+                            </div>
+
+                            <div className="col-span-1 text-center">
+                                {product.stock}
+                            </div>
+
+                            <div className="col-span-1 text-center">
+                                {product.popular ? "Yes" : "No"}
+                            </div>
+
+                            <div className="col-span-1 text-center">
+                                {product.has_offer ? "Yes" : "No"}
+                            </div>
+
+                            <div className="col-span-2 text-center">
+                                {product.offer_discount_percent}%
+                            </div>
+
+                            <div className="col-span-3 flex justify-center gap-2">
                                 <Link
-                                    href={`/admin/categories/edit/${category.id}`}
-                                    className="bg-blue-500 hover:bg-blue-600 text-white font-medium text-xs py-1.5 px-4 rounded transition-colors cursor-pointer shadow-xs"
+                                    href={`/admin/product/edit/${product.id}`}
+                                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs"
                                 >
                                     Edit
                                 </Link>
+
                                 <button
-                                    onClick={() => handleDelete(category.id)}
-                                    className="bg-red-500 hover:bg-red-600 text-white font-medium text-xs py-1.5 px-4 rounded transition-colors"
+                                    onClick={() => handleDelete(product.id)}
+                                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs"
                                 >
                                     Delete
                                 </button>
                             </div>
-
-                                
-                            
                         </div>
                     ))
                 )}

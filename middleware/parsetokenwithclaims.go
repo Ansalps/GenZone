@@ -14,12 +14,13 @@ import (
 var Secret = []byte("your-secret-key")
 
 func AuthMiddleware(requiredRole string) gin.HandlerFunc {
-	
+	fmt.Println("hi hello in mid")
 	return func(c *gin.Context) {
-		
+		fmt.Println("hey hello")
 		//Get token from cookie
 		tokenString, err := c.Cookie("jwt_token")
 		if err != nil {
+			fmt.Println("error",err)
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Please Log In"})
 			c.Abort()
 			return

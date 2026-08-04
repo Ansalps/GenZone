@@ -32,6 +32,8 @@ type Product struct {
 	Size                 string   `gorm:"type:varchar(10); check:size IN ('Medium', 'Small', 'Large')" json:"size" validate:"required,oneof=Medium Small Large"`
 	HasOffer             bool     `gorm:"default:false"`
 	OfferDiscountPercent uint     `gorm:"default:0"`
+	DiscountAmount float64
+	TotalDiscountedAmount float64
 }
 
 // user

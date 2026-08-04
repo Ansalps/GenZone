@@ -5,6 +5,7 @@ import "time"
 type Category struct {
 	//gorm.Model
 	ID           uint   ` json:"id"`
+	CreatedAt	time.Time `json:"category_created_at"`
 	CategoryName string ` gorm:"unique" json:"category_name" validate:"required"`
 	Description  string `json:"category_description" validate:"required"`
 	ImageUrl     string `json:"category_image_url" validate:"required"`
@@ -18,7 +19,7 @@ type Product struct {
 	//Category     Category `gorm:"foriegnkey:CategoryID;references:ID" json:"category,omitempty"`
 	ProductName          string  `json:"product_name" validate:"required"`
 	Description          string  `json:"product_description" validate:"required"`
-	ImageUrl             string  `json:"product_imageUrl" validate:"required"`
+	ImageUrl             string  `json:"product_image_url" validate:"required"`
 	Price                float64 `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
 	Stock                int     `json:"stock"`
 	Popular              bool    `gorm:"type:boolean;default:false" json:"popular" validate:"required"`

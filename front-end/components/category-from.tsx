@@ -4,7 +4,8 @@
         formData: {
             categoryName: string;
             categoryDescription: string;
-            categoryImageUrl: string;
+            categoryImageUrl:string;
+           
         };
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
         isLoading:boolean;
@@ -26,14 +27,15 @@
                         required/>
                 </div>
 
+
                 <div className="flex flex-col">
                     <label htmlFor="categoryDescription">Category description *</label>
                     <input 
                         type="text" 
-                        id="categoryDescription" 
+                        id="categoryDescription"
                         name="categoryDescription"
                         value={formData.categoryDescription}
-                        onChange={onChange}
+                        onChange={onChange} 
                         className="border-black border p-1" 
                         required/>
                 </div>
@@ -49,6 +51,8 @@
                         className="border-black border p-1" 
                         required/>
                 </div>
+
+               
 
                 <button disabled={isLoading} type="submit" className="bg-black text-white p-2 mt-2 rounded">
                         {isLoading ? "Saving..." : "Submit"}

@@ -36,7 +36,13 @@ export default function AdminDashboard(){
             >
                 Categories
             </Link>
-            <button className="bg-blue-500 text-amber-50 cursor-pointer">products</button>
+            <Link 
+                href="/admin/products" // Change to your actual route path
+                className="bg-blue-500 text-amber-50 cursor-pointer p-2 rounded text-base"
+            >
+                products
+            </Link>
+            
             <button className="bg-blue-500 text-amber-50 cursor-pointer">orders</button>
             <button className="bg-blue-500 text-amber-50 cursor-pointer">coupons</button>
             <button className="bg-blue-500 text-amber-50 cursor-pointer">product offers</button>

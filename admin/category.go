@@ -17,6 +17,7 @@ import (
 )
 
 func ReadCategory(c *gin.Context) {
+	fmt.Println("is it here in REad Category")
 	listorder := c.Query("list_order")
 	var category []responsemodels.Category
 	//tx := database.DB.Find(&category)
@@ -24,11 +25,11 @@ func ReadCategory(c *gin.Context) {
 
 	switch listorder {
 	case "":
-		sql += ` ORDER BY categories.id ASC`
+		sql += ` ORDER BY categories.created_at ASC`
 	case "ASC":
-		sql += ` ORDER BY categories.id ASC`
+		sql += ` ORDER BY categories.created_at ASC`
 	case "DSC":
-		sql += ` ORDER BY categories.id DESC`
+		sql += ` ORDER BY categories.created_at DESC`
 	}
 	tx := database.DB.Raw(sql).Scan(&category)
 	if tx.Error != nil {

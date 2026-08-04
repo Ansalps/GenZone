@@ -4,17 +4,19 @@ type AdminLogin struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
 }
-type ProductAdd struct {
-	//ID         uint ` json:"id"`
-	//CategoryID   uint   `json:"category_id" validate:"required"`
+type Product struct {
+	
 	CategoryName string `json:"category_name" validate:"required"`
-	//Category    Category `gorm:"foriegnkey:CategoryID;references:ID"`
 	ProductName string  `json:"product_name" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50"`
 	Description string  `json:"product_description" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=100"`
-	ImageUrl    string  `json:"product_imageUrl" validate:"required,excludesall= "`
+	ImageUrl    string  `json:"product_image_url" validate:"required,excludesall= "`
 	Price       float64 ` json:"price" validate:"required,gt=0"`
 	Stock       uint    `json:"stock" validate:"required"`
-	Popular     bool    `json:"popular" validate:"required"`
+	Popular     bool    `json:"popular"`
+	HasOffer bool `json:"has_offer"`
+	OfferDiscountPercent float64 `json:"offer_discount_percent"`
+	DiscountAmount float64 `json:"discount_amount"`
+	TotalDiscountedAmount float64 `json:"total_discounted_amount"`
 	Size        string  ` json:"size" validate:"required"`
 }
 type ProductEdit struct {
