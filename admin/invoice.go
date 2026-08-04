@@ -94,7 +94,7 @@ func GenerateInvoice(c *gin.Context) {
 	var orderitems []models.OrderItems
 	database.DB.Raw(`SELECT * FROM order_items WHERE order_status!='return' AND order_status!='cancelled' AND order_id = ? order by product_id`, OrderID).Scan(&orderitems)
 
-	var productid string
+	var productid uint
 	fmt.Println("highest=====")
 	for i, v := range orderitems {
 		fmt.Println("is it enteing in rangee")
@@ -224,7 +224,10 @@ func GenerateInvoice(c *gin.Context) {
 	// Set data with alternating row colors
 	pdf.SetFont("Arial", "", 10)
 	fill := false
+	
 	for i, item := range invoiceitem {
+		
+	str := strconv.FormatUint(uint64(item.ProductID), 10)
 		if fill {
 			pdf.SetFillColor(230, 230, 230) // Slightly darker grey for alternating rows
 		} else {
@@ -233,7 +236,7 @@ func GenerateInvoice(c *gin.Context) {
 		fill = !fill
 		fmt.Println("hirrrrrhello ", i)
 		pdf.CellFormat(widths[0], 10, strconv.Itoa(int(item.No)), "1", 0, "C", true, 0, "")
-		pdf.CellFormat(widths[1], 10, item.ProductID, "1", 0, "C", true, 0, "")
+		pdf.CellFormat(widths[1], 10, str, "1", 0, "C", true, 0, "")
 		pdf.CellFormat(widths[2], 10, item.ProductName, "1", 0, "C", true, 0, "")
 		pdf.CellFormat(widths[3], 10, strconv.Itoa(int(item.Quantity)), "1", 0, "C", true, 0, "")
 		pdf.CellFormat(widths[4], 10, fmt.Sprintf("%.2f", item.MRP), "1", 0, "C", true, 0, "")

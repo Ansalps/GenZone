@@ -295,7 +295,7 @@ func PaymentWebhook(c *gin.Context) {
 			FinalAmount:    Finalamount,
 		}
 		database.DB.Create(&order)
-		var CartItems []models.CartItems
+		var CartItems []models.CartItem
 		database.DB.Where("user_id = ?", userID).Find(&CartItems)
 
 		var ID uint
@@ -307,13 +307,13 @@ func PaymentWebhook(c *gin.Context) {
 			//var Product models.Product
 			//database.DB.Where("id = ?", v.ProductID).First(&Product)
 			//database.DB.Where("price=?",v.)
-			fmt.Println("qty", v.Qty)
-			if v.Qty == 0 {
+			fmt.Println("qty", v.Quantity)
+			if v.Quantity == 0 {
 				continue
 			}
-			for i := 0; i < int(v.Qty); i++ {
+			for i := 0; i < int(v.Quantity); i++ {
 				var price float64
-				database.DB.Model(&models.CartItems{}).Where("product_id = ?", v.ProductID).Pluck("price", &price)
+				database.DB.Model(&models.CartItem{}).Where("product_id = ?", v.ProductID).Pluck("price", &price)
 				fmt.Println("id", ID)
 				fmt.Println("price printing--", price)
 				var offerdiscount float64
@@ -361,7 +361,7 @@ func PaymentWebhook(c *gin.Context) {
 			PaymentStatus: "paid",
 		}
 		database.DB.Create(&Payment)
-		database.DB.Where("user_id = ?", userID).Delete(&models.CartItems{})
+		database.DB.Where("user_id = ?", userID).Delete(&models.CartItem{})
 		var order1 responsemodels.Order
 		var address responsemodels.Address
 		var orderitems1 []responsemodels.OrderItems

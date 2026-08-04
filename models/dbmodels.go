@@ -12,40 +12,7 @@ type Admin struct {
 	Password string `json:"password"`
 }
 
-type Category struct {
-	gorm.Model
-	CategoryName string `json:"category_name" validate:"required"`
-	Description  string `json:"category_description" validate:"required"`
-	ImageUrl     string `json:"category_image_url" validate:"required"`
-}
 
-type Product struct {
-	gorm.Model
-	CategoryID           uint     `json:"category_id" validate:"required"`
-	Category             Category `gorm:"foriegnkey:CategoryID;references:ID" json:"category,omitempty"`
-	ProductName          string   `json:"product_name" validate:"required"`
-	Description          string   `json:"product_description" validate:"required"`
-	ImageUrl             string   `json:"product_imageUrl" validate:"required"`
-	Price                float64  `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
-	Stock                uint     `json:"stock"`
-	Popular              bool     `gorm:"type:boolean;default:false" json:"popular" validate:"required"`
-	Size                 string   `gorm:"type:varchar(10); check:size IN ('Medium', 'Small', 'Large')" json:"size" validate:"required,oneof=Medium Small Large"`
-	HasOffer             bool     `gorm:"default:false"`
-	OfferDiscountPercent uint     `gorm:"default:0"`
-	DiscountAmount float64
-	TotalDiscountedAmount float64
-}
-
-// user
-type User struct {
-	gorm.Model
-	FirstName string `validate:"required"`
-	LastName  string `validate:"required"`
-	Email     string `gorm:"unique" validate:"required"`
-	Password  string `validate:"required"`
-	Phone     string `json:"phone" validate:"required,numeric,len=10"`
-	Status    string `gorm:"type:varchar(10); check(status IN ('Active', 'Blocked', 'Deleted')) ;default:'Active'" json:"status" validate:"required"`
-}
 type TempUser struct {
 	FirstName string
 	LastName  string
@@ -82,24 +49,71 @@ type TempAddress struct {
 	CouponCode string `json:"coupon_code"`
 }
 
-//	type Cart struct {
-//		gorm.Model
-//		UserID string `validate:"required,numeric"`
-//		User   User   `gorm:"foriegnkey:UserID;references:ID"`
-//	}
-type CartItems struct {
+
+type User struct {
 	gorm.Model
-	UserID uint `validate:"required"`
-	User   User `gorm:"foriegnkey:UserID;references:ID"`
-	// CartID      string  `validate:"required,numeric"`
-	// Cart        Cart    `gorm:"foriegnkey:CartID;references:ID"`
-	ProductID   string  `validate:"required,numeric"`
-	Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
-	TotalAmount float64 `gorm:"type:decimal(10,2);default:0.00"  `
-	Qty         uint    `gorm:"default:0"`
-	Price       float64 `gorm:"type:decimal(10,2)" `
-	Discount    float64 `gorm:"default:0.00"`
-	FinalAmount float64
+	FirstName string `validate:"required"`
+	LastName  string `validate:"required"`
+	Email     string `gorm:"unique" validate:"required"`
+	Password  string `validate:"required"`
+	Phone     string `json:"phone" validate:"required,numeric,len=10"`
+	Status    string `gorm:"type:varchar(10); check(status IN ('Active', 'Blocked', 'Deleted')) ;default:'Active'" json:"status" validate:"required"`
+}
+
+type Category struct {
+	gorm.Model
+
+	CategoryName string `gorm:"unique;not null" json:"category_name" validate:"required"`
+	Description  string `json:"category_description" validate:"required"`
+	ImageURL     string `json:"category_image_url" validate:"required"`
+
+	Products []Product
+}
+
+type Product struct {
+	gorm.Model
+
+	CategoryID uint
+	Category   Category `json:"category,omitempty"`
+
+	ProductName string  `validate:"required"`
+	Description string  `validate:"required"`
+	ImageURL    string  `validate:"required"`
+	Price       float64 `gorm:"type:decimal(10,2)"`
+
+	Stock uint
+
+	Popular bool `gorm:"default:false"`
+
+	Size string `gorm:"type:varchar(10);check:size IN ('Small','Medium','Large')"`
+
+	HasOffer             bool `gorm:"default:false"`
+	OfferDiscountPercent uint `gorm:"default:0"`
+
+	DiscountAmount        float64
+	TotalDiscountedAmount float64
+}
+
+type Cart struct {
+	gorm.Model
+
+	UserID uint
+	User   User
+
+	CartItems []CartItem
+}
+
+type CartItem struct {
+	gorm.Model
+
+	CartID uint
+	Cart   Cart
+
+	ProductID uint
+	Product   Product
+
+	Quantity  uint
+	UnitPrice float64 `gorm:"type:decimal(10,2)"`
 }
 
 type Order struct {
@@ -122,7 +136,7 @@ type OrderItems struct {
 	gorm.Model
 	OrderID   uint    `validate:"required"`
 	Order     Order   `gorm:"foriegnkey:OrderID;references:ID"`
-	ProductID string  `validate:"required,numeric"`
+	ProductID uint  `validate:"required,numeric"`
 	Product   Product `gorm:"foriegnkey:ProductID;references:ID"`
 	//Qty         uint
 	Price float64
@@ -137,7 +151,7 @@ type OrderItems struct {
 }
 type SalesReportItem struct {
 	OrderID        uint
-	ProductID      string
+	ProductID      uint
 	ProductName    string
 	Qty            uint
 	Price          float64
@@ -199,7 +213,7 @@ type WalletTransaction struct {
 
 type Invoice struct {
 	No             int
-	ProductID      string
+	ProductID      uint
 	ProductName    string
 	Quantity       uint
 	MRP            float64

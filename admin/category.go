@@ -77,7 +77,7 @@ func ReadCategoryById(c *gin.Context) {
 			ID:   category.ID,
 			CategoryName: category.CategoryName,
 			Description: category.Description, 
-			ImageUrl: category.ImageUrl,
+			ImageUrl: category.ImageURL,
 		},
 	})
 }
@@ -115,7 +115,7 @@ func AddCategory(c *gin.Context) {
 	category := models.Category{
 		CategoryName: Category.CategoryName,
 		Description:  Category.Description,
-		ImageUrl:     Category.ImageUrl,
+		ImageURL:     Category.ImageURL,
 	}
 
 	err = database.DB.Create(&category).Error
@@ -161,7 +161,7 @@ func EditCategory(c *gin.Context) {
 	category = requestmodemodels.Category{
 		CategoryName: Category.CategoryName,
 		Description:  Category.Description,
-		ImageUrl:     Category.ImageUrl,
+		ImageUrl:     Category.ImageURL,
 	}
 	database.DB.Model(&models.Category{}).Where("id = ?", CategoryID).Updates(&category)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Category Updated Successfully"})

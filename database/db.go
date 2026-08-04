@@ -38,7 +38,7 @@ func AutoMigrate() {
 	DB.AutoMigrate(&models.TempUser{})
 	DB.AutoMigrate(&models.UserLoginMethod{})
 	DB.AutoMigrate(&models.Address{})
-	DB.AutoMigrate(&models.CartItems{})
+	DB.AutoMigrate(&models.CartItem{})
 	DB.AutoMigrate(&models.Order{})
 	DB.AutoMigrate(&models.OrderItems{})
 	DB.AutoMigrate(&models.Payments{})

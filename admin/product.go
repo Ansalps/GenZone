@@ -89,25 +89,25 @@ func AddProduct(c *gin.Context) {
 		fmt.Println("failed to execute query", err)
 	}
 	fmt.Println("count", count)
-	if count != 0 {
-		var categoryid uint
-		database.DB.Raw(`SELECT id from categories where category_name = ?`, Product.CategoryName).Scan(&categoryid)
-		//var product models.Product
-		product := models.Product{
-			CategoryID:  categoryid,
-			ProductName: Product.ProductName,
-			Description: Product.Description,
-			ImageUrl:    Product.ImageUrl,
-			Price:       Product.Price,
-			Stock:       Product.Stock,
-			Popular:     Product.Popular,
-			Size:        Product.Size,
-		}
-		database.DB.Create(&product)
-	} else {
+	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Category does not exist"})
 		return
 	}
+	var categoryid uint
+	database.DB.Raw(`SELECT id from categories where category_name = ?`, Product.CategoryName).Scan(&categoryid)
+	//var product models.Product
+	product := models.Product{
+		CategoryID:  categoryid,
+		ProductName: Product.ProductName,
+		Description: Product.Description,
+		ImageURL:    Product.ImageUrl,
+		Price:       Product.Price,
+		Stock:       Product.Stock,
+		Popular:     Product.Popular,
+		Size:        Product.Size,
+	}
+	database.DB.Create(&product)
+	
 
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Product Added Successfully"})
 
@@ -125,7 +125,7 @@ func ProductEdit(c *gin.Context) {
 		})
 		return
 	}
-	var Product requestmodemodels.ProductEdit
+	var Product requestmodemodels.Product
 	err := c.BindJSON(&Product)
 	response := gin.H{
 		"status":  false,
@@ -165,7 +165,7 @@ func ProductEdit(c *gin.Context) {
 			CategoryID:  categoryid,
 			ProductName: Product.ProductName,
 			Description: Product.Description,
-			ImageUrl:    Product.ImageUrl,
+			ImageURL:    Product.ImageUrl,
 			Price:       Product.Price,
 			Stock:       Product.Stock,
 			Popular:     Product.Popular,

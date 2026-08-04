@@ -21,7 +21,7 @@ func GenerateSalesReport(c *gin.Context) {
 	//database.DB.Find(&OrderItems)
 	database.DB.Raw(`SELECT * FROM order_items WHERE order_status='delivered' order by product_id,order_id`).Scan(&OrderItems)
 	var orderid uint
-	var productid string
+	var productid uint
 	for _, v := range OrderItems {
 
 		fmt.Println("first orderid ", orderid)
@@ -343,6 +343,8 @@ func GeneratePDFReport(salesReportItems []models.SalesReportItem, summary SalesR
 	pdf.SetFont("Arial", "", 10)
 	fill := false
 	for _, item := range salesReportItems {
+
+	str := strconv.FormatUint(uint64(item.ProductID), 10)
 		if fill {
 			pdf.SetFillColor(230, 230, 230) // Slightly darker grey for alternating rows
 		} else {
@@ -351,7 +353,7 @@ func GeneratePDFReport(salesReportItems []models.SalesReportItem, summary SalesR
 		fill = !fill
 
 		pdf.CellFormat(widths[0], 10, strconv.Itoa(int(item.OrderID)), "1", 0, "C", true, 0, "")
-		pdf.CellFormat(widths[1], 10, item.ProductID, "1", 0, "C", true, 0, "")
+		pdf.CellFormat(widths[1], 10, str, "1", 0, "C", true, 0, "")
 		pdf.CellFormat(widths[2], 10, item.ProductName, "1", 0, "C", true, 0, "")
 		pdf.CellFormat(widths[3], 10, strconv.Itoa(int(item.Qty)), "1", 0, "C", true, 0, "")
 		pdf.CellFormat(widths[4], 10, fmt.Sprintf("%.2f", item.Price), "1", 0, "C", true, 0, "")

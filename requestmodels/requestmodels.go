@@ -13,25 +13,14 @@ type Product struct {
 	Price       float64 ` json:"price" validate:"required,gt=0"`
 	Stock       uint    `json:"stock" validate:"required"`
 	Popular     bool    `json:"popular"`
+	Size        string  ` json:"size" validate:"required"`
 	HasOffer bool `json:"has_offer"`
 	OfferDiscountPercent float64 `json:"offer_discount_percent"`
 	DiscountAmount float64 `json:"discount_amount"`
 	TotalDiscountedAmount float64 `json:"total_discounted_amount"`
-	Size        string  ` json:"size" validate:"required"`
+	
 }
-type ProductEdit struct {
-	//ID         uint ` json:"id"`
-	//CategoryID uint `json:"category_id" validate:"required"`
-	//Category    Category `gorm:"foriegnkey:CategoryID;references:ID"`
-	CategoryName string  `json:"category_name" validate:"required"`
-	ProductName  string  `json:"product_name" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50"`
-	Description  string  `json:"product_description" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=100"`
-	ImageUrl     string  `json:"product_imageUrl" validate:"required,max=100,excludesall= "`
-	Price        float64 ` json:"price" validate:"required,gt=0"`
-	Stock        uint    `json:"stock" validate:"required"`
-	Popular      bool    `json:"popular" validate:"required"`
-	Size         string  ` json:"size" validate:"required"`
-}
+
 type Category struct {
 	//ID           uint   `gorm:"primary key" json:"id"`
 	CategoryName string ` gorm:"unique" json:"category_name" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50"`

@@ -66,14 +66,14 @@ func OfferAdd(c *gin.Context) {
 	database.DB.Model(&models.Product{}).Where("id = ?", offeradd.ProductID).Update("has_offer", true)
 	database.DB.Model(&models.Product{}).Where("id = ?", offeradd.ProductID).Update("offer_discount_percent", offeradd.DiscountPercentage)
 	var qty uint
-	database.DB.Model(&models.CartItems{}).Where("product_id = ?", offeradd.ProductID).Pluck("qty", &qty)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Pluck("qty", &qty)
 	var price float64
-	database.DB.Model(&models.CartItems{}).Where("product_id = ?", offeradd.ProductID).Pluck("price", &price)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Pluck("price", &price)
 	offerdiscount := price * float64(offeradd.DiscountPercentage) / 100
-	database.DB.Model(&models.CartItems{}).Where("product_id = ?", offeradd.ProductID).Update("discount", float64(qty)*offerdiscount)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Update("discount", float64(qty)*offerdiscount)
 	var totalamount float64
-	database.DB.Model(&models.CartItems{}).Where("product_id = ?", offeradd.ProductID).Pluck("total_amount", &totalamount)
-	database.DB.Model(&models.CartItems{}).Where("product_id = ?", offeradd.ProductID).Update("final_amount", totalamount-float64(qty)*offerdiscount)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Pluck("total_amount", &totalamount)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Update("final_amount", totalamount-float64(qty)*offerdiscount)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "offer added for the product",
 	})
@@ -94,9 +94,9 @@ func OfferRemove(c *gin.Context) {
 	database.DB.Where("id = ?", OfferID).Delete(&models.Offer{})
 	database.DB.Model(&models.Product{}).Where("id = ?", productid).Update("has_offer", false)
 	database.DB.Model(&models.Product{}).Where("id = ?", productid).Update("offer_discount_percent", 0)
-	database.DB.Model(&models.CartItems{}).Where("product_id = ?", productid).Update("discount", 0.00)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", productid).Update("discount", 0.00)
 	var totalamount float64
-	database.DB.Model(&models.CartItems{}).Where("product_id = ?", productid).Pluck("total_amount", &totalamount)
-	database.DB.Model(&models.CartItems{}).Where("product_id = ?", productid).Update("final_amount", totalamount)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", productid).Pluck("total_amount", &totalamount)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", productid).Update("final_amount", totalamount)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "offer deleted succesfully"})
 }
