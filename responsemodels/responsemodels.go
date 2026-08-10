@@ -14,6 +14,7 @@ type Category struct {
 type Product struct {
 	//gorm.Model
 	ID           uint   `json:"id"`
+	CreatedAt	time.Time `json:"created_at"`
 	CategoryID   uint   `json:"category_id" validate:"required"`
 	CategoryName string `json:"category_name" validate:"required"`
 	//Category     Category `gorm:"foriegnkey:CategoryID;references:ID" json:"category,omitempty"`
@@ -26,6 +27,8 @@ type Product struct {
 	Size                 string  `gorm:"type:varchar(10); check(size IN ('Medium', 'Small', 'Large'))" json:"size" validate:"required"`
 	HasOffer             bool    `json:"has_offer"`
 	OfferDiscountPercent uint    `json:"offer_discount_percent"`
+	DiscountAmount uint `json:"discount_amount"`
+	TotalDiscountedAmount uint `json:"total_discounted_amount"`
 }
 
 type CartItems struct {

@@ -9,6 +9,7 @@ export default function EditCategory(){
     const router = useRouter();
     const params = useParams();
     const id = params.id; // Extracts 'id' directly from the URL route
+    const [isLoading,setIsLoading]=useState(false);
     const [formData,setFormData]=useState({
         categoryName:'',
         categoryDescription:'',
@@ -44,7 +45,7 @@ export default function EditCategory(){
         }
         const handleSubmit=async (e:React.FormEvent<HTMLFormElement>) =>{
         e.preventDefault();
-
+            setIsLoading(true);
         // 3. formData is already a JS object containing all current values
         console.log('Form Data from State:', formData);
 
@@ -65,7 +66,9 @@ export default function EditCategory(){
         } catch (error) {
             
             console.error(error);
-        }
+        }finally{
+            setIsLoading(false)
+        } 
     };
     
     return (
@@ -78,6 +81,7 @@ export default function EditCategory(){
                     <CategoryForm
                         formData={formData} 
                         onChange={handleChange}
+                        isLoading={isLoading}
                     />
                 </form>
             </div>

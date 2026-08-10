@@ -17,7 +17,7 @@ import (
 )
 
 func ReadCategory(c *gin.Context) {
-	fmt.Println("is it here in REad Category")
+	
 	listorder := c.Query("list_order")
 	var category []responsemodels.Category
 	//tx := database.DB.Find(&category)

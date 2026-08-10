@@ -16,7 +16,7 @@ var Secret = []byte("your-secret-key")
 func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 	fmt.Println("hi hello in mid")
 	return func(c *gin.Context) {
-		fmt.Println("hey hello")
+		
 		//Get token from cookie
 		tokenString, err := c.Cookie("jwt_token")
 		if err != nil {
@@ -25,7 +25,7 @@ func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		fmt.Println("-----------------------", tokenString)
+		
 		claims := &CustomClaims{}
 		// Parse and validate the token
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
@@ -37,15 +37,7 @@ func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		var claim CustomClaims
-		fmt.Println("ggg", claim.Role)
-		// Check user role
-		//fmt.Println("fff",&CustomClaims.Role)
-
-		//Insufficient privileges
-
-		// Set claims in context
-		//c.Set("claims", claims)
+		
 		if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
 			if claims.Role != requiredRole {
 				c.JSON(http.StatusForbidden, gin.H{"message": "Insufficient privileges"})
@@ -59,13 +51,7 @@ func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		// fmt.Println("role1", claims.Role)
-		// fmt.Println("role2", requiredRole)
-		// if claims.Role != requiredRole {
-		// 	c.JSON(http.StatusForbidden, gin.H{"message": "Log in to continue"})
-		// 	c.Abort()
-		// 	return
-		// }
+		
 		c.Next()
 	}
 }

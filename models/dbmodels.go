@@ -90,8 +90,8 @@ type Product struct {
 	HasOffer             bool `gorm:"default:false"`
 	OfferDiscountPercent uint `gorm:"default:0"`
 
-	DiscountAmount        float64
-	TotalDiscountedAmount float64
+	DiscountAmount        float64 `gorm:"default:0"`
+	TotalDiscountedAmount float64 `gorm:"default:0"`
 }
 
 type Cart struct {

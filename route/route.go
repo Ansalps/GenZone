@@ -28,9 +28,10 @@ func RegisterUrls(router *gin.Engine) {
 	adminGroup.DELETE("category/:id", middleware.AuthMiddleware("admin"), admin.CategoryDelete)
 
 	//products management
-	adminGroup.GET("product", middleware.AuthMiddleware("admin"), admin.Product)
+	adminGroup.GET("product", middleware.AuthMiddleware("admin"), admin.ReadProducts)
+	adminGroup.GET("product/:id", middleware.AuthMiddleware("admin"), admin.ReadProductById)
 	adminGroup.POST("product", middleware.AuthMiddleware("admin"), admin.AddProduct)
-	adminGroup.PUT("product/:id", middleware.AuthMiddleware("admin"), admin.ProductEdit)
+	adminGroup.PUT("product/:id", middleware.AuthMiddleware("admin"), admin.EditProduct)
 	adminGroup.DELETE("product/:id", middleware.AuthMiddleware("admin"), admin.ProductDelete)
 
 	//order management
