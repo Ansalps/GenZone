@@ -85,7 +85,7 @@ func AddCategory(c *gin.Context) {
     // 1. Get textual form fields instead of c.BindJSON
     categoryName := c.PostForm("category_name")
     description := c.PostForm("description")
-
+	fmt.Println("hello")
     categoryReq := requestmodemodels.Category{
         CategoryName: categoryName,
         Description:  description,

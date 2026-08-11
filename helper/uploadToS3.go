@@ -22,6 +22,7 @@ import (
 
 func UploadToS3(fileHeader *multipart.FileHeader) (string, error) {
 	s3BucketName := os.Getenv("S3_BUCKET_NAME")
+	fmt.Println("s3BucketName")
 	aWSRegion := os.Getenv("AWSRegion")
 	fmt.Println("", s3BucketName)
 	// 1. Open the uploaded file
