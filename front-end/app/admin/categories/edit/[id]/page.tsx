@@ -1,90 +1,103 @@
 'use client'
+
 import axios from "axios";
-import { useEffect,useState } from "react"
-import { useParams,useRouter } from 'next/navigation'
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from 'next/navigation';
 import CategoryForm from "@/components/category-from";
 
-
-export default function EditCategory(){
+export default function EditCategory() {
     const router = useRouter();
     const params = useParams();
-    const id = params.id; // Extracts 'id' directly from the URL route
-    const [isLoading,setIsLoading]=useState(false);
-    const [formData,setFormData]=useState({
-        categoryName:'',
-        categoryDescription:'',
-        categoryImageUrl:''
-    })
-    useEffect(()=>{
-        async function fetchCategory(){
-            try{
-                const response= await axios.get(`http://localhost:8080/admin/category/${id}`,
-                    {withCredentials:true},
+    const id = params?.id as string;
+
+    const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(true);
+    const [formData, setFormData] = useState({
+        categoryName: '',
+        categoryDescription: '',
+        categoryImageUrl: ''
+    });
+
+    useEffect(() => {
+        if (!id) return;
+
+        async function fetchCategory() {
+            try {
+                const response = await axios.get(
+                    `http://localhost:8080/admin/category/${id}`,
+                    { withCredentials: true }
                 );
 
-                const category = response.data.data;
-
-                setFormData({
-                categoryName: category.category_name,
-                categoryDescription: category.category_description,
-                categoryImageUrl: category.category_image_url,
-                });
-            } catch(error){
-                console.log(error)
+                if (response.data?.data) {
+                    const category = response.data.data;
+                    setFormData({
+                        categoryName: category.category_name || '',
+                        categoryDescription: category.category_description || '',
+                        categoryImageUrl: category.category_image_url || '',
+                    });
+                }
+            } catch (error) {
+                console.error("Failed to fetch category details:", error);
+            } finally {
+                setIsFetching(false);
             }
         }
+
         fetchCategory();
-    },[id])
-    
-    const handleChange=(e:React.ChangeEvent<HTMLInputElement>)=>{
-            const {name,value}=e.target;
-            setFormData((prevData)=>({
-                ...prevData,
-                [name]: value // Updates only the field being edited
-            }))
-        }
-        const handleSubmit=async (e:React.FormEvent<HTMLFormElement>) =>{
+    }, [id]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData((prevData) => ({
+            ...prevData,
+            [name]: value
+        }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-            setIsLoading(true);
-        // 3. formData is already a JS object containing all current values
-        console.log('Form Data from State:', formData);
+        setIsLoading(true);
 
         try {
-            const response = await axios.put(`http://localhost:8080/admin/category/${id}`, 
+            const response = await axios.put(
+                `http://localhost:8080/admin/category/${id}`,
                 {
-                    'category_name':formData.categoryName,
-                    'category_description':formData.categoryDescription,
-                    'category_image_url':formData.categoryImageUrl
+                    category_name: formData.categoryName,
+                    category_description: formData.categoryDescription,
+                    category_image_url: formData.categoryImageUrl
                 },
                 { withCredentials: true }
             );
-            if (response.status==200){
-                console.log('success')
+
+            if (response.status === 200) {
                 router.push('/admin/categories');
             }
-            console.log(response.data);
         } catch (error) {
-            
-            console.error(error);
-        }finally{
-            setIsLoading(false)
-        } 
+            console.error("Failed to update category:", error);
+        } finally {
+            setIsLoading(false);
+        }
     };
-    
+
+    if (isFetching) {
+        return (
+            <div className="flex justify-center items-center h-screen text-gray-500">
+                Loading category details...
+            </div>
+        );
+    }
+
     return (
-        <>
-            <div className="font-bold text-2xl">
-                Edit Category
-            </div>
-            <div className="flex flex-col justify-center items-center h-screen gap-4">
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full max-w-xs">
-                    <CategoryForm
-                        formData={formData} 
-                        onChange={handleChange}
-                        isLoading={isLoading}
-                    />
-                </form>
-            </div>
-        </>
-    )
+        <div className="p-6 max-w-xl mx-auto">
+            <h1 className="font-bold text-2xl mb-6">Edit Category</h1>
+            
+            <form onSubmit={handleSubmit} className="w-full">
+                <CategoryForm
+                    formData={formData}
+                    onChange={handleChange}
+                    isLoading={isLoading}
+                />
+            </form>
+        </div>
+    );
 }

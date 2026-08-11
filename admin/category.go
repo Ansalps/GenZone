@@ -82,49 +82,85 @@ func ReadCategoryById(c *gin.Context) {
 	})
 }
 func AddCategory(c *gin.Context) {
+    // 1. Get textual form fields instead of c.BindJSON
+    categoryName := c.PostForm("category_name")
+    description := c.PostForm("description")
 
-	var Category models.Category
-	err := c.BindJSON(&Category)
-	response := gin.H{
-		"status":  false,
-		"message": "failed to bind request",
-	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response)
-		return
-	}
-	// Validate the content of the JSON
-	if err := helper.Validate(Category); err != nil {
-		fmt.Println("", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":     false,
-			"message":    err.Error(),
-			"error_code": http.StatusBadRequest,
-		})
-		return
-	}
+    categoryReq := requestmodemodels.Category{
+        CategoryName: categoryName,
+        Description:  description,
+    }
 
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM categories where category_name = ? AND deleted_at IS NULL`, Category.CategoryName).Scan(&count)
-	if count != 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "category name already exists",
-		})
-		return
-	}
-	category := models.Category{
-		CategoryName: Category.CategoryName,
-		Description:  Category.Description,
-		ImageURL:     Category.ImageURL,
-	}
+    // 2. Validate struct fields
+    if err := helper.Validate(categoryReq); err != nil {
+		fmt.Println("err",err)
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":     false,
+            "message":    err.Error(),
+            "error_code": http.StatusBadRequest,
+        })
+        return
+    }
 
-	err = database.DB.Create(&category).Error
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "database error while adding category"})
+    // 3. Check for existing category name
+    var count int64
+    err:=database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE category_name = ? AND deleted_at IS NULL`, categoryName).Scan(&count).Error
+	if err!=nil{
+		fmt.Println("err",err)
+		c.JSON(http.StatusInternalServerError,gin.H{})
 	}
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Category Added"})
+    if count != 0 {
+		fmt.Println("hi")
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "category name already exists",
+        })
+        return
+    }
 
+    // 4. Retrieve the uploaded image file header
+    fileHeader, err := c.FormFile("image")
+    if err != nil {
+		fmt.Println("err",err)
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "image file is required",
+        })
+        return
+    }
+
+    // 5. Upload the file to S3 using your helper
+    imageURL, err := helper.UploadToS3(fileHeader)
+    if err != nil {
+        log.Println("S3 Upload Error:", err)
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  false,
+            "message": "failed to upload image to S3",
+        })
+        return
+    }
+
+    // 6. Save the category record with the generated S3 image URL
+    category := models.Category{
+        CategoryName: categoryName,
+        Description:  description,
+        ImageURL:     imageURL,
+    }
+
+    if err := database.DB.Create(&category).Error; err != nil {
+        log.Println("DB Create Error:", err)
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  false,
+            "message": "database error while adding category",
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "status":  true,
+        "message": "Category Added",
+        "data":    category,
+    })
 }
 
 func EditCategory(c *gin.Context) {
@@ -161,7 +197,6 @@ func EditCategory(c *gin.Context) {
 	category = requestmodemodels.Category{
 		CategoryName: Category.CategoryName,
 		Description:  Category.Description,
-		ImageUrl:     Category.ImageURL,
 	}
 	database.DB.Model(&models.Category{}).Where("id = ?", CategoryID).Updates(&category)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Category Updated Successfully"})

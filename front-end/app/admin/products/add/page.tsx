@@ -1,105 +1,160 @@
 'use client'
-import ProductForm from "@/components/product-form"
+
+import ProductForm, { FormErrors } from "@/components/product-form"
 import axios from "axios"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { useCategories } from "@/hooks/useCategories"
 
+// 1. Define explicit Form State interface to fix "formData is undefined"
+export interface ProductFormData {
+    categoryName: string;
+    productName: string;
+    productDescription: string;
+    productImageUrl: string;
+    price: number;
+    stock: number;
+    size: string;
+    popular: boolean;
+    discountPercentage: number;
+}
 
+// 2. Pass ProductFormData as type parameter
+const validateForm = (data: ProductFormData): FormErrors => {
+    const errors: FormErrors = {};
 
-export default function AddProduct(){
+    if (!data.categoryName.trim()) {
+        errors.categoryName = "Please select a category";
+    }
+
+    if (!data.productName.trim()) {
+        errors.productName = "Product name is required";
+    } else if (data.productName.trim().length < 3) {
+        errors.productName = "Product name must be at least 3 characters";
+    }
+
+    if (!data.productDescription.trim()) {
+        errors.productDescription = "Description is required";
+    }
+
+    if (!data.productImageUrl.trim()) {
+        errors.productImageUrl = "Image URL is required";
+    } else if (!/^https?:\/\/.+/i.test(data.productImageUrl.trim())) {
+        errors.productImageUrl = "Must be a valid HTTP or HTTPS URL";
+    }
+
+    if (data.price <= 0) {
+        errors.price = "Price must be greater than 0";
+    }
+
+    if (data.stock < 0 || !Number.isInteger(data.stock)) {
+        errors.stock = "Stock must be a non-negative whole number";
+    }
+
+    if (!data.size) {
+        errors.size = "Please select a size";
+    } else if (!["Small", "Medium", "Large"].includes(data.size)) {
+        errors.size = "Size must be Small, Medium, or Large";
+    }
+
+    if (data.discountPercentage < 0 || data.discountPercentage > 100) {
+        errors.discountPercentage = "Discount percentage must be between 0 and 100";
+    }
+
+    return errors;
+};
+
+export default function AddProduct() {
     const { categories } = useCategories();
+    const router = useRouter();
+    const [isLoading, setIsLoading] = useState(false);
 
-    
+    // Cleaned state matching ProductFormData interface
+    const [formData, setFormData] = useState<ProductFormData>({
+        categoryName: '',
+        productName: '',
+        productDescription: '',
+        productImageUrl: '',
+        price: 0,
+        stock: 0,
+        size: '',
+        popular: false,
+        discountPercentage: 0,
+    });
 
-    const router=useRouter();
-    const [isLoading,setIsLoading]=useState(false);
-    //single state object holding form values
-        const [formData,setFormData]=useState({
-            categoryName:'',
-            productName:'',
-            productDescription:'',
-            productImageUrl:'',
-            price:0,
-            stock:0,
-            size:'',
-            popular:false,
-            hasOffer:false,
-            discountPercentage:0,
-            discountAmount:0,
-            totalDiscountedAmount:0
+    const [errors, setErrors] = useState<FormErrors>({});
 
-        })
+    const onChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    ) => {
+        const { name, value, type } = e.target;
 
-      const onChange = (
-            e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-            ) => {
-            const { name, value, type } = e.target;
-
-            setFormData((prev) => ({
-                ...prev,
-                [name]:
+        setFormData((prev) => ({
+            ...prev,
+            [name]:
                 type === "checkbox"
                     ? (e.target as HTMLInputElement).checked
                     : type === "number"
                     ? Number(value)
                     : value,
-            }));
-        };
+        }));
+    };
 
-    const handleSubmit=async (e:React.FormEvent<HTMLFormElement>) =>{
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        // 3. formData is already a JS object containing all current values
-        console.log('Form Data from State:', formData);
-        setIsLoading(true);
-        try {
-            console.log(`popular: ${formData.popular},has_offer:${formData.hasOffer}`)
-            const response = await axios.post('http://localhost:8080/admin/product', 
-                {
-                    'category_name':formData.categoryName,
-                    'product_name':formData.productName,
-                    'product_description':formData.productDescription,
-                    'product_image_url':formData.productImageUrl,
-                    'price':formData.price,
-                    'stock':formData.stock,
-                    'popular':formData.popular,
-                    'size':formData.size,
-                    'has_offer':formData.hasOffer,
-                    'offer_discount_percent':formData.discountPercentage,
-                    'discount_amount':formData.discountAmount,
-                    'total_discounted_amount':formData.totalDiscountedAmount
+        // Run validation
+        const newErrors = validateForm(formData);
 
+        // If errors exist, set state and STOP submission
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        // Clear previous errors if valid
+        setErrors({});
+        setIsLoading(true);
+
+        try {
+            const response = await axios.post(
+                'http://localhost:8080/admin/product',
+                {
+                    category_name: formData.categoryName,
+                    product_name: formData.productName,
+                    product_description: formData.productDescription,
+                    product_image_url: formData.productImageUrl,
+                    price: formData.price,
+                    stock: formData.stock,
+                    popular: formData.popular,
+                    size: formData.size,
+                    discount_percentage: formData.discountPercentage,
                 },
                 { withCredentials: true }
             );
-            if (response.status==200){
-                console.log('success')
-               router.push("/admin/products");
+
+            if (response.status === 200 || response.status === 201) {
+                router.push("/admin/products");
             }
-            console.log(response.data);
         } catch (error) {
-            
-            console.error(error);
-        } finally{
-            setIsLoading(false)
-        } 
+            console.error("Failed to add product:", error);
+        } finally {
+            setIsLoading(false);
+        }
     };
+
     return (
-        <>
-            <div className="font-bold text-2xl">
-                Add Product
-            </div>
-            <div className="flex flex-col justify-center items-center h-screen gap-4">
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full max-w-xs">
-                    <ProductForm
-                        formData={formData} 
-                        onChange={onChange}
-                        isLoading={isLoading}
-                        categories={categories}
-                    />
-                </form>
-            </div>
-        </>
-    )
+        <div className="p-6 max-w-4xl mx-auto">
+            <h1 className="font-bold text-2xl mb-6">Add Product</h1>
+            <form onSubmit={handleSubmit} className="w-full">
+                <ProductForm
+                    formData={formData}
+                    onChange={onChange}
+                    isLoading={isLoading}
+                    categories={categories}
+                    errors={errors}
+                />
+            </form>
+        </div>
+    );
 }

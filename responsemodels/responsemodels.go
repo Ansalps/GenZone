@@ -12,23 +12,19 @@ type Category struct {
 }
 
 type Product struct {
-	//gorm.Model
-	ID           uint   `json:"id"`
-	CreatedAt	time.Time `json:"created_at"`
-	CategoryID   uint   `json:"category_id" validate:"required"`
-	CategoryName string `json:"category_name" validate:"required"`
-	//Category     Category `gorm:"foriegnkey:CategoryID;references:ID" json:"category,omitempty"`
-	ProductName          string  `json:"product_name" validate:"required"`
-	Description          string  `json:"product_description" validate:"required"`
-	ImageUrl             string  `json:"product_image_url" validate:"required"`
-	Price                float64 `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
-	Stock                int     `json:"stock"`
-	Popular              bool    `gorm:"type:boolean;default:false" json:"popular" validate:"required"`
-	Size                 string  `gorm:"type:varchar(10); check(size IN ('Medium', 'Small', 'Large'))" json:"size" validate:"required"`
-	HasOffer             bool    `json:"has_offer"`
-	OfferDiscountPercent uint    `json:"offer_discount_percent"`
-	DiscountAmount uint `json:"discount_amount"`
-	TotalDiscountedAmount uint `json:"total_discounted_amount"`
+    ID                 uint      `json:"id"`
+    CreatedAt          time.Time `json:"created_at"`
+    UpdatedAt          time.Time `json:"updated_at"`
+    CategoryID         uint      `json:"category_id"`
+    CategoryName       string    `json:"category_name"`
+    ProductName        string    `json:"product_name"`
+    ProductDescription string    `json:"product_description"`
+    ProductImageUrl    string    `json:"product_image_url"`
+    Price              float64   `json:"price"`
+    Stock              int64     `json:"stock"`
+    Popular            bool      `json:"popular"`
+    Size               string    `json:"size"`
+    DiscountPercentage int64     `json:"discount_percentage"` // 0 if no offer exists
 }
 
 type CartItems struct {

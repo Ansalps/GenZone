@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"time"
 
 	"github.com/Ansalps/GeZOne/database"
@@ -11,9 +12,13 @@ import (
 )
 
 func init() {
+	// 1. MUST load .env FIRST before calling anything that uses env vars
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Println("Warning: Error loading .env file:", err)
+	}
 	database.Initialize()
 	database.AutoMigrate()
-	godotenv.Load(".env")
 }
 
 func main() {

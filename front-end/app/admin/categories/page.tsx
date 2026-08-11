@@ -63,9 +63,18 @@ export default function Categories() {
         <div className="min-h-screen bg-gray-100">
             {/* Header */}
             <div className="flex justify-between items-center bg-green-700 text-white px-8 py-6">
-                <h1 className="text-2xl font-bold">
-                    Categories Management
-                </h1>
+                <div className="flex items-center gap-4">
+                    {/* Back Button */}
+                    <Link
+                        href="/admin"
+                        className="bg-green-800 hover:bg-green-900 text-white px-4 py-2 rounded text-sm font-medium transition flex items-center gap-1 border border-green-600"
+                    >
+                        ← Back
+                    </Link>
+                    <h1 className="text-3xl font-bold">
+                        Categories Management
+                    </h1>
+                </div>
                  <div className="flex items-center gap-4">
                     <select
                         

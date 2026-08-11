@@ -3,6 +3,7 @@ package route
 import (
 	"github.com/Ansalps/GeZOne/admin"
 	"github.com/Ansalps/GeZOne/middleware"
+	"github.com/Ansalps/GeZOne/public"
 	"github.com/Ansalps/GeZOne/user"
 	"github.com/gin-gonic/gin"
 )
@@ -11,29 +12,30 @@ func RegisterUrls(router *gin.Engine) {
 
 	adminGroup := router.Group("admin")
 	
-	//admin login
+	//admin login/logout
 	adminGroup.POST("/login", admin.Login)
 	adminGroup.POST("/logout", admin.Logout)
 
-	//user management
-	adminGroup.GET("listusers", middleware.AuthMiddleware("admin"), admin.ListUsers)
-	adminGroup.PUT("listusers/blockuser", middleware.AuthMiddleware("admin"), admin.BlockUser)
-	adminGroup.PUT("listusers/unblockuser", middleware.AuthMiddleware("admin"), admin.UnblockUser)
-	
-	//category management
+	//admin category management
 	adminGroup.GET("category", middleware.AuthMiddleware("admin"), admin.ReadCategory)
 	adminGroup.GET("category/:id",middleware.AuthMiddleware("admin"),admin.ReadCategoryById)
 	adminGroup.POST("category", middleware.AuthMiddleware("admin"), admin.AddCategory)
 	adminGroup.PUT("category/:id", middleware.AuthMiddleware("admin"), admin.EditCategory)
 	adminGroup.DELETE("category/:id", middleware.AuthMiddleware("admin"), admin.CategoryDelete)
 
-	//products management
+	//admin products management
 	adminGroup.GET("product", middleware.AuthMiddleware("admin"), admin.ReadProducts)
 	adminGroup.GET("product/:id", middleware.AuthMiddleware("admin"), admin.ReadProductById)
 	adminGroup.POST("product", middleware.AuthMiddleware("admin"), admin.AddProduct)
 	adminGroup.PUT("product/:id", middleware.AuthMiddleware("admin"), admin.EditProduct)
 	adminGroup.DELETE("product/:id", middleware.AuthMiddleware("admin"), admin.ProductDelete)
 
+	//admin user management
+	adminGroup.GET("listusers", middleware.AuthMiddleware("admin"), admin.ListUsers)
+	adminGroup.PUT("listusers/blockuser", middleware.AuthMiddleware("admin"), admin.BlockUser)
+	adminGroup.PUT("listusers/unblockuser", middleware.AuthMiddleware("admin"), admin.UnblockUser)
+	
+	
 	//order management
 	adminGroup.GET("orderlist", middleware.AuthMiddleware("admin"), admin.OrderList)
 	adminGroup.GET("orderlist/items/:order_id", middleware.AuthMiddleware("admin"), admin.OrderItemsList)
@@ -59,14 +61,14 @@ func RegisterUrls(router *gin.Engine) {
 	adminGroup.GET("invoice/:order_id", middleware.AuthMiddleware("admin"), admin.GenerateInvoice)
 
 	//public
+	//router.GET("", public.ListProducts)
+	router.GET("",public.ReadCategory)
 	router.POST("signup", user.UserSignUp)
 	router.POST("signup/verifyotp/:email", user.VerifyOTPHandler)
 	router.POST("signup/resendotp/:email", user.ResendOtp)
 	router.POST("login", user.UserLogin)
 	router.GET("auth/google/login", user.HandleGoogleLogin)
 	router.GET("auth/google/callback", user.HandleGoogleCallback)
-
-	router.GET("", user.ListProducts)
 	router.GET("searchproduct",  user.SearchProduct)
 
 	//user

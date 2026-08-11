@@ -3,6 +3,18 @@ interface Category {
     category_name: string;
 }
 
+// Add Validation Errors interface
+export interface FormErrors {
+    categoryName?: string;
+    productName?: string;
+    productDescription?: string;
+    productImageUrl?: string;
+    price?: string;
+    stock?: string;
+    size?: string;
+    discountPercentage?: string;
+}
+
 interface ProductFormProps {
     formData: {
         categoryName: string;
@@ -13,16 +25,16 @@ interface ProductFormProps {
         stock: number;
         size: string;
         popular: boolean;
-        hasOffer: boolean;
         discountPercentage: number;
-        discountAmount: number;
-        totalDiscountedAmount: number;
+        // discountAmount: number;
+        // totalDiscountedAmount: number;
     };
     onChange: (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
     ) => void;
     isLoading: boolean;
     categories: Category[];
+    errors?: FormErrors; // <-- Passed from parent component
 }
 
 export default function ProductForm({
@@ -30,7 +42,20 @@ export default function ProductForm({
     onChange,
     isLoading,
     categories,
+    errors = {}, // Default to empty object
 }: ProductFormProps) {
+    // Dynamically calculate live preview amounts on the frontend
+    const price = Number(formData.price) || 0;
+    const discountPercent = Number(formData.discountPercentage) || 0;
+
+    const discountAmount = price > 0 && discountPercent > 0 
+        ? ((price * discountPercent) / 100).toFixed(2) 
+        : "0.00";
+
+    const finalPrice = price > 0 && discountPercent > 0 
+        ? (price - Number(discountAmount)).toFixed(2) 
+        : price.toFixed(2);
+
     return (
         <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -59,6 +84,9 @@ export default function ProductForm({
                             </option>
                         ))}
                     </select>
+                    {errors.categoryName && (
+                        <span className="text-red-500 text-xs mt-1">{errors.categoryName}</span>
+                    )}
                 </div>
 
                 {/* Product Name */}
@@ -76,6 +104,9 @@ export default function ProductForm({
                         className="border rounded p-2"
                         required
                     />
+                    {errors.productName && (
+                        <span className="text-red-500 text-xs mt-1">{errors.productName}</span>
+                    )}
                 </div>
 
                 {/* Description */}
@@ -93,6 +124,9 @@ export default function ProductForm({
                         className="border rounded p-2"
                         required
                     />
+                    {errors.productDescription && (
+                        <span className="text-red-500 text-xs mt-1">{errors.productDescription}</span>
+                    )}
                 </div>
 
                 {/* Image URL */}
@@ -110,23 +144,31 @@ export default function ProductForm({
                         className="border rounded p-2"
                         required
                     />
+                    {errors.productImageUrl && (
+                        <span className="text-red-500 text-xs mt-1">{errors.productImageUrl}</span>
+                    )}
                 </div>
 
                 {/* Price */}
                 <div className="flex flex-col">
                     <label htmlFor="price" className="mb-1">
-                        Price *
+                        Original Price ($) *
                     </label>
 
                     <input
                         type="number"
                         id="price"
                         name="price"
-                        value={formData.price}
+                        step="0.01"
+                        min="0"
+                        value={formData.price || ''}
                         onChange={onChange}
                         className="border rounded p-2"
                         required
                     />
+                    {errors.price && (
+                        <span className="text-red-500 text-xs mt-1">{errors.price}</span>
+                    )}
                 </div>
 
                 {/* Stock */}
@@ -139,11 +181,15 @@ export default function ProductForm({
                         type="number"
                         id="stock"
                         name="stock"
-                        value={formData.stock}
+                        min="0"
+                        value={formData.stock || ''}
                         onChange={onChange}
                         className="border rounded p-2"
                         required
                     />
+                    {errors.stock && (
+                        <span className="text-red-500 text-xs mt-1">{errors.stock}</span>
+                    )}
                 </div>
 
                 {/* Size */}
@@ -164,6 +210,9 @@ export default function ProductForm({
                         <option value="Medium">Medium</option>
                         <option value="Large">Large</option>
                     </select>
+                    {errors.size && (
+                        <span className="text-red-500 text-xs mt-1">{errors.size}</span>
+                    )}
                 </div>
 
                 {/* Popular */}
@@ -181,82 +230,62 @@ export default function ProductForm({
                     </label>
                 </div>
 
-                {/* Has Offer */}
-                <div className="flex items-center pt-2 gap-2 md:col-span-2">
-                    <input
-                        type="checkbox"
-                        id="hasOffer"
-                        name="hasOffer"
-                        checked={formData.hasOffer}
-                        onChange={onChange}
-                    />
+                
 
-                    <label htmlFor="hasOffer">
-                        Has Offer
+                {/* Offer Section Header */}
+                <div className="md:col-span-2 border-t pt-4 mt-2">
+                    <h3 className="font-semibold text-lg mb-1">Offer & Pricing Setup</h3>
+                    <p className="text-xs text-gray-500 mb-3">
+                        Set a discount percentage to automatically activate an offer for this product. Set to 0 if no offer.
+                    </p>
+                </div>
+                
+                {/* Discount Percentage Input */}
+                <div className="flex flex-col">
+                    <label htmlFor="discountPercentage" className="mb-1 text-sm font-medium">
+                        Discount Percentage (%)
                     </label>
+                    <input
+                        type="number"
+                        id="discountPercentage"
+                        name="discountPercentage"
+                        min="0"
+                        max="100"
+                        value={formData.discountPercentage || ''}
+                        onChange={onChange}
+                        className="border rounded p-2"
+                        placeholder="0"
+                    />
+                    {errors.discountPercentage && (
+                        <span className="text-red-500 text-xs mt-1">{errors.discountPercentage}</span>
+                    )}
                 </div>
 
-                {/* Offer Fields */}
-                {formData.hasOffer && (
-                    <>
-                        <div className="flex flex-col">
-                            <label
-                                htmlFor="discountPercentage"
-                                className="mb-1"
-                            >
-                                Discount Percentage *
-                            </label>
+                {/* Calculated Live Discount Preview (Disabled/Read-only) */}
+                <div className="flex flex-col">
+                    <label className="mb-1 text-sm font-medium text-gray-500">
+                        Discount Amount (Auto-calculated)
+                    </label>
+                    <input
+                        type="text"
+                        disabled
+                        value={`$${discountAmount}`}
+                        className="border rounded p-2 bg-gray-100 text-gray-600 font-medium cursor-not-allowed"
+                    />
+                </div>
 
-                            <input
-                                type="number"
-                                id="discountPercentage"
-                                name="discountPercentage"
-                                value={formData.discountPercentage}
-                                onChange={onChange}
-                                className="border rounded p-2"
-                                required
-                            />
-                        </div>
-
-                        <div className="flex flex-col">
-                            <label
-                                htmlFor="discountAmount"
-                                className="mb-1"
-                            >
-                                Discount Amount *
-                            </label>
-
-                            <input
-                                type="number"
-                                id="discountAmount"
-                                name="discountAmount"
-                                value={formData.discountAmount}
-                                onChange={onChange}
-                                className="border rounded p-2"
-                                required
-                            />
-                        </div>
-
-                        <div className="flex flex-col md:col-span-2">
-                            <label
-                                htmlFor="totalDiscountedAmount"
-                                className="mb-1"
-                            >
-                                Total Discounted Amount *
-                            </label>
-
-                            <input
-                                type="number"
-                                id="totalDiscountedAmount"
-                                name="totalDiscountedAmount"
-                                value={formData.totalDiscountedAmount}
-                                onChange={onChange}
-                                className="border rounded p-2"
-                                required
-                            />
-                        </div>
-                    </>
-                )}
+                {/* Calculated Final Price Preview (Disabled/Read-only) */}
+                <div className="flex flex-col md:col-span-2">
+                    <label className="mb-1 text-sm font-medium text-gray-500">
+                        Final Price Customer Pays (Auto-calculated)
+                    </label>
+                    <input
+                        type="text"
+                        disabled
+                        value={`$${finalPrice}`}
+                        className="border rounded p-2 bg-gray-100 text-gray-900 font-bold text-lg cursor-not-allowed"
+                    />
+                </div>
             </div>
 
             <button

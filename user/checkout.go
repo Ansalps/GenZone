@@ -10,6 +10,7 @@ import (
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
+	"github.com/Ansalps/GeZOne/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -95,7 +96,7 @@ func CheckOut(c *gin.Context) {
 	//var Address []responsemodels.Address
 	database.DB.Where("user_id = ? and deleted_at is null", userID).Find(&Mix.Address)
 
-	finalResult := helper.Responses("Showing CheckOut Page", Mix, nil)
+	finalResult := utils.Responses("Showing CheckOut Page", Mix, nil)
 	c.JSON(http.StatusOK, finalResult)
 	// c.JSON(http.StatusOK, gin.H{
 	// 	"status":  true,

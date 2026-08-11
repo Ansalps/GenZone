@@ -23,8 +23,8 @@ func OfferList(c *gin.Context) {
 }
 
 func OfferAdd(c *gin.Context) {
-	var offeradd requestmodemodels.OfferAdd
-	err := c.BindJSON(&offeradd)
+	var req requestmodemodels.Offer
+	err := c.BindJSON(&req)
 	response := gin.H{
 		"status":  false,
 		"message": "failed to bind request",
@@ -34,7 +34,7 @@ func OfferAdd(c *gin.Context) {
 		return
 	}
 	// Validate the content of the JSON
-	if err := helper.Validate(offeradd); err != nil {
+	if err := helper.Validate(req); err != nil {
 		fmt.Println("", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":     false,
@@ -44,14 +44,14 @@ func OfferAdd(c *gin.Context) {
 		return
 	}
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM products WHERE id = ?`, offeradd.ProductID).Scan(&count)
+	database.DB.Raw(`SELECT COUNT(*) FROM products WHERE id = ?`, req.ProductID).Scan(&count)
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "product does not exist",
 		})
 	}
 	var count1 int64
-	database.DB.Raw(`SELECT COUNT(*) FROM offers WHERE product_id = ? and deleted_at IS NULL`, offeradd.ProductID).Scan(&count1)
+	database.DB.Raw(`SELECT COUNT(*) FROM offers WHERE product_id = ? and deleted_at IS NULL`, req.ProductID).Scan(&count1)
 	if count1 > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "productoffer already exists, a product cannot have more than 1 offer",
@@ -59,21 +59,21 @@ func OfferAdd(c *gin.Context) {
 		return
 	}
 	offer := models.Offer{
-		ProductID:          offeradd.ProductID,
-		DiscountPercentage: offeradd.DiscountPercentage,
+		ProductID:          req.ProductID,
+		DiscountPercentage: req.DiscountPercentage,
 	}
 	database.DB.Create(&offer)
-	database.DB.Model(&models.Product{}).Where("id = ?", offeradd.ProductID).Update("has_offer", true)
-	database.DB.Model(&models.Product{}).Where("id = ?", offeradd.ProductID).Update("offer_discount_percent", offeradd.DiscountPercentage)
+	database.DB.Model(&models.Product{}).Where("id = ?", req.ProductID).Update("has_offer", true)
+	database.DB.Model(&models.Product{}).Where("id = ?", req.ProductID).Update("offer_discount_percent", req.DiscountPercentage)
 	var qty uint
-	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Pluck("qty", &qty)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", req.ProductID).Pluck("qty", &qty)
 	var price float64
-	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Pluck("price", &price)
-	offerdiscount := price * float64(offeradd.DiscountPercentage) / 100
-	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Update("discount", float64(qty)*offerdiscount)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", req.ProductID).Pluck("price", &price)
+	offerdiscount := price * float64(req.DiscountPercentage) / 100
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", req.ProductID).Update("discount", float64(qty)*offerdiscount)
 	var totalamount float64
-	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Pluck("total_amount", &totalamount)
-	database.DB.Model(&models.CartItem{}).Where("product_id = ?", offeradd.ProductID).Update("final_amount", totalamount-float64(qty)*offerdiscount)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", req.ProductID).Pluck("total_amount", &totalamount)
+	database.DB.Model(&models.CartItem{}).Where("product_id = ?", req.ProductID).Update("final_amount", totalamount-float64(qty)*offerdiscount)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "offer added for the product",
 	})

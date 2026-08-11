@@ -9,6 +9,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/Ansalps/GeZOne/requestmodels"
+	"github.com/Ansalps/GeZOne/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -90,7 +91,7 @@ func UserSignUp(c *gin.Context) {
 	if count == 0 {
 		// Generate OTP
 		fmt.Println("print email")
-		Otp1 := helper.GenerateOTP()
+		Otp1 := utils.GenerateOTP()
 
 		// Send OTP via email
 		err := helper.SendOTPEmail(UserSignUp.Email, Otp1)

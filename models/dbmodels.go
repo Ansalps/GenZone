@@ -87,11 +87,14 @@ type Product struct {
 
 	Size string `gorm:"type:varchar(10);check:size IN ('Small','Medium','Large')"`
 
-	HasOffer             bool `gorm:"default:false"`
-	OfferDiscountPercent uint `gorm:"default:0"`
+}
 
-	DiscountAmount        float64 `gorm:"default:0"`
-	TotalDiscountedAmount float64 `gorm:"default:0"`
+type Offer struct {
+	gorm.Model
+	ProductID          uint `gorm:"not null"`
+	DiscountPercentage float64 `gorm:"not null"`
+	StartAt time.Time
+	EndAt time.Time
 }
 
 type Cart struct {
@@ -197,11 +200,7 @@ type Coupon struct {
 	MinPurchase float64 `gorm:"type:decimal(10,2)" json:"min_purchase"`
 }
 
-type Offer struct {
-	gorm.Model
-	ProductID          uint `gorm:"not null"`
-	DiscountPercentage uint `gorm:"not null"`
-}
+
 
 type WalletTransaction struct {
 	gorm.Model

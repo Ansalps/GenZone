@@ -8,12 +8,13 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
+	"github.com/Ansalps/GeZOne/utils"
 	"github.com/gin-gonic/gin"
 )
 
 func ResendOtp(c *gin.Context) {
 	Email := c.Param("email")
-	Otp := helper.GenerateOTP()
+	Otp := utils.GenerateOTP()
 	//var VerifyOTP models.VerifyOTP
 	//VerifyOTP.Otp=Otp
 	// Send OTP via email

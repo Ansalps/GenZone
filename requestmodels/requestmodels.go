@@ -4,6 +4,12 @@ type AdminLogin struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
 }
+
+type Category struct {
+	CategoryName string `json:"category_name" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50"`
+	Description  string `json:"category_description" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=100"`
+}
+
 type Product struct {
 	
 	CategoryName string `json:"category_name" validate:"required"`
@@ -14,19 +20,11 @@ type Product struct {
 	Stock       uint    `json:"stock" validate:"required"`
 	Popular     bool    `json:"popular"`
 	Size        string  ` json:"size" validate:"required"`
-	HasOffer bool `json:"has_offer"`
-	OfferDiscountPercent float64 `json:"offer_discount_percent"`
-	DiscountAmount float64 `json:"discount_amount"`
-	TotalDiscountedAmount float64 `json:"total_discounted_amount"`
+	DiscountPercentage float64 `json:"discount_percentage"`
 	
 }
 
-type Category struct {
-	//ID           uint   `gorm:"primary key" json:"id"`
-	CategoryName string ` gorm:"unique" json:"category_name" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50"`
-	Description  string `json:"category_description" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=100"`
-	ImageUrl     string `json:"category_imageUrl" validate:"required,max=100,excludesall= "`
-}
+
 type UserSignUp struct {
 	FirstName       string `validate:"required,excludesall= " json:"name"`
 	LastName        string `validate:"required,nameOrInitials" json:"last_name"`
@@ -101,9 +99,9 @@ type CouponAdd struct {
 	Discount    float64 `validate:"required" json:"discount"`
 	MinPurchase float64 `validate:"required" json:"min_purchase"`
 }
-type OfferAdd struct {
+type Offer struct {
 	ProductID          uint `validate:"required" json:"product_id"`
-	DiscountPercentage uint `validate:"required" json:"discount_percentage"`
+	DiscountPercentage float64 `validate:"required" json:"discount_percentage"`
 }
 type CouponCheckout struct {
 	CouponCode string `json:"coupon_code"`

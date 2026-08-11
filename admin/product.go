@@ -15,38 +15,54 @@ import (
 )
 
 func ReadProducts(c *gin.Context) {
-	listorder := c.Query("list_order")
-	var product []responsemodels.Product
-	//tx := database.DB.Find(&product)
-	// tx := database.DB.Raw(`SELECT * FROM categories join products on categories.id=products.category_id and products.deleted_at IS NULL AND categories.deleted_at IS NULL`).Scan(&product)
-	sql := `SELECT * FROM categories join products on categories.id=products.category_id and products.deleted_at IS NULL AND categories.deleted_at IS NULL`
+    listorder := c.Query("list_order")
 
-	switch listorder{
-	case "":
-		sql += ` ORDER BY products.created_at ASC`
-	case "ASC":
-		sql += ` ORDER BY products.created_at ASC`
-	case "DSC":
-		sql += ` ORDER BY products.created_at DESC`
-	}
-	
-	tx := database.DB.Raw(sql).Scan(&product)
-	if tx.Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"status":  false,
-			"message": "failed to retrieve data from the database, or the data doesn't exists",
-		})
-		return
-	}
-	fmt.Println("response",product)
-	c.JSON(http.StatusOK, gin.H{
-		"status":  true,
-		"message": "successfully retrieved user informations",
-		"data": gin.H{
-			"products": product,
-		},
-	})
+    // Explicitly select columns to avoid ID collisions between joined tables
+    sql := `
+        SELECT 
+            p.id,
+            p.created_at,
+            p.updated_at,
+            p.category_id,
+            c.category_name,
+            p.product_name,
+            p.description AS product_description,
+            p.image_url AS product_image_url,
+            p.price,
+            p.stock,
+            p.popular,
+            p.size,
+            COALESCE(o.discount_percentage, 0) AS discount_percentage
+        FROM products p
+        JOIN categories c ON c.id = p.category_id AND c.deleted_at IS NULL
+        LEFT JOIN offers o ON p.id = o.product_id AND o.deleted_at IS NULL
+        WHERE p.deleted_at IS NULL
+    `
 
+    // Sorting logic
+    switch listorder {
+    case "DSC":
+        sql += ` ORDER BY p.created_at DESC`
+    default: // Handles "ASC" and empty string default
+        sql += ` ORDER BY p.created_at ASC`
+    }
+
+    var products []responsemodels.Product
+    if err := database.DB.Raw(sql).Scan(&products).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  false,
+            "message": "Failed to retrieve products from database",
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "status":  true,
+        "message": "Successfully retrieved products",
+        "data": gin.H{
+            "products": products,
+        },
+    })
 }
 func ReadProductById(c *gin.Context){
 	ProductID:=c.Param("id")
@@ -99,94 +115,106 @@ func ReadProductById(c *gin.Context){
 			CategoryID: product.CategoryID, 
 			CategoryName: category.CategoryName,
 			ProductName: product.ProductName,
-			Description: product.Description,
-			ImageUrl: product.ImageURL,
+			ProductDescription: product.Description,
+			ProductImageUrl: product.ImageURL,
 			Price: product.Price,
-			Stock: int(product.Stock),
+			Stock: int64(product.Stock),
 			Popular: product.Popular,
 			Size: product.Size,
-			HasOffer: product.HasOffer,
-			OfferDiscountPercent: product.OfferDiscountPercent,
-			DiscountAmount: uint(product.DiscountAmount),
-			TotalDiscountedAmount: uint(product.TotalDiscountedAmount),
+			
 		},
 	})
 }
 func AddProduct(c *gin.Context) {
-	
-	var Product requestmodemodels.Product
-	err := c.BindJSON(&Product)
-	response := gin.H{
-		"status":  false,
-		"message": "failed to bind request",
-	}
-	if err != nil {
-		fmt.Println(err)
-		c.JSON(http.StatusBadRequest, response)
-		return
-	}
-	fmt.Println("product",Product)
-	if err := helper.Validate(Product); err != nil {
-		fmt.Println("", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":     false,
-			"error_code": http.StatusBadRequest,
-		})
-		return
-	}
-	if Product.Price != float64(int(Product.Price)) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "price should not contain decimal places",
-		})
-		return
-	}
+    var req requestmodemodels.Product // Ensure JSON tags match front-end payload
 
-	p := Product.Size
-	
-	if p != "Medium" && p != "Small" && p != "Large" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Unknown size",
-		})
-		return
-	}
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "failed to bind request",
+        })
+        return
+    }
 
-	fmt.Println("product.categoryname ", Product.CategoryName)
-	var count int64
-	err = database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE categories.category_name=? and categories.deleted_at is NULL`, Product.CategoryName).Scan(&count).Error
-	if err != nil {
-		fmt.Println("failed to execute query", err)
-	}
-	fmt.Println("count", count)
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Category does not exist"})
-		return
-	}
-	var categoryid uint
-	database.DB.Raw(`SELECT id from categories where category_name = ?`, Product.CategoryName).Scan(&categoryid)
-	if categoryid == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Category does not exist"})
-		return
-	}
-	//var product models.Product
-	product := models.Product{
-		CategoryID:  categoryid,
-		ProductName: Product.ProductName,
-		Description: Product.Description,
-		ImageURL:    Product.ImageUrl,
-		Price:       Product.Price,
-		Stock:       Product.Stock,
-		Size:        Product.Size,
-		Popular:     Product.Popular,
-		HasOffer: Product.HasOffer,
-		OfferDiscountPercent: uint(Product.OfferDiscountPercent),
-		DiscountAmount: Product.DiscountAmount,
-		TotalDiscountedAmount: Product.TotalDiscountedAmount,
-	}
-	database.DB.Create(&product)
-	
+    if err := helper.Validate(req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": err.Error(),
+        })
+        return
+    }
 
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Product Added Successfully"})
+    // Validate size (if not validated by helper)
+    if req.Size != "Small" && req.Size != "Medium" && req.Size != "Large" {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "Invalid size selection",
+        })
+        return
+    }
 
+    // 1. Fetch Category ID in a single query (checking for soft delete)
+    var categoryID uint
+    err := database.DB.Model(&models.Category{}).
+        Select("id").
+        Where("category_name = ? AND deleted_at IS NULL", req.CategoryName).
+        Scan(&categoryID).Error
+
+    if err != nil || categoryID == 0 {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "Category does not exist",
+        })
+        return
+    }
+
+    // 2. Begin Transaction (Ensures both product and offer insert or both fail)
+    tx := database.DB.Begin()
+
+    product := models.Product{
+        CategoryID:  categoryID,
+        ProductName: req.ProductName,
+        Description: req.Description,
+        ImageURL:    req.ImageUrl,
+        Price:       req.Price,
+        Stock:       req.Stock,
+        Size:        req.Size,
+        Popular:     req.Popular,
+    }
+
+    if err := tx.Create(&product).Error; err != nil {
+        tx.Rollback()
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  false,
+            "message": "Failed to create product",
+        })
+        return
+    }
+
+    // 3. Insert into offers table if discount_percentage > 0
+    if req.DiscountPercentage > 0 {
+        offer := models.Offer{
+            ProductID:          product.ID, // Uses created product's ID
+            DiscountPercentage: req.DiscountPercentage,
+        }
+
+        if err := tx.Create(&offer).Error; err != nil {
+            tx.Rollback()
+            c.JSON(http.StatusInternalServerError, gin.H{
+                "status":  false,
+                "message": "Failed to create product offer",
+            })
+            return
+        }
+    }
+
+    // Commit transaction
+    tx.Commit()
+
+    c.JSON(http.StatusOK, gin.H{
+        "status":  true,
+        "message": "Product Added Successfully",
+    })
 }
 
 func EditProduct(c *gin.Context) {
@@ -220,7 +248,11 @@ func EditProduct(c *gin.Context) {
 
     // Check category existence
     var categoryID uint
-    err := database.DB.Raw(`SELECT id FROM categories WHERE category_name = ? AND deleted_at IS NULL`, reqProduct.CategoryName).Scan(&categoryID).Error
+    err := database.DB.Model(&models.Category{}).
+        Select("id").
+        Where("category_name = ? AND deleted_at IS NULL", reqProduct.CategoryName).
+        Scan(&categoryID).Error
+
     if err != nil || categoryID == 0 {
         c.JSON(http.StatusBadRequest, gin.H{
             "status":  false,
@@ -229,35 +261,79 @@ func EditProduct(c *gin.Context) {
         return
     }
 
-    // Perform update using a map so boolean/zero values update correctly
+    // Begin Database Transaction
+    tx := database.DB.Begin()
+
+    // 1. Update Product attributes
     updateData := map[string]interface{}{
-        "category_id":             categoryID,
-        "product_name":            reqProduct.ProductName,
-        "description":             reqProduct.Description,
-        "image_url":               reqProduct.ImageUrl,
-        "price":                   reqProduct.Price,
-        "stock":                   reqProduct.Stock,
-        "size":                    reqProduct.Size,
-        "popular":                 reqProduct.Popular,
-        "has_offer":               reqProduct.HasOffer,
-        "offer_discount_percent": reqProduct.OfferDiscountPercent,
-        "discount_amount":         reqProduct.DiscountAmount,
-        "total_discounted_amount": reqProduct.TotalDiscountedAmount,
+        "category_id":  categoryID,
+        "product_name": reqProduct.ProductName,
+        "description":  reqProduct.Description,
+        "image_url":    reqProduct.ImageUrl,
+        "price":        reqProduct.Price,
+        "stock":        reqProduct.Stock,
+        "size":         reqProduct.Size,
+        "popular":      reqProduct.Popular,
     }
 
-    result := database.DB.Model(&models.Product{}).
+    result := tx.Model(&models.Product{}).
         Where("id = ? AND deleted_at IS NULL", productID).
         Updates(updateData)
 
     if result.Error != nil {
+        tx.Rollback()
         c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update product"})
         return
     }
 
     if result.RowsAffected == 0 {
+        tx.Rollback()
         c.JSON(http.StatusNotFound, gin.H{"status": false, "message": "Product not found"})
         return
     }
+
+    // 2. Handle Offers table updates
+    var existingOffer models.Offer
+    offerErr := tx.Where("product_id = ? AND deleted_at IS NULL", productID).First(&existingOffer).Error
+
+    if reqProduct.DiscountPercentage > 0 {
+        if offerErr == nil {
+            // Offer exists -> Update it
+            if err := tx.Model(&existingOffer).Update("discount_percentage", reqProduct.DiscountPercentage).Error; err != nil {
+                tx.Rollback()
+                c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update offer"})
+                return
+            }
+        } else {
+            // No offer exists -> Create new offer
+            newOffer := models.Offer{
+                ProductID:          existingOffer.ProductID, // Or parse productID string to uint
+                DiscountPercentage: reqProduct.DiscountPercentage,
+            }
+            // Parse productID parameter to uint for new offer
+            var pid uint
+            fmt.Sscanf(productID, "%d", &pid)
+            newOffer.ProductID = pid
+
+            if err := tx.Create(&newOffer).Error; err != nil {
+                tx.Rollback()
+                c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create offer"})
+                return
+            }
+        }
+    } else {
+        // Discount set to 0 -> Soft delete existing offer if it exists
+        if offerErr == nil {
+            if err := tx.Delete(&existingOffer).Error; err != nil {
+                tx.Rollback()
+                c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to remove offer"})
+                return
+            }
+        }
+    }
+
+    // Commit Transaction
+    tx.Commit()
 
     c.JSON(http.StatusOK, gin.H{"status": true, "message": "Product updated successfully"})
 }
