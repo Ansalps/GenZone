@@ -3,14 +3,10 @@
 import axios from 'axios';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import CategoryCard from '@/components/admin/category-card';
+import { Category } from '@/types/category';
 
-interface Category {
-    id: number;
-    category_created_at: string;
-    category_name: string;
-    category_description: string;
-    category_image_url?: string;
-}
+
 
 export default function Categories() {
     const [categories, setCategories] = useState<Category[]>([]);
@@ -96,110 +92,23 @@ export default function Categories() {
 
             <div className="max-w-7xl mx-auto mt-8 px-4">
                 <div className="overflow-x-auto bg-white rounded-lg shadow">
-                    <table className="min-w-full table-auto">
-                        <thead className="bg-gray-200">
-                            <tr>
-                                <th className="px-4 py-3 text-center">
-                                    S.NO.
-                                </th>
-
-                                <th className="px-4 py-3 text-left">
-                                    Created At
-                                </th>
-
-                                <th className="px-4 py-3 text-left">
-                                    Category Name
-                                </th>
-
-                                <th className="px-4 py-3 text-left">
-                                    Description
-                                </th>
-
-                                <th className="px-4 py-3 text-left">
-                                    Image URL
-                                </th>
-
-                                <th className="px-4 py-3 text-center">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            {categories.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={6}
-                                        className="text-center py-8 text-gray-500"
-                                    >
-                                        No categories found.
-                                    </td>
-                                </tr>
-                            ) : (
-                                categories.map((category, index) => (
-                                    <tr
+                    <div className="max-w-7xl mx-auto mt-8 px-4">
+                        {categories.length === 0 ? (
+                            <div className="bg-white rounded-lg shadow p-10 text-center text-gray-500">
+                                No categories found.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {categories.map((category) => (
+                                    <CategoryCard
                                         key={category.id}
-                                        className="border-t hover:bg-gray-50"
-                                    >
-                                        <td className="px-4 py-4 text-center font-semibold">
-                                            {index + 1}
-                                        </td>
-
-                                        <td className="px-4 py-4 whitespace-nowrap">
-                                            {new Date(
-                                                category.category_created_at
-                                            ).toLocaleString('en-IN', {
-                                                day: '2-digit',
-                                                month: 'short',
-                                                year: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                            })}
-                                        </td>
-
-                                        <td className="px-4 py-4 font-medium">
-                                            {category.category_name}
-                                        </td>
-
-                                        <td
-                                            className="px-4 py-4 max-w-sm truncate"
-                                            title={category.category_description}
-                                        >
-                                            {category.category_description}
-                                        </td>
-
-                                        <td
-                                            className="px-4 py-4 max-w-xs truncate text-blue-600"
-                                            title={category.category_image_url}
-                                        >
-                                            {category.category_image_url ??
-                                                'No Image'}
-                                        </td>
-
-                                        <td className="px-4 py-4">
-                                            <div className="flex justify-center gap-2">
-                                                <Link
-                                                    href={`/admin/categories/edit/${category.id}`}
-                                                    className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded"
-                                                >
-                                                    Edit
-                                                </Link>
-
-                                                <button
-                                                    onClick={() =>
-                                                        handleDelete(category.id)
-                                                    }
-                                                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                        category={category}
+                                        onDelete={handleDelete}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

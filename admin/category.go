@@ -164,42 +164,117 @@ func AddCategory(c *gin.Context) {
 }
 
 func EditCategory(c *gin.Context) {
+    categoryID := c.Param("id")
 
-	CategoryID := c.Param("id")
-	var category requestmodemodels.Category
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE id = ? AND deleted_at IS NULL`, CategoryID).Scan(&count)
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "category id does not exist",
-		})
-		return
-	}
-	var Category models.Category
-	err := c.BindJSON(&Category)
-	response := gin.H{
-		"status":  false,
-		"message": "failed to bind request",
-	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response)
-		return
-	}
-	if err := helper.Validate(Category); err != nil {
-		fmt.Println("", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":     false,
-			"message":    err.Error(),
-			"error_code": http.StatusBadRequest,
-		})
-		return
-	}
-	category = requestmodemodels.Category{
-		CategoryName: Category.CategoryName,
-		Description:  Category.Description,
-	}
-	database.DB.Model(&models.Category{}).Where("id = ?", CategoryID).Updates(&category)
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Category Updated Successfully"})
+    // 1. Find existing category
+    var category models.Category
+
+    if err := database.DB.
+        Where("id = ? AND deleted_at IS NULL", categoryID).
+        First(&category).Error; err != nil {
+
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "category id does not exist",
+        })
+        return
+    }
+
+    // 2. Get form fields
+    categoryName := c.PostForm("category_name")
+    description := c.PostForm("description")
+
+    // 3. Validate request
+    categoryRequest := requestmodemodels.Category{
+        CategoryName: categoryName,
+        Description:  description,
+    }
+
+    if err := helper.Validate(categoryRequest); err != nil {
+		fmt.Println("err",err)
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":     false,
+            "message":    err.Error(),
+            "error_code": http.StatusBadRequest,
+        })
+        return
+    }
+
+    // 4. Check if another category already has this name
+    var count int64
+
+    err := database.DB.Raw(`
+        SELECT COUNT(*)
+        FROM categories
+        WHERE category_name = ?
+        AND id != ?
+        AND deleted_at IS NULL
+    `, categoryName, categoryID).Scan(&count).Error
+
+    if err != nil {
+        log.Println("Category name check error:", err)
+
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  false,
+            "message": "failed to check category name",
+        })
+        return
+    }
+
+    if count != 0 {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "category name already exists",
+        })
+        return
+    }
+
+    // 5. Update text fields
+    category.CategoryName = categoryName
+    category.Description = description
+
+    // 6. Check whether a new image was uploaded
+    fileHeader, err := c.FormFile("image")
+
+    if err == nil {
+        // New image uploaded
+
+        imageURL, err := helper.UploadToS3(fileHeader)
+
+        if err != nil {
+            log.Println("S3 Upload Error:", err)
+
+            c.JSON(http.StatusInternalServerError, gin.H{
+                "status":  false,
+                "message": "failed to upload image to S3",
+            })
+            return
+        }
+
+        // Replace old image URL with new one
+        category.ImageURL = imageURL
+    }
+
+    // If err != nil here, it simply means no new image was uploaded.
+    // Therefore the existing ImageURL remains unchanged.
+
+    // 7. Save changes
+    if err := database.DB.Save(&category).Error; err != nil {
+        log.Println("DB Update Error:", err)
+
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  false,
+            "message": "database error while updating category",
+        })
+        return
+    }
+
+    // 8. Return updated category
+    c.JSON(http.StatusOK, gin.H{
+        "status":  true,
+        "message": "Category Updated Successfully",
+        "data":    category,
+    })
 }
 
 func CategoryDelete(c *gin.Context) {

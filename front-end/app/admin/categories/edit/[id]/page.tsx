@@ -1,9 +1,9 @@
-'use client'
+'use client';
 
-import axios from "axios";
-import { useEffect, useState } from "react";
+import axios from 'axios';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import CategoryForm from "@/components/category-from";
+import CategoryForm from '@/components/category-from';
 
 export default function EditCategory() {
     const router = useRouter();
@@ -12,11 +12,15 @@ export default function EditCategory() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
+
     const [formData, setFormData] = useState({
         categoryName: '',
         categoryDescription: '',
-        categoryImageUrl: ''
+        categoryImage: null as File | null,
+        categoryImageUrl: '',
     });
+
+    const [imageFile, setImageFile] = useState<File | null>(null);
 
     useEffect(() => {
         if (!id) return;
@@ -25,19 +29,26 @@ export default function EditCategory() {
             try {
                 const response = await axios.get(
                     `http://localhost:8080/admin/category/${id}`,
-                    { withCredentials: true }
+                    {
+                        withCredentials: true,
+                    }
                 );
 
                 if (response.data?.data) {
                     const category = response.data.data;
+
                     setFormData({
                         categoryName: category.category_name || '',
                         categoryDescription: category.category_description || '',
+                        categoryImage: null,
                         categoryImageUrl: category.category_image_url || '',
                     });
                 }
             } catch (error) {
-                console.error("Failed to fetch category details:", error);
+                console.error(
+                    'Failed to fetch category details:',
+                    error
+                );
             } finally {
                 setIsFetching(false);
             }
@@ -46,34 +57,66 @@ export default function EditCategory() {
         fetchCategory();
     }, [id]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => {
         const { name, value } = e.target;
+
         setFormData((prevData) => ({
             ...prevData,
-            [name]: value
+            [name]: value,
         }));
     };
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    const handleImageChange = (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        const file = e.target.files?.[0] || null;
+
+        setImageFile(file);
+    };
+
+    const handleSubmit = async (
+        e: React.FormEvent<HTMLFormElement>
+    ) => {
         e.preventDefault();
+
         setIsLoading(true);
 
         try {
+            const data = new FormData();
+
+            data.append(
+                'category_name',
+                formData.categoryName
+            );
+
+            data.append(
+                'description',
+                formData.categoryDescription
+            );
+
+            // Only send image if user selected a new one
+            if (imageFile) {
+                data.append('image', imageFile);
+            }
+
             const response = await axios.put(
                 `http://localhost:8080/admin/category/${id}`,
+                data,
                 {
-                    category_name: formData.categoryName,
-                    category_description: formData.categoryDescription,
-                    category_image_url: formData.categoryImageUrl
-                },
-                { withCredentials: true }
+                    withCredentials: true,
+                }
             );
 
             if (response.status === 200) {
                 router.push('/admin/categories');
             }
         } catch (error) {
-            console.error("Failed to update category:", error);
+            console.error(
+                'Failed to update category:',
+                error
+            );
         } finally {
             setIsLoading(false);
         }
@@ -89,12 +132,18 @@ export default function EditCategory() {
 
     return (
         <div className="p-6 max-w-xl mx-auto">
-            <h1 className="font-bold text-2xl mb-6">Edit Category</h1>
-            
-            <form onSubmit={handleSubmit} className="w-full">
+            <h1 className="font-bold text-2xl mb-6">
+                Edit Category
+            </h1>
+
+            <form
+                onSubmit={handleSubmit}
+                className="w-full"
+            >
                 <CategoryForm
                     formData={formData}
                     onChange={handleChange}
+                    onImageChange={handleImageChange}
                     isLoading={isLoading}
                 />
             </form>
