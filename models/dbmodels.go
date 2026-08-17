@@ -61,8 +61,9 @@ type User struct {
 }
 
 type Category struct {
-	gorm.Model
-
+	ID        uint `gorm:"primarykey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 	CategoryName string `gorm:"unique;not null" json:"category_name" validate:"required"`
 	Description  string `json:"category_description" validate:"required"`
 	ImageURL     string `json:"category_image_url" validate:"required"`
@@ -71,7 +72,9 @@ type Category struct {
 }
 
 type Product struct {
-	gorm.Model
+	ID        uint `gorm:"primarykey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	CategoryID uint
 	Category   Category `json:"category,omitempty"`

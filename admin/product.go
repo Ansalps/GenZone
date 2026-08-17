@@ -34,9 +34,8 @@ func ReadProducts(c *gin.Context) {
             p.size,
             COALESCE(o.discount_percentage, 0) AS discount_percentage
         FROM products p
-        JOIN categories c ON c.id = p.category_id AND c.deleted_at IS NULL
+        JOIN categories c ON c.id = p.category_id
         LEFT JOIN offers o ON p.id = o.product_id AND o.deleted_at IS NULL
-        WHERE p.deleted_at IS NULL
     `
 
     // Sorting logic
@@ -157,7 +156,7 @@ func AddProduct(c *gin.Context) {
     var categoryID uint
     err := database.DB.Model(&models.Category{}).
         Select("id").
-        Where("category_name = ? AND deleted_at IS NULL", req.CategoryName).
+        Where("category_name = ? ", req.CategoryName).
         Scan(&categoryID).Error
 
     if err != nil || categoryID == 0 {

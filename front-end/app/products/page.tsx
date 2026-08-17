@@ -1,4 +1,4 @@
-import ProductCard from "@/components/product-card";
+import ProductCard from "@/components/admin/product-card";
 
 export default function Products(){
     return (
