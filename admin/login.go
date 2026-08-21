@@ -8,7 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
-	"github.com/Ansalps/GeZOne/requestmodels"
+	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,13 +20,13 @@ func Login(c *gin.Context) {
 		"message": "failed to bind request",
 	}
 	if err != nil {
-		fmt.Println("error",err)
+		fmt.Println("error", err)
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 	err = helper.Validate(AdminLogin)
 	if err != nil {
-		fmt.Println("error",err)
+		fmt.Println("error", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": err.Error(),
@@ -37,7 +37,7 @@ func Login(c *gin.Context) {
 	var Admin models.Admin
 	tx := database.DB.Where("email =? AND deleted_at IS NULL", AdminLogin.Email).First(&Admin)
 	if tx.Error != nil {
-		fmt.Println("error",err)
+		fmt.Println("error", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "invalid email or password",
@@ -81,5 +81,5 @@ func Login(c *gin.Context) {
 	// Set the token in the Authorization header
 	//c.Header("Authorization", "Bearer "+token)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Admin Login successful", "token": token})
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Admin Login successful"})
 }

@@ -61,15 +61,17 @@ func RegisterUrls(router *gin.Engine) {
 	adminGroup.GET("invoice/:order_id", middleware.AuthMiddleware("admin"), admin.GenerateInvoice)
 
 	//public
-	//router.GET("", public.ListProducts)
-	router.GET("",public.ReadCategory)
-	router.POST("signup", user.UserSignUp)
-	router.POST("signup/verifyotp/:email", user.VerifyOTPHandler)
-	router.POST("signup/resendotp/:email", user.ResendOtp)
-	router.POST("login", user.UserLogin)
-	router.GET("auth/google/login", user.HandleGoogleLogin)
-	router.GET("auth/google/callback", user.HandleGoogleCallback)
-	router.GET("searchproduct",  user.SearchProduct)
+	publicGroup := router.Group("/public")
+	publicGroup.GET("/category",public.ReadCategory)
+	publicGroup.GET("/product",public.ReadProducts)
+	publicGroup.GET("/product/search",  public.SearchProduct)
+	publicGroup.POST("/signup", public.UserSignUp)
+	publicGroup.POST("/verify-otp", public.VerifyOTPHandler)
+	publicGroup.POST("/resendotp/:email", user.ResendOtp)
+	publicGroup.POST("/login", user.UserLogin)
+	publicGroup.GET("/auth/google/login", user.HandleGoogleLogin)
+	publicGroup.GET("/auth/google/callback", user.HandleGoogleCallback)
+	
 
 	//user
 	router.GET("profile", middleware.AuthMiddleware("user"), user.Profile)

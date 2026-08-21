@@ -14,8 +14,8 @@ func SendOTPEmail(email string, otp string) error {
 	fmt.Println(email, otp)
 	fmt.Println("hi")
 	// auth := smtp.PlainAuth("", "john.doe@gmail.com", "extremely_secret_pass", "smtp.gmail.com")
-	from := "genzoneapi@gmail.com"
-	password := os.Getenv("password") // TODO: Replace with your email password or use a secure method to fetch it
+	from := os.Getenv("EMAIL_USER")
+	password := os.Getenv("EMAIL_PASSWORD") // TODO: Replace with your email password or use a secure method to fetch it
 	to := []string{email}
 	subject := "OTP for Signup"
 	body := "Your OTP is: " + otp

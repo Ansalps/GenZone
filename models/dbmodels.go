@@ -72,28 +72,30 @@ type Category struct {
 }
 
 type Product struct {
-	ID        uint `gorm:"primarykey"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 
-	CategoryID uint
+	CategoryID uint     `json:"category_id"`
 	Category   Category `json:"category,omitempty"`
 
-	ProductName string  `validate:"required"`
-	Description string  `validate:"required"`
-	ImageURL    string  `validate:"required"`
-	Price       float64 `gorm:"type:decimal(10,2)"`
+	ProductName string `json:"product_name" validate:"required"`
+	Description string `json:"product_description" validate:"required"`
+	ImageURL    string `json:"product_image_url" validate:"required"`
 
-	Stock uint
+	Price float64 `gorm:"type:decimal(10,2)" json:"price"`
 
-	Popular bool `gorm:"default:false"`
+	Stock uint `json:"stock"`
 
-	Size string `gorm:"type:varchar(10);check:size IN ('Small','Medium','Large')"`
+	Popular bool `gorm:"default:false" json:"popular"`
 
+	Size string `gorm:"type:varchar(10);check:size IN ('Small','Medium','Large')" json:"size"`
 }
 
 type Offer struct {
-	gorm.Model
+	ID        uint `gorm:"primarykey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 	ProductID          uint `gorm:"not null"`
 	DiscountPercentage float64 `gorm:"not null"`
 	StartAt time.Time

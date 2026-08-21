@@ -13,11 +13,11 @@ func ReadCategory(c *gin.Context) {
 	
 	var category []responsemodels.Category
 	//tx := database.DB.Find(&category)
-	sql := `SELECT * FROM categories WHERE deleted_at IS NULL`
+	sql := `SELECT * FROM categories`
 
 	tx := database.DB.Raw(sql).Scan(&category)
 	if tx.Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "failed to retrieve data from the database, or the data doesn't exists",
 		})

@@ -107,6 +107,7 @@ func AddCategory(c *gin.Context) {
 	if err != nil {
 		fmt.Println("err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{})
+        return
 	}
 	if count != 0 {
 		fmt.Println("hi")

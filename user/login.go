@@ -8,7 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
-	"github.com/Ansalps/GeZOne/requestmodels"
+	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/gin-gonic/gin"
 )
 
@@ -74,10 +74,8 @@ func UserLogin(c *gin.Context) {
 		return
 	}
 	fmt.Println("", token)
-	// Set token as cookie
-	//c.SetCookie("jwt_token", token, 3600, "/", "", true, true)
-	// Set the token in the Authorization header
-	c.Header("Authorization", "Bearer "+token)
+	c.SetCookie("jwt_token", token, 86400, "/", "", false, true)
+
 	var count1 int64
 	database.DB.Raw(`SELECT COUNT(*) FROM wallets WHERE user_id = ?`, id).Scan(&count1)
 	if count1 == 0 {
@@ -90,6 +88,6 @@ func UserLogin(c *gin.Context) {
 		fmt.Println("user already has a walet")
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "User Login successful", "token": token})
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "User Login successful"})
 
 }
