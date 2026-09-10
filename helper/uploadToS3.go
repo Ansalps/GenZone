@@ -2,6 +2,7 @@ package helper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"mime/multipart"
@@ -22,9 +23,15 @@ import (
 
 func UploadToS3(fileHeader *multipart.FileHeader) (string, error) {
 	s3BucketName := os.Getenv("S3_BUCKET_NAME")
+	if s3BucketName==""{
+		return "",errors.New("failed to fetch s3BucketName")
+	}
 	fmt.Println("s3BucketName")
 	aWSRegion := os.Getenv("AWSRegion")
 	fmt.Println("", s3BucketName)
+	if aWSRegion==""{
+		return "",errors.New("failed to fetch awsRegiion")
+	}
 	// 1. Open the uploaded file
 	file, err := fileHeader.Open()
 	if err != nil {

@@ -125,7 +125,7 @@ export default function DashboardPage() {
       <header className="bg-green-800 text-white shadow-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div>
-            <h1 className="text-2xl font-bold">GeZOne</h1>
+            <h1 className="text-2xl font-bold">GenZone</h1>
           </div>
 
           <div className="flex items-center gap-4">

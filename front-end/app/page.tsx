@@ -173,7 +173,7 @@ export default function LandingPage() {
                             href="/"
                             className="text-2xl font-bold"
                         >
-                            GeZOne
+                            GenZone
                         </Link>
 
                         {/* Authentication */}
