@@ -245,26 +245,28 @@ export default function AddProduct() {
     }
 
     return (
-        <div className="p-6 max-w-4xl mx-auto">
+        <div className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl">
+                <header className="mb-6 flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
+                    <div>
+                        <h1 className="text-2xl font-bold">Add Product</h1>
+                        <p className="text-sm text-slate-300">Create a new product listing</p>
+                    </div>
+                </header>
 
-            <h1 className="font-bold text-2xl mb-6">
-                Add Product
-            </h1>
-
-            <form
-                onSubmit={handleSubmit}
-                className="w-full"
-            >
-                <ProductForm
-                    formData={formData}
-                    onChange={onChange}
-                    onImageChange={onImageChange}
-                    isLoading={isLoading}
-                    categories={categories}
-                    errors={errors}
-                />
-            </form>
-
+                <main className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-slate-950/30 max-w-4xl mx-auto">
+                    <form onSubmit={handleSubmit} className="w-full">
+                        <ProductForm
+                            formData={formData}
+                            onChange={onChange}
+                            onImageChange={onImageChange}
+                            isLoading={isLoading}
+                            categories={categories}
+                            errors={errors}
+                        />
+                    </form>
+                </main>
+            </div>
         </div>
     )
 }
