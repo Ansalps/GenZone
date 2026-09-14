@@ -4,6 +4,8 @@ import axios from 'axios';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import CategoryCard from '@/components/admin/category-card';
+import ConfirmModal from '@/components/admin/confirm-modal';
+import { toast } from 'sonner';
 import { Category } from '@/types/category';
 
 
@@ -32,84 +34,102 @@ export default function Categories() {
         fetchData();
     }, [sortOrder]);
 
-    const handleDelete = async (id: number) => {
-        const confirmed = window.confirm(
-            'Are you sure you want to delete this category? This will delete all the products under this categoy.'
-        );
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmId, setConfirmId] = useState<number | null>(null);
+    const [confirmName, setConfirmName] = useState<string | undefined>(undefined);
+    const [isDeleting, setIsDeleting] = useState(false);
 
-        if (!confirmed) return;
+    const requestDelete = (id: number, name?: string) => {
+        setConfirmId(id);
+        setConfirmName(name);
+        setConfirmOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!confirmId) return;
+
+        setIsDeleting(true);
 
         try {
             await axios.delete(
-                `http://localhost:8080/admin/category/${id}`,
-                {
-                    withCredentials: true,
-                }
+                `http://localhost:8080/admin/category/${confirmId}`,
+                { withCredentials: true }
             );
 
-            setCategories((prev) =>
-                prev.filter((category) => category.id !== id)
-            );
+            setCategories((prev) => prev.filter((c) => c.id !== confirmId));
+            toast.success('Category deleted');
         } catch (error) {
             console.error(error);
+            toast.error('Failed to delete category');
+        } finally {
+            setIsDeleting(false);
+            setConfirmOpen(false);
+            setConfirmId(null);
+            setConfirmName(undefined);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            {/* Header */}
-            <div className="flex justify-between items-center bg-green-700 text-white px-8 py-6">
-                <div className="flex items-center gap-4">
-                    {/* Back Button */}
-                    <Link
-                        href="/admin"
-                        className="bg-green-800 hover:bg-green-900 text-white px-4 py-2 rounded text-sm font-medium transition flex items-center gap-1 border border-green-600"
-                    >
-                        ← Back
-                    </Link>
-                    <h1 className="text-3xl font-bold">
-                        Categories Management
-                    </h1>
-                </div>
-                 <div className="flex items-center gap-4">
-                    <select
-                        
-                        onChange={(e) => setSortOrder(e.target.value)}
-                        className="bg-white text-black border rounded px-3 py-2"
-                    >
-                        <option value="DSC">Newest First</option>
-                        <option value="ASC">Oldest First</option>
-                    </select>
+        <div className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl">
+                <header className="mb-6 flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-slate-950/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                        <Link
+                            href="/admin"
+                            className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-2 text-sm font-medium text-slate-200 hover:bg-slate-900 transition"
+                        >
+                            ← Back
+                        </Link>
 
-                    <Link
-                        href="/admin/categories/add"
-                        className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-                    >
-                        + Add Category
-                    </Link>
-                </div>
-            </div>
-
-            <div className="max-w-7xl mx-auto mt-8 px-4">
-                <div className="overflow-x-auto bg-white rounded-lg shadow">
-                    <div className="max-w-7xl mx-auto mt-8 px-4">
-                        {categories.length === 0 ? (
-                            <div className="bg-white rounded-lg shadow p-10 text-center text-gray-500">
-                                No categories found.
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                {categories.map((category) => (
-                                    <CategoryCard
-                                        key={category.id}
-                                        category={category}
-                                        onDelete={handleDelete}
-                                    />
-                                ))}
-                            </div>
-                        )}
+                        <h1 className="text-2xl font-bold">Categories Management</h1>
                     </div>
-                </div>
+
+                    <div className="flex items-center gap-3">
+                        <select
+                            onChange={(e) => setSortOrder(e.target.value)}
+                            className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
+                            value={sortOrder}
+                        >
+                            <option value="DSC">Newest First</option>
+                            <option value="ASC">Oldest First</option>
+                        </select>
+
+                        <Link
+                            href="/admin/categories/add"
+                            className="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 hover:brightness-105 transition"
+                        >
+                            + Add Category
+                        </Link>
+                    </div>
+                </header>
+
+                <main className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-slate-950/30">
+                    {categories.length === 0 ? (
+                        <div className="rounded-xl border border-white/6 bg-slate-900/50 p-12 text-center text-slate-300">
+                            No categories found.
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {categories.map((category) => (
+                                <CategoryCard
+                                    key={category.id}
+                                    category={category}
+                                    onRequestDelete={requestDelete}
+                                />
+                            ))}
+                        </div>
+                    )}
+                    <ConfirmModal
+                        open={confirmOpen}
+                        title={`Delete category${confirmName ? `: ${confirmName}` : ''}`}
+                        description="This will delete the category and all products under it. This action is irreversible."
+                        confirmLabel="Delete"
+                        cancelLabel="Cancel"
+                        loading={isDeleting}
+                        onCancel={() => setConfirmOpen(false)}
+                        onConfirm={handleDelete}
+                    />
+                </main>
             </div>
         </div>
     );

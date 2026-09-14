@@ -94,24 +94,31 @@ export default function AddCategory() {
     };
 
     return (
-        <div className="p-6">
-            <div className="font-bold text-2xl mb-6">
-                Add Category
-            </div>
+        <div className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl">
+                <header className="mb-6 flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
+                    <div>
+                        <h1 className="text-2xl font-bold">Add Category</h1>
+                        <p className="text-sm text-slate-300">Create a new category for your store</p>
+                    </div>
+                </header>
 
-            <div className="flex justify-center">
-                <form
-                    onSubmit={handleSubmit}
-                    className="flex flex-col gap-4 w-full max-w-md"
-                >
-                    <CategoryForm
-                        formData={formData}
-                        onChange={handleChange}
-                        onImageChange={handleImageChange}
-                        isLoading={isLoading}
-                        isEdit={false}
-                    />
-                </form>
+                <main className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-slate-950/30">
+                    <div className="flex justify-center">
+                        <form
+                            onSubmit={handleSubmit}
+                            className="w-full max-w-lg"
+                        >
+                            <CategoryForm
+                                formData={formData}
+                                onChange={handleChange}
+                                onImageChange={handleImageChange}
+                                isLoading={isLoading}
+                                isEdit={false}
+                            />
+                        </form>
+                    </div>
+                </main>
             </div>
         </div>
     );

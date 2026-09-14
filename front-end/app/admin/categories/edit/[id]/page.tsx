@@ -74,6 +74,7 @@ export default function EditCategory() {
         const file = e.target.files?.[0] || null;
 
         setImageFile(file);
+        setFormData((prev) => ({ ...prev, categoryImage: file }));
     };
 
     const handleSubmit = async (
@@ -124,29 +125,34 @@ export default function EditCategory() {
 
     if (isFetching) {
         return (
-            <div className="flex justify-center items-center h-screen text-gray-500">
+            <div className="flex justify-center items-center h-screen text-slate-300 bg-slate-950">
                 Loading category details...
             </div>
         );
     }
 
     return (
-        <div className="p-6 max-w-xl mx-auto">
-            <h1 className="font-bold text-2xl mb-6">
-                Edit Category
-            </h1>
+        <div className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl">
+                <header className="mb-6 flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
+                    <div>
+                        <h1 className="text-2xl font-bold">Edit Category</h1>
+                        <p className="text-sm text-slate-300">Update category details</p>
+                    </div>
+                </header>
 
-            <form
-                onSubmit={handleSubmit}
-                className="w-full"
-            >
-                <CategoryForm
-                    formData={formData}
-                    onChange={handleChange}
-                    onImageChange={handleImageChange}
-                    isLoading={isLoading}
-                />
-            </form>
+                <main className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-slate-950/30 max-w-3xl mx-auto">
+                    <form onSubmit={handleSubmit} className="w-full">
+                        <CategoryForm
+                            formData={formData}
+                            onChange={handleChange}
+                            onImageChange={handleImageChange}
+                            isLoading={isLoading}
+                            isEdit={true}
+                        />
+                    </form>
+                </main>
+            </div>
         </div>
     );
 }
