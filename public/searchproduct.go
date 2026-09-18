@@ -29,13 +29,15 @@ func SearchProduct(c *gin.Context) {
 			p.description AS product_description,
 			p.image_url AS product_image_url,
 			p.price,
-			p.stock,
+			COALESCE(SUM(pv.stock), 0) AS stock,
 			p.popular,
-			p.size,
+			COALESCE(string_agg(DISTINCT pv.size, ',' ORDER BY pv.size), '') AS size,
 			COALESCE(o.discount_percentage, 0) AS discount_percentage
 		FROM products p
 		JOIN categories c
 			ON p.category_id = c.id
+		LEFT JOIN product_variants pv
+			ON pv.product_id = p.id
 		LEFT JOIN offers o
 			ON p.id = o.product_id
 			AND o.deleted_at IS NULL
@@ -166,6 +168,9 @@ func SearchProduct(c *gin.Context) {
 			return
 		}
 	}
+
+	sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.category_id, c.category_name,
+		p.product_name, p.description, p.image_url, p.price, p.popular, o.discount_percentage `
 
 	// Default sorting
 	if len(orderBy) == 0 {

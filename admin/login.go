@@ -13,6 +13,7 @@ import (
 )
 
 func Login(c *gin.Context) {
+	fmt.Println("hi")
 	var AdminLogin requestmodemodels.AdminLogin
 	err := c.BindJSON(&AdminLogin)
 	response := gin.H{
@@ -49,6 +50,7 @@ func Login(c *gin.Context) {
 	database.DB.Model(&models.Admin{}).Where("email = ?", AdminLogin.Email).Pluck("password", &password)
 	if password != AdminLogin.Password {
 		// Return success response
+		fmt.Println("hi hello",password,AdminLogin.Password)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "invalid email or password",
@@ -56,6 +58,7 @@ func Login(c *gin.Context) {
 		})
 		return
 	}
+	fmt.Println("reached here")
 	var id uint
 	database.DB.Model(&models.Admin{}).Where("email = ?", AdminLogin.Email).Pluck("id", &id)
 	token, err := middleware.CreateToken("admin", AdminLogin.Email, id)
@@ -63,7 +66,6 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
 		return
 	}
-	fmt.Println("", token)
 	// Set token as cookie
 
 	//c.SetSameSite(http.SameSiteLaxMode)

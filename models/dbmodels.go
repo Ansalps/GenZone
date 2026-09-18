@@ -61,36 +61,56 @@ type User struct {
 }
 
 type Category struct {
-	ID        uint `gorm:"primarykey"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	CategoryName string `gorm:"unique;not null" json:"category_name" validate:"required"`
-	Description  string `json:"category_description" validate:"required"`
-	ImageURL     string `json:"category_image_url" validate:"required"`
+	ID uint `gorm:"primaryKey" json:"id"`
 
-	Products []Product
-}
-
-type Product struct {
-	ID        uint      `gorm:"primarykey" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	CategoryID uint     `json:"category_id"`
-	Category   Category `json:"category,omitempty"`
+	CategoryName string `gorm:"not null;unique" json:"category_name" validate:"required"`
+	Description  string `gorm:"not null" json:"category_description" validate:"required"`
+	ImageURL     string `gorm:"not null" json:"category_image_url" validate:"required"`
 
-	ProductName string `json:"product_name" validate:"required"`
-	Description string `json:"product_description" validate:"required"`
-	ImageURL    string `json:"product_image_url" validate:"required"`
+	// Self-referencing relationship
+	ParentID *uint     `gorm:"index" json:"parent_id"`
+	Parent   *Category `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+	Children []Category `gorm:"foreignKey:ParentID" json:"children,omitempty"`
 
-	Price float64 `gorm:"type:decimal(10,2)" json:"price"`
-
-	Stock uint `json:"stock"`
-
-	Popular bool `gorm:"default:false" json:"popular"`
-
-	Size string `gorm:"type:varchar(10);check:size IN ('Small','Medium','Large')" json:"size"`
+	Products []Product `gorm:"foreignKey:CategoryID" json:"products,omitempty"`
 }
+
+type Product struct {
+	ID uint `gorm:"primaryKey" json:"id"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	CategoryID uint     `gorm:"not null;index" json:"category_id"`
+	Category   Category `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
+
+	ProductName string `gorm:"not null" json:"product_name" validate:"required"`
+	Description string `gorm:"not null" json:"product_description" validate:"required"`
+	ImageURL    string `gorm:"not null" json:"product_image_url" validate:"required"`
+
+	Price float64 `gorm:"type:decimal(10,2);not null" json:"price"`
+
+	Popular bool `gorm:"not null;default:false" json:"popular"`
+
+	Variants []ProductVariant `gorm:"foreignKey:ProductID" json:"variants,omitempty"`
+}
+
+type ProductVariant struct {
+	ID uint `gorm:"primaryKey" json:"id"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	ProductID uint    `gorm:"not null;index;uniqueIndex:idx_product_size" json:"product_id"`
+	Product   Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
+
+	Size  string `gorm:"type:varchar(10);not null;uniqueIndex:idx_product_size" json:"size" validate:"required"`
+	Stock uint   `gorm:"not null;default:0" json:"stock"`
+}
+
 
 type Offer struct {
 	ID        uint `gorm:"primarykey"`

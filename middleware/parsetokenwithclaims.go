@@ -14,7 +14,6 @@ import (
 var Secret = []byte("your-secret-key")
 
 func AuthMiddleware(requiredRole string) gin.HandlerFunc {
-	fmt.Println("hi hello in mid")
 	return func(c *gin.Context) {
 		
 		//Get token from cookie

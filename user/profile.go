@@ -9,7 +9,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
-	"github.com/Ansalps/GeZOne/requestmodels"
+	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -680,7 +680,7 @@ func Wishlist(c *gin.Context) {
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
 	var wishlist []responsemodels.Wishlist
-	database.DB.Raw(`SELECT wishlists.id,wishlists.created_at,wishlists.updated_at,wishlists.deleted_at,wishlists.user_id,wishlists.product_id,products.product_name,categories.category_name,products.description,products.image_url,products.price,products.stock,products.popular,products.size,products.has_offer,products.offer_discount_percent FROM wishlists JOIN products ON wishlists.product_id = products.id JOIN categories ON categories.id = products.category_id  WHERE wishlists.user_id = ? AND wishlists.deleted_at IS NULL`, userID).Scan(&wishlist)
+	database.DB.Raw(`SELECT wishlists.id,wishlists.created_at,wishlists.updated_at,wishlists.deleted_at,wishlists.user_id,wishlists.product_id,products.product_name,categories.category_name,products.description,products.image_url,products.price,COALESCE(SUM(product_variants.stock), 0) AS stock,products.popular,COALESCE(string_agg(DISTINCT product_variants.size, ',' ORDER BY product_variants.size), '') AS size FROM wishlists JOIN products ON wishlists.product_id = products.id JOIN categories ON categories.id = products.category_id LEFT JOIN product_variants ON product_variants.product_id = products.id WHERE wishlists.user_id = ? AND wishlists.deleted_at IS NULL GROUP BY wishlists.id, wishlists.created_at, wishlists.updated_at, wishlists.deleted_at, wishlists.user_id, wishlists.product_id, products.product_name, categories.category_name, products.description, products.image_url, products.price, products.popular`, userID).Scan(&wishlist)
 	c.JSON(http.StatusOK, gin.H{
 		"data":    wishlist,
 		"message": "succesfully shown wishlist",

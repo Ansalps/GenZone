@@ -9,7 +9,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
-	"github.com/Ansalps/GeZOne/requestmodels"
+	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -130,7 +130,7 @@ func CartAdd(c *gin.Context) {
 		database.DB.Model(&models.CartItem{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("qty", &quantity)
 		fmt.Println("quantity:", quantity)
 		var stock uint
-		database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("stock", &stock)
+		database.DB.Raw("SELECT COALESCE(SUM(stock), 0) FROM product_variants WHERE product_id = ?", Cart.ProductID).Scan(&stock)
 		fmt.Println("--stock", stock)
 		if quantity >= 7 {
 			c.JSON(http.StatusOK, gin.H{"status": true, "message": "Exceeded maximum quantity for a product"})
@@ -143,9 +143,8 @@ func CartAdd(c *gin.Context) {
 		quantity = quantity + 1
 		fmt.Println("quantity:", quantity)
 		cart := models.CartItem{
-			Quantity:         quantity,
-			UnitPrice:       price,
-			
+			Quantity:  quantity,
+			UnitPrice: price,
 		}
 		database.DB.Model(&models.CartItem{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Updates(&cart)
 
@@ -155,7 +154,7 @@ func CartAdd(c *gin.Context) {
 		return
 	}
 	var stock uint
-	database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("stock", &stock)
+	database.DB.Raw("SELECT COALESCE(SUM(stock), 0) FROM product_variants WHERE product_id = ?", Cart.ProductID).Scan(&stock)
 	fmt.Println("--stock", stock)
 	if stock == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -167,26 +166,25 @@ func CartAdd(c *gin.Context) {
 	database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("price", &price)
 	var hasoffer bool
 	database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("has_offer", &hasoffer)
-	
+
 	var finalamount float64
 	finalamount = price
 	if hasoffer {
 		fmt.Println("is it entering in has offer ------")
 		var discountpercentage uint
 		database.DB.Model(&models.Offer{}).Where("product_id = ?", Cart.ProductID).Pluck("discount_percentage", &discountpercentage)
-		
+
 		finalamount = price - (price * float64(discountpercentage) / 100)
 		fmt.Println("price---", finalamount)
 	}
 	fmt.Println("final amount here --", finalamount)
-	result,_:=strconv.Atoi(Cart.ProductID)
+	result, _ := strconv.Atoi(Cart.ProductID)
 	cart := models.CartItem{
-		
-		ProductID:   uint(result),
-		
-		Quantity:         1,
-		UnitPrice:       price,
-		
+
+		ProductID: uint(result),
+
+		Quantity:  1,
+		UnitPrice: price,
 	}
 	database.DB.Create(&cart)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "product added to cart successfully"})

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -30,13 +31,15 @@ func ReadProducts(c *gin.Context) {
 			p.description AS product_description,
 			p.image_url AS product_image_url,
 			p.price,
-			p.stock,
+			COALESCE(SUM(pv.stock), 0) AS stock,
 			p.popular,
-			p.size,
+			COALESCE(string_agg(DISTINCT pv.size, ',' ORDER BY pv.size), '') AS size,
 			COALESCE(o.discount_percentage, 0) AS discount_percentage
 		FROM products p
 		JOIN categories c 
 			ON c.id = p.category_id
+		LEFT JOIN product_variants pv
+			ON pv.product_id = p.id
 		LEFT JOIN offers o 
 			ON p.id = o.product_id
 	`
@@ -51,6 +54,9 @@ func ReadProducts(c *gin.Context) {
 	}
 
 	// Sorting
+	sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.category_id, c.category_name,
+		p.product_name, p.description, p.image_url, p.price, p.popular, o.discount_percentage `
+
 	switch listOrder {
 	case "DSC":
 		sql += ` ORDER BY p.created_at DESC`
@@ -85,8 +91,7 @@ func ReadProductById(c *gin.Context) {
 	ProductID := c.Param("id")
 	var product models.Product
 
-	// Pass the pointer &category as the target for First()
-	err := database.DB.First(&product, "id = ?", ProductID).Error
+	err := database.DB.Preload("Variants").First(&product, "id = ?", ProductID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -105,7 +110,6 @@ func ReadProductById(c *gin.Context) {
 
 	var category models.Category
 
-	// Pass the pointer &category as the target for First()
 	err = database.DB.First(&category, "id = ?", product.CategoryID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -123,7 +127,13 @@ func ReadProductById(c *gin.Context) {
 		return
 	}
 
-	// Map your database model to your response model
+	var totalStock uint
+	var sizes []string
+	for _, variant := range product.Variants {
+		totalStock += variant.Stock
+		sizes = append(sizes, variant.Size)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": true,
 		"data": responsemodels.Product{
@@ -135,9 +145,9 @@ func ReadProductById(c *gin.Context) {
 			ProductDescription: product.Description,
 			ProductImageUrl:    product.ImageURL,
 			Price:              product.Price,
-			Stock:              int64(product.Stock),
+			Stock:              int64(totalStock),
 			Popular:            product.Popular,
-			Size:               product.Size,
+			Size:               strings.Join(sizes, ","),
 		},
 	})
 }
@@ -270,8 +280,6 @@ func AddProduct(c *gin.Context) {
 		Description: req.Description,
 		ImageURL:    imageURL,
 		Price:       req.Price,
-		Stock:       req.Stock,
-		Size:        req.Size,
 		Popular:     req.Popular,
 	}
 
@@ -284,6 +292,22 @@ func AddProduct(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "Failed to create product",
+		})
+		return
+	}
+
+	variant := models.ProductVariant{
+		ProductID: product.ID,
+		Size:      req.Size,
+		Stock:     req.Stock,
+	}
+
+	if err := tx.Create(&variant).Error; err != nil {
+		tx.Rollback()
+		log.Println("Product variant creation error:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "Failed to create product variant",
 		})
 		return
 	}
@@ -490,8 +514,6 @@ func EditProduct(c *gin.Context) {
 		"product_name": reqProduct.ProductName,
 		"description":  reqProduct.Description,
 		"price":        reqProduct.Price,
-		"stock":        reqProduct.Stock,
-		"size":         reqProduct.Size,
 		"popular":      reqProduct.Popular,
 	}
 
@@ -517,12 +539,35 @@ func EditProduct(c *gin.Context) {
 		return
 	}
 
+	var variant models.ProductVariant
+	variantErr := tx.Where("product_id = ? AND size = ?", product.ID, reqProduct.Size).First(&variant).Error
+	if errors.Is(variantErr, gorm.ErrRecordNotFound) {
+		if err := tx.Create(&models.ProductVariant{ProductID: product.ID, Size: reqProduct.Size, Stock: reqProduct.Stock}).Error; err != nil {
+			tx.Rollback()
+			log.Println("Product variant update error:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update product variant"})
+			return
+		}
+	} else if variantErr == nil {
+		if err := tx.Model(&variant).Update("stock", reqProduct.Stock).Error; err != nil {
+			tx.Rollback()
+			log.Println("Product variant stock update error:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update product variant stock"})
+			return
+		}
+	} else {
+		tx.Rollback()
+		log.Println("Product variant lookup error:", variantErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to read product variant"})
+		return
+	}
+
 	// 11. Find existing offer
 	var existingOffer models.Offer
 
 	offerErr := tx.
 		Where(
-			"product_id = ? AND deleted_at IS NULL",
+			"product_id = ?",
 			product.ID,
 		).
 		First(&existingOffer).
@@ -651,6 +696,7 @@ func ProductDelete(c *gin.Context) {
 		return
 	}
 
+	database.DB.Where("product_id = ?", ProductID).Delete(&models.ProductVariant{})
 	database.DB.Where("id = ?", ProductID).Delete(&models.Product{})
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "product deleted successfully"})
 }

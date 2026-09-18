@@ -27,11 +27,14 @@ func Initialize() {
 	if err != nil {
 		fmt.Println("connection failed due to ", err)
 	}
+
+	
 }
 
-func AutoMigrate() {
+func AutoMigrate() error{
 	DB.AutoMigrate(&models.Category{})
 	DB.AutoMigrate(&models.Product{})
+	DB.AutoMigrate(&models.ProductVariant{})
 	DB.AutoMigrate(&models.Admin{})
 	DB.AutoMigrate(&models.User{})
 	DB.AutoMigrate(&models.OTP{})
@@ -50,9 +53,7 @@ func AutoMigrate() {
 	DB.AutoMigrate(&models.SalesReportItem{})
 	DB.AutoMigrate(&models.WalletTransaction{})
 	DB.AutoMigrate(&models.Invoice{})
-	admin:=models.Admin{
-		Email: "admin@example.com",
-		Password: "admin",
-	}
-	DB.Model(&models.Admin{}).Create(&admin)
+	
+
+	return Seed(DB)
 }

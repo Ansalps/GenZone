@@ -266,19 +266,17 @@ func GenerateExcelReport(salesReportItems []models.SalesReportItem, filePath str
 	// Create a new sheet
 	index, _ := f.NewSheet("SalesReport")
 
-	
 	// Set headers
 	headers := []string{"Order ID", "Product ID", "Product Name", "Quantity", "Price", "Order Status", "Payment Method", "Coupon Discount", "Offer Discount", "Total Discount", "Paid Amount", "Order Date"}
 	fmt.Println("hello 3")
 	for i, header := range headers {
-		
-		col := string('A' + i)
+		col := string(rune('A' + i))
 		f.SetCellValue("SalesReport", col+"1", header)
 	}
 
 	// Fill in data
 	for i, item := range salesReportItems {
-		
+
 		row := strconv.Itoa(i + 2)
 		f.SetCellValue("SalesReport", "A"+row, item.OrderID)
 		f.SetCellValue("SalesReport", "B"+row, item.ProductID)
@@ -299,13 +297,11 @@ func GenerateExcelReport(salesReportItems []models.SalesReportItem, filePath str
 	// Set the active sheet
 	f.SetActiveSheet(index)
 
-	
 	// Save the spreadsheet
 	if err := f.SaveAs(filePath); err != nil {
 		fmt.Println("Error saving file:", err)
 		return err
 	}
-
 
 	return nil
 }
@@ -344,7 +340,7 @@ func GeneratePDFReport(salesReportItems []models.SalesReportItem, summary SalesR
 	fill := false
 	for _, item := range salesReportItems {
 
-	str := strconv.FormatUint(uint64(item.ProductID), 10)
+		str := strconv.FormatUint(uint64(item.ProductID), 10)
 		if fill {
 			pdf.SetFillColor(230, 230, 230) // Slightly darker grey for alternating rows
 		} else {

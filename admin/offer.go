@@ -7,14 +7,14 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
-	"github.com/Ansalps/GeZOne/requestmodels"
+	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
 
 func OfferList(c *gin.Context) {
 	var offer []responsemodels.Offer
-	database.DB.Raw(`SELECT offers.id,offers.created_at,offers.updated_at,offers.deleted_at,offers.product_id,offers.discount_percentage,products.product_name,categories.category_name,products.description,products.image_url,products.price,products.stock,products.popular,products.size,products.has_offer,products.offer_discount_percent FROM offers JOIN products ON offers.product_id = products.id JOIN categories ON categories.id = products.category_id WHERE offers.deleted_at IS NULL`).Scan(&offer)
+	database.DB.Raw(`SELECT offers.id,offers.created_at,offers.updated_at,offers.deleted_at,offers.product_id,offers.discount_percentage,products.product_name,categories.category_name,products.description,products.image_url,products.price,COALESCE(SUM(product_variants.stock), 0) AS stock,products.popular,COALESCE(string_agg(DISTINCT product_variants.size, ',' ORDER BY product_variants.size), '') AS size FROM offers JOIN products ON offers.product_id = products.id JOIN categories ON categories.id = products.category_id LEFT JOIN product_variants ON product_variants.product_id = products.id WHERE offers.deleted_at IS NULL GROUP BY offers.id, offers.created_at, offers.updated_at, offers.deleted_at, offers.product_id, offers.discount_percentage, products.product_name, categories.category_name, products.description, products.image_url, products.price, products.popular`).Scan(&offer)
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":    offer,

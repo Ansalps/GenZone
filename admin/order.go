@@ -8,7 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
-	"github.com/Ansalps/GeZOne/requestmodels"
+	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -158,10 +158,10 @@ func ChangeOrderStatus(c *gin.Context) {
 		for _, v := range OrderItems {
 			if v.OrderStatus != "cancelled" && v.OrderStatus != "return" {
 				var stock uint
-				database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Pluck("stock", &stock)
+				database.DB.Raw("SELECT COALESCE(SUM(stock), 0) FROM product_variants WHERE product_id = ?", v.ProductID).Scan(&stock)
 				fmt.Println("stock first", stock)
 				stock = stock - 1
-				database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Update("stock", stock)
+				database.DB.Exec("UPDATE product_variants SET stock = stock - 1 WHERE product_id = ?", v.ProductID)
 				paidamount := v.Price - v.TotalDiscount
 				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("paid_amount", paidamount)
 				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("delivered_date", today)
