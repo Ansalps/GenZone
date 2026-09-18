@@ -42,93 +42,40 @@ func seedAdmins(db *gorm.DB) error{
 func seedCategories(db *gorm.DB) error {
 	topLevelCategories := []models.Category{
 		{
-			CategoryName: "Men",
-			Description:  "Men's fashion and accessories",
-			ImageURL:     "/images/categories/men.jpg",
+			CategoryName: "Men's Clothing",
+			Description:  "Men's clothing",
+			ImageURL:     "https://genzone-public-assets.s3.ap-south-1.amazonaws.com/categories/83937e62-705d-46cb-8972-bad0d66c4f2f.jpeg",
 		},
 		{
-			CategoryName: "Women",
-			Description:  "Women's fashion and accessories",
-			ImageURL:     "/images/categories/women.jpg",
+			CategoryName: "Men's Footwear",
+			Description:  "Men's footwear",
+			ImageURL:     "https://genzone-public-assets.s3.ap-south-1.amazonaws.com/categories/04b002bb-b405-4dc3-9afa-ec1e0c2146c5.avif",
 		},
 		{
-			CategoryName: "Kids",
-			Description:  "Kids' fashion and accessories",
-			ImageURL:     "/images/categories/kids.jpg",
+			CategoryName: "Women's Clothing",
+			Description:  "Women's clothing",
+			ImageURL:     "https://genzone-public-assets.s3.ap-south-1.amazonaws.com/categories/01e90844-636e-4f3f-a1a2-108161bc3973.webp",
+		},
+		{
+			CategoryName: "Women's Footwear",
+			Description:  "Women's footwear",
+			ImageURL:     "https://genzone-public-assets.s3.ap-south-1.amazonaws.com/categories/2e19e85c-86ed-49bb-87b1-944826e85bb7.jpeg",
+		},
+		{
+			CategoryName: "Kids' Clothing",
+			Description:  "Kids' clothing",
+			ImageURL:     "https://genzone-public-assets.s3.ap-south-1.amazonaws.com/categories/913fc20e-af3d-4c8f-9af5-dca0f9f4c424.jpeg",
+		},
+		{
+			CategoryName: "Kids' Footwear",
+			Description:  "Kids' footwear",
+			ImageURL:     "https://genzone-public-assets.s3.ap-south-1.amazonaws.com/categories/018053ba-367d-4733-be2b-c60aa3002e0c.jpeg",
 		},
 	}
 
 	for _, category := range topLevelCategories {
 		if err := db.
 			Where("category_name = ?", category.CategoryName).
-			FirstOrCreate(&category).
-			Error; err != nil {
-			return err
-		}
-	}
-
-	// Get parent categories
-	var men, women, kids models.Category
-
-	if err := db.Where("category_name = ?", "Men").First(&men).Error; err != nil {
-		return err
-	}
-
-	if err := db.Where("category_name = ?", "Women").First(&women).Error; err != nil {
-		return err
-	}
-
-	if err := db.Where("category_name = ?", "Kids").First(&kids).Error; err != nil {
-		return err
-	}
-
-	// Create child categories
-	childCategories := []models.Category{
-		{
-			CategoryName: "Men's Clothing",
-			Description:  "Men's clothing",
-			ParentID:     &men.ID,
-			ImageURL:     "/images/categories/mens-clothing.jpg",
-		},
-		{
-			CategoryName: "Men's Footwear",
-			Description:  "Men's footwear",
-			ParentID:     &men.ID,
-			ImageURL:     "/images/categories/mens-footwear.jpg",
-		},
-		{
-			CategoryName: "Women's Clothing",
-			Description:  "Women's clothing",
-			ParentID:     &women.ID,
-			ImageURL:     "/images/categories/womens-clothing.jpg",
-		},
-		{
-			CategoryName: "Women's Footwear",
-			Description:  "Women's footwear",
-			ParentID:     &women.ID,
-			ImageURL:     "/images/categories/womens-footwear.jpg",
-		},
-		{
-			CategoryName: "Kids' Clothing",
-			Description:  "Kids' clothing",
-			ParentID:     &kids.ID,
-			ImageURL:     "/images/categories/kids-clothing.jpg",
-		},
-		{
-			CategoryName: "Kids' Footwear",
-			Description:  "Kids' footwear",
-			ParentID:     &kids.ID,
-			ImageURL:     "/images/categories/kids-footwear.jpg",
-		},
-	}
-
-	for _, category := range childCategories {
-		if err := db.
-			Where(
-				"category_name = ? AND parent_id = ?",
-				category.CategoryName,
-				*category.ParentID,
-			).
 			FirstOrCreate(&category).
 			Error; err != nil {
 			return err
@@ -151,7 +98,7 @@ func seedProducts(db *gorm.DB) error {
 	product := models.Product{
 		ProductName: "Classic T-Shirt",
 		Description: "Classic cotton t-shirt for everyday wear.",
-		ImageURL:    "/images/products/classic-tshirt.jpg",
+		ImageURL:    "https://genzone-public-assets.s3.ap-south-1.amazonaws.com/categories/f3ea3094-2d9a-4796-874d-550d511ef772.webp",
 		Price:       999.00,
 		Popular:     true,
 		CategoryID:  mensClothing.ID,

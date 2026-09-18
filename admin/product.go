@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -49,7 +50,7 @@ func ReadProducts(c *gin.Context) {
 
 	// Filter by category if selected
 	if category != "" {
-		sql += ` WHERE c.category_name = ?`
+		sql += ` WHERE LOWER(TRIM(c.category_name)) = LOWER(TRIM(?))`
 		args = append(args, category)
 	}
 
@@ -74,6 +75,17 @@ func ReadProducts(c *gin.Context) {
 			"message": "Failed to retrieve products from database",
 		})
 		return
+	}
+
+	for i := range products {
+		product := &products[i]
+		var variants []models.ProductVariant
+		if err := database.DB.Where("product_id = ?", product.ID).Order("size ASC").Find(&variants).Error; err == nil {
+			product.Inventory = make([]responsemodels.ProductInventoryItem, 0, len(variants))
+			for _, variant := range variants {
+				product.Inventory = append(product.Inventory, responsemodels.ProductInventoryItem{Size: variant.Size, Stock: variant.Stock})
+			}
+		}
 	}
 
 	fmt.Println("category:", category)
@@ -129,9 +141,14 @@ func ReadProductById(c *gin.Context) {
 
 	var totalStock uint
 	var sizes []string
+	inventory := make([]responsemodels.ProductInventoryItem, 0, len(product.Variants))
 	for _, variant := range product.Variants {
 		totalStock += variant.Stock
 		sizes = append(sizes, variant.Size)
+		inventory = append(inventory, responsemodels.ProductInventoryItem{
+			Size:  variant.Size,
+			Stock: variant.Stock,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -148,6 +165,7 @@ func ReadProductById(c *gin.Context) {
 			Stock:              int64(totalStock),
 			Popular:            product.Popular,
 			Size:               strings.Join(sizes, ","),
+			Inventory:          inventory,
 		},
 	})
 }
@@ -164,20 +182,76 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	// 2. Validate request fields
-	if err := helper.Validate(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  false,
-			"message": err.Error(),
-		})
-		return
+	inventoryJSON := strings.TrimSpace(c.PostForm("inventory"))
+	inventoryProvided := inventoryJSON != ""
+	var inventory []models.ProductVariant
+
+	if inventoryProvided {
+		if err := json.Unmarshal([]byte(inventoryJSON), &inventory); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid inventory format",
+			})
+			return
+		}
+
+		if len(inventory) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Inventory cannot be empty",
+			})
+			return
+		}
+
+		for _, item := range inventory {
+			if item.Stock < 0 {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"status":  false,
+					"message": "Inventory stock must not be negative",
+				})
+				return
+			}
+			if item.Size != "Small" && item.Size != "Medium" && item.Size != "Large" {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"status":  false,
+					"message": "Invalid size selection",
+				})
+				return
+			}
+		}
+
+		req.Size = inventory[0].Size
+		req.Stock = inventory[0].Stock
 	}
 
-	// 3. Validate size
-	if req.Size != "Small" &&
-		req.Size != "Medium" &&
-		req.Size != "Large" {
+	if inventoryProvided {
+		if req.CategoryName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "category_name is required"})
+			return
+		}
+		if req.ProductName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "product_name is required"})
+			return
+		}
+		if req.Description == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "product_description is required"})
+			return
+		}
+		if req.Price <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "price must be greater than zero"})
+			return
+		}
+	} else {
+		if err := helper.Validate(req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+	}
 
+	if !inventoryProvided && (req.Size != "Small" && req.Size != "Medium" && req.Size != "Large") {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "Invalid size selection",
@@ -185,10 +259,7 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	// 4. Validate discount percentage
-	if req.DiscountPercentage < 0 ||
-		req.DiscountPercentage > 100 {
-
+	if req.DiscountPercentage < 0 || req.DiscountPercentage > 100 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "Discount percentage must be between 0 and 100",
@@ -196,9 +267,7 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	// 5. Get uploaded image
 	fileHeader, err := c.FormFile("product_image")
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
@@ -207,13 +276,8 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	// Optional: validate image content type
 	contentType := fileHeader.Header.Get("Content-Type")
-
-	if contentType != "image/jpeg" &&
-		contentType != "image/png" &&
-		contentType != "image/webp" {
-
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "Only JPG, PNG, and WEBP images are allowed",
@@ -221,12 +285,9 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	// 6. Upload image to S3
 	imageURL, err := helper.UploadToS3(fileHeader)
-
 	if err != nil {
 		log.Println("S3 Upload Error:", err)
-
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "Failed to upload product image to S3",
@@ -234,9 +295,7 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	// 7. Find category ID
 	var categoryID uint
-
 	err = database.DB.
 		Model(&models.Category{}).
 		Select("id").
@@ -246,7 +305,6 @@ func AddProduct(c *gin.Context) {
 
 	if err != nil {
 		log.Println("Category lookup error:", err)
-
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "Failed to find category",
@@ -262,9 +320,7 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	// 8. Begin transaction
 	tx := database.DB.Begin()
-
 	if tx.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
@@ -273,7 +329,6 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	// 9. Create product
 	product := models.Product{
 		CategoryID:  categoryID,
 		ProductName: req.ProductName,
@@ -284,11 +339,8 @@ func AddProduct(c *gin.Context) {
 	}
 
 	if err := tx.Create(&product).Error; err != nil {
-
 		tx.Rollback()
-
 		log.Println("Product creation error:", err)
-
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "Failed to create product",
@@ -296,36 +348,48 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	variant := models.ProductVariant{
-		ProductID: product.ID,
-		Size:      req.Size,
-		Stock:     req.Stock,
+	if inventoryProvided {
+		for _, item := range inventory {
+			variant := models.ProductVariant{
+				ProductID: product.ID,
+				Size:      item.Size,
+				Stock:     item.Stock,
+			}
+			if err := tx.Create(&variant).Error; err != nil {
+				tx.Rollback()
+				log.Println("Product variant creation error:", err)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"status":  false,
+					"message": "Failed to create product variant",
+				})
+				return
+			}
+		}
+	} else {
+		variant := models.ProductVariant{
+			ProductID: product.ID,
+			Size:      req.Size,
+			Stock:     req.Stock,
+		}
+		if err := tx.Create(&variant).Error; err != nil {
+			tx.Rollback()
+			log.Println("Product variant creation error:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to create product variant",
+			})
+			return
+		}
 	}
 
-	if err := tx.Create(&variant).Error; err != nil {
-		tx.Rollback()
-		log.Println("Product variant creation error:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  false,
-			"message": "Failed to create product variant",
-		})
-		return
-	}
-
-	// 10. Create offer if discount exists
 	if req.DiscountPercentage > 0 {
-
 		offer := models.Offer{
 			ProductID:          product.ID,
 			DiscountPercentage: req.DiscountPercentage,
 		}
-
 		if err := tx.Create(&offer).Error; err != nil {
-
 			tx.Rollback()
-
 			log.Println("Offer creation error:", err)
-
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  false,
 				"message": "Failed to create product offer",
@@ -334,11 +398,8 @@ func AddProduct(c *gin.Context) {
 		}
 	}
 
-	// 11. Commit transaction
 	if err := tx.Commit().Error; err != nil {
-
 		log.Println("Transaction commit error:", err)
-
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "Failed to save product",
@@ -346,7 +407,6 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	// 12. Return success
 	c.JSON(http.StatusCreated, gin.H{
 		"status":  true,
 		"message": "Product Added Successfully",
@@ -368,21 +428,82 @@ func EditProduct(c *gin.Context) {
 		return
 	}
 
+	inventoryJSON := strings.TrimSpace(c.PostForm("inventory"))
+	inventoryProvided := inventoryJSON != ""
+	var inventory []models.ProductVariant
+
+	if inventoryProvided {
+		if err := json.Unmarshal([]byte(inventoryJSON), &inventory); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid inventory format",
+			})
+			return
+		}
+
+		if len(inventory) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Inventory cannot be empty",
+			})
+			return
+		}
+
+		for _, item := range inventory {
+			if item.Stock < 0 {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"status":  false,
+					"message": "Inventory stock must not be negative",
+				})
+				return
+			}
+			if item.Size != "Small" && item.Size != "Medium" && item.Size != "Large" {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"status":  false,
+					"message": "Invalid size selection",
+				})
+				return
+			}
+		}
+
+		reqProduct.Size = inventory[0].Size
+		reqProduct.Stock = inventory[0].Stock
+	}
+
 	// 2. Validate request
-	if err := helper.Validate(reqProduct); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":     false,
-			"message":    err.Error(),
-			"error_code": http.StatusBadRequest,
-		})
-		return
+	if inventoryProvided {
+		if reqProduct.CategoryName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "category_name is required"})
+			return
+		}
+		if reqProduct.ProductName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "product_name is required"})
+			return
+		}
+		if reqProduct.Description == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "product_description is required"})
+			return
+		}
+		if reqProduct.Price <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "price must be greater than zero"})
+			return
+		}
+	} else {
+		if err := helper.Validate(reqProduct); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":     false,
+				"message":    err.Error(),
+				"error_code": http.StatusBadRequest,
+			})
+			return
+		}
 	}
 
 	// 3. Validate size
-	if reqProduct.Size != "Small" &&
+	if !inventoryProvided && (reqProduct.Size != "Small" &&
 		reqProduct.Size != "Medium" &&
-		reqProduct.Size != "Large" {
-
+		reqProduct.Size != "Large") {
+		fmt.Println("hi in validate Size")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "Invalid size selection",
@@ -393,7 +514,7 @@ func EditProduct(c *gin.Context) {
 	// 4. Validate discount
 	if reqProduct.DiscountPercentage < 0 ||
 		reqProduct.DiscountPercentage > 100 {
-
+		fmt.Println("hi in validate discount")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "Discount percentage must be between 0 and 100",
@@ -425,6 +546,7 @@ func EditProduct(c *gin.Context) {
 	}
 
 	if categoryID == 0 {
+		fmt.Println("category id is -")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "Category does not exist",
@@ -507,7 +629,7 @@ func EditProduct(c *gin.Context) {
 		})
 		return
 	}
-
+	fmt.Println("hi hello first")
 	// 9. Prepare product update
 	updateData := map[string]interface{}{
 		"category_id":  categoryID,
@@ -539,27 +661,54 @@ func EditProduct(c *gin.Context) {
 		return
 	}
 
-	var variant models.ProductVariant
-	variantErr := tx.Where("product_id = ? AND size = ?", product.ID, reqProduct.Size).First(&variant).Error
-	if errors.Is(variantErr, gorm.ErrRecordNotFound) {
-		if err := tx.Create(&models.ProductVariant{ProductID: product.ID, Size: reqProduct.Size, Stock: reqProduct.Stock}).Error; err != nil {
-			tx.Rollback()
-			log.Println("Product variant update error:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update product variant"})
-			return
-		}
-	} else if variantErr == nil {
-		if err := tx.Model(&variant).Update("stock", reqProduct.Stock).Error; err != nil {
-			tx.Rollback()
-			log.Println("Product variant stock update error:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update product variant stock"})
-			return
+	if inventoryProvided {
+		for _, item := range inventory {
+			var variant models.ProductVariant
+			variantErr := tx.Where("product_id = ? AND size = ?", product.ID, item.Size).First(&variant).Error
+			if errors.Is(variantErr, gorm.ErrRecordNotFound) {
+				if err := tx.Create(&models.ProductVariant{ProductID: product.ID, Size: item.Size, Stock: item.Stock}).Error; err != nil {
+					tx.Rollback()
+					log.Println("Product variant creation error:", err)
+					c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create product variant"})
+					return
+				}
+			} else if variantErr == nil {
+				if err := tx.Model(&variant).Update("stock", item.Stock).Error; err != nil {
+					tx.Rollback()
+					log.Println("Product variant stock update error:", err)
+					c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update product variant stock"})
+					return
+				}
+			} else {
+				tx.Rollback()
+				log.Println("Product variant lookup error:", variantErr)
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to read product variant"})
+				return
+			}
 		}
 	} else {
-		tx.Rollback()
-		log.Println("Product variant lookup error:", variantErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to read product variant"})
-		return
+		var variant models.ProductVariant
+		variantErr := tx.Where("product_id = ? AND size = ?", product.ID, reqProduct.Size).First(&variant).Error
+		if errors.Is(variantErr, gorm.ErrRecordNotFound) {
+			if err := tx.Create(&models.ProductVariant{ProductID: product.ID, Size: reqProduct.Size, Stock: reqProduct.Stock}).Error; err != nil {
+				tx.Rollback()
+				log.Println("Product variant update error:", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update product variant"})
+				return
+			}
+		} else if variantErr == nil {
+			if err := tx.Model(&variant).Update("stock", reqProduct.Stock).Error; err != nil {
+				tx.Rollback()
+				log.Println("Product variant stock update error:", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update product variant stock"})
+				return
+			}
+		} else {
+			tx.Rollback()
+			log.Println("Product variant lookup error:", variantErr)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to read product variant"})
+			return
+		}
 	}
 
 	// 11. Find existing offer

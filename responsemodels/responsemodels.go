@@ -4,27 +4,33 @@ import "time"
 
 type Category struct {
 	//gorm.Model
-	ID           uint   ` json:"id"`
-	CreatedAt	time.Time `json:"category_created_at"`
-	CategoryName string ` gorm:"unique" json:"category_name" validate:"required"`
-	Description  string `json:"category_description" validate:"required"`
-	ImageUrl     string `json:"category_image_url" validate:"required"`
+	ID           uint      ` json:"id"`
+	CreatedAt    time.Time `json:"category_created_at"`
+	CategoryName string    ` gorm:"unique" json:"category_name" validate:"required"`
+	Description  string    `json:"category_description" validate:"required"`
+	ImageUrl     string    `json:"category_image_url" validate:"required"`
+}
+
+type ProductInventoryItem struct {
+	Size  string `json:"size"`
+	Stock uint   `json:"stock"`
 }
 
 type Product struct {
-    ID                 uint      `json:"id"`
-    CreatedAt          time.Time `json:"created_at"`
-    UpdatedAt          time.Time `json:"updated_at"`
-    CategoryID         uint      `json:"category_id"`
-    CategoryName       string    `json:"category_name"`
-    ProductName        string    `json:"product_name"`
-    ProductDescription string    `json:"product_description"`
-    ProductImageUrl    string    `json:"product_image_url"`
-    Price              float64   `json:"price"`
-    Stock              int64     `json:"stock"`
-    Popular            bool      `json:"popular"`
-    Size               string    `json:"size"`
-    DiscountPercentage int64     `json:"discount_percentage"` // 0 if no offer exists
+	ID                 uint                   `json:"id"`
+	CreatedAt          time.Time              `json:"created_at"`
+	UpdatedAt          time.Time              `json:"updated_at"`
+	CategoryID         uint                   `json:"category_id"`
+	CategoryName       string                 `json:"category_name"`
+	ProductName        string                 `json:"product_name"`
+	ProductDescription string                 `json:"product_description"`
+	ProductImageUrl    string                 `json:"product_image_url"`
+	Price              float64                `json:"price"`
+	Stock              int64                  `json:"stock"`
+	Popular            bool                   `json:"popular"`
+	Size               string                 `json:"size"`
+	Inventory          []ProductInventoryItem `gorm:"-" sql:"-" json:"inventory"`
+	DiscountPercentage int64                  `json:"discount_percentage"` // 0 if no offer exists
 }
 
 type CartItems struct {

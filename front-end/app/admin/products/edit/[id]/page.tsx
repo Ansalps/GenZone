@@ -29,16 +29,9 @@ const validateForm = (data: ProductFormData): FormErrors => {
         errors.price = "Price must be greater than 0";
     }
 
-    if (data.stock < 0 || !Number.isInteger(data.stock)) {
-        errors.stock = "Stock must be a non-negative whole number";
-    }
-
-    if (!data.size) {
-        errors.size = "Please select a size";
-    } else if (
-        !["Small", "Medium", "Large"].includes(data.size)
-    ) {
-        errors.size = "Size must be Small, Medium, or Large";
+    const inventoryValues = Object.values(data.inventory ?? {});
+    if (inventoryValues.length === 0 || inventoryValues.some((value) => value < 0 || !Number.isInteger(value))) {
+        errors.inventory = "Inventory stock must be a non-negative whole number for each size";
     }
 
     if (
@@ -77,6 +70,11 @@ export default function EditProduct() {
         price: 0,
         stock: 0,
         size: "",
+        inventory: {
+            Small: 0,
+            Medium: 0,
+            Large: 0,
+        },
         popular: false,
         discountPercentage: 0,
     });
@@ -106,6 +104,17 @@ export default function EditProduct() {
 
                 if (response.data?.data) {
                     const product = response.data.data;
+                    const inventoryMap: Record<string, number> = {
+                        Small: 0,
+                        Medium: 0,
+                        Large: 0,
+                    };
+
+                    (product.inventory || []).forEach((entry: { size: string; stock: number }) => {
+                        if (entry.size && inventoryMap[entry.size] !== undefined) {
+                            inventoryMap[entry.size] = entry.stock ?? 0;
+                        }
+                    });
 
                     setFormData({
                         categoryName:
@@ -125,6 +134,8 @@ export default function EditProduct() {
 
                         size:
                             product.size || "",
+
+                        inventory: inventoryMap,
 
                         popular:
                             product.popular || false,
@@ -172,6 +183,16 @@ export default function EditProduct() {
                     : type === "number"
                     ? Number(value)
                     : value,
+        }));
+    };
+
+    const onInventoryChange = (size: string, value: number) => {
+        setFormData((prev) => ({
+            ...prev,
+            inventory: {
+                ...(prev.inventory ?? {}),
+                [size]: value,
+            },
         }));
     };
 
@@ -267,8 +288,13 @@ export default function EditProduct() {
             );
 
             data.append(
-                "size",
-                formData.size
+                "inventory",
+                JSON.stringify(
+                    Object.entries(formData.inventory ?? {}).map(([size, stock]) => ({
+                        size,
+                        stock: Number(stock) || 0,
+                    }))
+                )
             );
 
             data.append(
@@ -364,6 +390,7 @@ export default function EditProduct() {
                         <ProductForm
                             formData={formData}
                             onChange={onChange}
+                            onInventoryChange={onInventoryChange}
                             onImageChange={onImageChange}
                             isLoading={isLoading}
                             categories={categories}

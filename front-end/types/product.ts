@@ -1,3 +1,8 @@
+export interface ProductInventoryItem {
+    size: string;
+    stock: number;
+}
+
 export interface Product {
     id: number;
     created_at: string;
@@ -15,6 +20,7 @@ export interface Product {
 
     popular: boolean;
     size: string;
+    inventory?: ProductInventoryItem[];
 
     discount_percentage?: number;
 }

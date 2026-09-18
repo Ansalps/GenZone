@@ -10,49 +10,31 @@ import { ProductFormData } from "@/types/productFormData"
 const validateForm = (data: ProductFormData): FormErrors => {
     const errors: FormErrors = {}
 
-    // Category
     if (!data.categoryName.trim()) {
         errors.categoryName = "Please select a category"
     }
 
-    // Product name
     if (!data.productName.trim()) {
         errors.productName = "Product name is required"
     } else if (data.productName.trim().length < 3) {
         errors.productName = "Product name must be at least 3 characters"
     }
 
-    // Description
     if (!data.productDescription.trim()) {
         errors.productDescription = "Description is required"
     }
 
-    // Price
     if (data.price <= 0) {
         errors.price = "Price must be greater than 0"
     }
 
-    // Stock
-    if (data.stock < 0 || !Number.isInteger(data.stock)) {
-        errors.stock = "Stock must be a non-negative whole number"
+    const inventoryValues = Object.values(data.inventory ?? {})
+    if (inventoryValues.length === 0 || inventoryValues.some((value) => value < 0 || !Number.isInteger(value))) {
+        errors.inventory = "Inventory stock must be a non-negative whole number for each size"
     }
 
-    // Size
-    if (!data.size) {
-        errors.size = "Please select a size"
-    } else if (
-        !["Small", "Medium", "Large"].includes(data.size)
-    ) {
-        errors.size = "Size must be Small, Medium, or Large"
-    }
-
-    // Discount
-    if (
-        data.discountPercentage < 0 ||
-        data.discountPercentage > 100
-    ) {
-        errors.discountPercentage =
-            "Discount percentage must be between 0 and 100"
+    if (data.discountPercentage < 0 || data.discountPercentage > 100) {
+        errors.discountPercentage = "Discount percentage must be between 0 and 100"
     }
 
     return errors
@@ -64,7 +46,6 @@ export default function AddProduct() {
 
     const [isLoading, setIsLoading] = useState(false)
 
-    // Product form data
     const [formData, setFormData] = useState<ProductFormData>({
         categoryName: "",
         productName: "",
@@ -72,17 +53,18 @@ export default function AddProduct() {
         price: 0,
         stock: 0,
         size: "",
+        inventory: {
+            Small: 0,
+            Medium: 0,
+            Large: 0,
+        },
         popular: false,
         discountPercentage: 0,
     })
 
-    // Actual image file
     const [imageFile, setImageFile] = useState<File | null>(null)
-
-    // Validation errors
     const [errors, setErrors] = useState<FormErrors>({})
 
-    // Handle text, number, select and checkbox inputs
     const onChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
     ) => {
@@ -99,7 +81,16 @@ export default function AddProduct() {
         }))
     }
 
-    // Handle image selection
+    const onInventoryChange = (size: string, value: number) => {
+        setFormData((prev) => ({
+            ...prev,
+            inventory: {
+                ...(prev.inventory ?? {}),
+                [size]: value,
+            },
+        }))
+    }
+
     const onImageChange = (
         e: React.ChangeEvent<HTMLInputElement>
     ) => {
@@ -107,7 +98,6 @@ export default function AddProduct() {
 
         setImageFile(file)
 
-        // Clear previous image error when user selects a file
         if (file) {
             setErrors((prev) => ({
                 ...prev,
@@ -121,30 +111,15 @@ export default function AddProduct() {
     ) => {
         e.preventDefault()
 
-        // -----------------------------
-        // Validate normal form fields
-        // -----------------------------
-
         const newErrors = validateForm(formData)
 
-        // -----------------------------
-        // Validate image
-        // -----------------------------
-
         if (!imageFile) {
-            newErrors.productImage =
-                "Product image is required"
+            newErrors.productImage = "Product image is required"
         } else if (!imageFile.type.startsWith("image/")) {
-            newErrors.productImage =
-                "Please select a valid image"
+            newErrors.productImage = "Please select a valid image"
         } else if (imageFile.size > 5 * 1024 * 1024) {
-            newErrors.productImage =
-                "Image must be smaller than 5MB"
+            newErrors.productImage = "Image must be smaller than 5MB"
         }
-
-        // -----------------------------
-        // Stop if validation fails
-        // -----------------------------
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors)
@@ -155,60 +130,27 @@ export default function AddProduct() {
         setIsLoading(true)
 
         try {
-            // -----------------------------
-            // Create multipart FormData
-            // -----------------------------
-
             const data = new FormData()
+            const inventoryEntries = Object.entries(formData.inventory ?? {}).map(([size, stock]) => ({
+                size,
+                stock: Number(stock) || 0,
+            }))
 
-            data.append(
-                "category_name",
-                formData.categoryName
-            )
+            const primarySizeEntry = inventoryEntries.find((item) => (item.stock ?? 0) > 0) ?? inventoryEntries[0]
 
-            data.append(
-                "product_name",
-                formData.productName
-            )
+            data.append("category_name", formData.categoryName)
+            data.append("product_name", formData.productName)
+            data.append("product_description", formData.productDescription)
+            data.append("price", String(formData.price))
+            data.append("popular", String(formData.popular))
+            data.append("inventory", JSON.stringify(inventoryEntries))
+            data.append("size", primarySizeEntry?.size ?? "Small")
+            data.append("stock", String(primarySizeEntry?.stock ?? 0))
+            data.append("discount_percentage", String(formData.discountPercentage))
 
-            data.append(
-                "product_description",
-                formData.productDescription
-            )
-
-            data.append(
-                "price",
-                String(formData.price)
-            )
-
-            data.append(
-                "stock",
-                String(formData.stock)
-            )
-
-            data.append(
-                "popular",
-                String(formData.popular)
-            )
-
-            data.append(
-                "size",
-                formData.size
-            )
-
-            data.append(
-                "discount_percentage",
-                String(formData.discountPercentage)
-            )
-
-            // Add actual image file
             if (imageFile) {
                 data.append("product_image", imageFile)
             }
-
-            // -----------------------------
-            // Send to backend
-            // -----------------------------
 
             const response = await axios.post(
                 "http://localhost:8080/admin/product",
@@ -218,10 +160,6 @@ export default function AddProduct() {
                 }
             )
 
-            // -----------------------------
-            // Success
-            // -----------------------------
-
             if (
                 response.status === 200 ||
                 response.status === 201
@@ -230,14 +168,10 @@ export default function AddProduct() {
             }
 
         } catch (error) {
-            console.error(
-                "Failed to add product:",
-                error
-            )
+            console.error("Failed to add product:", error)
 
             setErrors({
-                productImage:
-                    "Failed to add product. Please try again.",
+                productImage: "Failed to add product. Please try again.",
             })
         } finally {
             setIsLoading(false)
@@ -259,6 +193,7 @@ export default function AddProduct() {
                         <ProductForm
                             formData={formData}
                             onChange={onChange}
+                            onInventoryChange={onInventoryChange}
                             onImageChange={onImageChange}
                             isLoading={isLoading}
                             categories={categories}

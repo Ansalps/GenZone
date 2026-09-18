@@ -19,6 +19,21 @@ export default function ProductCard({
         : 0;
 
     const finalPrice = product.price - discountAmount;
+    const inventory = product.inventory && product.inventory.length > 0 ? product.inventory : [];
+    const sizeOrder = ["Small", "Medium", "Large"];
+    const shortSizeMap: Record<string, string> = {
+        Small: 'S',
+        Medium: 'M',
+        Large: 'L',
+    };
+    const inventoryRows = sizeOrder.map((size) => {
+        const match = inventory.find((item) => item.size === size);
+        return {
+            size,
+            label: shortSizeMap[size] || size.slice(0, 1).toUpperCase(),
+            stock: match?.stock ?? 0,
+        };
+    });
 
     return (
         <div className="rounded-2xl border border-white/10 bg-slate-900/80 shadow-lg overflow-hidden hover:shadow-2xl transition">
@@ -93,34 +108,30 @@ export default function ProductCard({
                 )}
 
                 {/* Product details */}
-                <div className="grid grid-cols-2 gap-3 mt-4 text-sm text-slate-300">
-
-                    <div>
-                        <span className="text-slate-400">
-                            Stock
-                        </span>
-
-                        <p
-                            className={
-                                product.stock === 0
-                                    ? "font-semibold text-red-600"
-                                    : "font-semibold"
-                            }
-                        >
-                            {product.stock}
-                        </p>
+                <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/40 p-3 text-sm text-slate-300">
+                    <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        <span>Sizes</span>
+                        <span>Stock</span>
                     </div>
 
-                    <div>
-                        <span className="text-slate-400">
-                            Size
-                        </span>
-
-                        <p className="font-semibold">
-                            {product.size}
-                        </p>
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex gap-2">
+                                {inventoryRows.map((row) => (
+                                    <span key={row.size} className="inline-flex min-w-7 justify-center rounded-lg border border-white/10 bg-slate-900 px-2 py-1 text-xs font-semibold text-slate-100">
+                                        {row.label}
+                                    </span>
+                                ))}
+                            </div>
+                            <div className="flex gap-2">
+                                {inventoryRows.map((row) => (
+                                    <span key={`${row.size}-stock`} className={`inline-flex min-w-10 justify-center rounded-lg px-2 py-1 text-xs font-semibold ${row.stock === 0 ? 'bg-red-500/10 text-red-300' : 'bg-emerald-500/10 text-emerald-300'}`}>
+                                        {row.stock}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-
                 </div>
 
                 {/* Actions */}

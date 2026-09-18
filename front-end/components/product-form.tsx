@@ -13,6 +13,7 @@ export interface FormErrors {
     price?: string
     stock?: string
     size?: string
+    inventory?: string
     discountPercentage?: string
 }
 
@@ -22,6 +23,8 @@ interface ProductFormProps {
     onChange: (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
     ) => void
+
+    onInventoryChange?: (size: string, value: number) => void
 
     onImageChange: (
         e: React.ChangeEvent<HTMLInputElement>
@@ -38,6 +41,7 @@ interface ProductFormProps {
 export default function ProductForm({
     formData,
     onChange,
+    onInventoryChange,
     onImageChange,
     isLoading,
     categories,
@@ -46,6 +50,11 @@ export default function ProductForm({
 }: ProductFormProps) {
 
     const price = Number(formData.price) || 0
+    const inventoryConfig = [
+        { size: 'Small', label: 'S' },
+        { size: 'Medium', label: 'M' },
+        { size: 'Large', label: 'L' },
+    ]
     const discountPercent =
         Number(formData.discountPercentage) || 0
 
@@ -127,28 +136,55 @@ export default function ProductForm({
                     {errors.price && <span className="text-rose-400 text-xs mt-1">{errors.price}</span>}
                 </div>
 
-                {/* Stock */}
-                <div className="flex flex-col">
-                    <label htmlFor="stock" className="mb-2 text-sm font-medium text-slate-200">Stock *</label>
+                {!onInventoryChange ? (
+                    <>
+                        {/* Stock */}
+                        <div className="flex flex-col">
+                            <label htmlFor="stock" className="mb-2 text-sm font-medium text-slate-200">Stock *</label>
 
-                    <input type="number" id="stock" name="stock" min="0" value={formData.stock || ""} onChange={onChange} className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 text-white outline-none" required />
+                            <input type="number" id="stock" name="stock" min="0" value={formData.stock || ""} onChange={onChange} className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 text-white outline-none" required />
 
-                    {errors.stock && <span className="text-rose-400 text-xs mt-1">{errors.stock}</span>}
-                </div>
+                            {errors.stock && <span className="text-rose-400 text-xs mt-1">{errors.stock}</span>}
+                        </div>
 
-                {/* Size */}
-                <div className="flex flex-col">
-                    <label htmlFor="size" className="mb-2 text-sm font-medium text-slate-200">Size *</label>
+                        {/* Size */}
+                        <div className="flex flex-col">
+                            <label htmlFor="size" className="mb-2 text-sm font-medium text-slate-200">Size *</label>
 
-                    <select id="size" name="size" value={formData.size} onChange={onChange} className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 text-white outline-none">
-                        <option value="">Select Size</option>
-                        <option value="Small">Small</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Large">Large</option>
-                    </select>
+                            <select id="size" name="size" value={formData.size} onChange={onChange} className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 text-white outline-none">
+                                <option value="">Select Size</option>
+                                <option value="Small">Small</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Large">Large</option>
+                            </select>
 
-                    {errors.size && <span className="text-rose-400 text-xs mt-1">{errors.size}</span>}
-                </div>
+                            {errors.size && <span className="text-rose-400 text-xs mt-1">{errors.size}</span>}
+                        </div>
+                    </>
+                ) : (
+                    <div className="md:col-span-2">
+                        <div className="mb-2 flex items-center justify-between">
+                            <label className="text-sm font-medium text-slate-200">Inventory</label>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            {inventoryConfig.map((item) => (
+                                <div key={item.size} className="rounded-2xl border border-white/10 bg-slate-950/40 p-3">
+                                    <div className="mb-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                        {item.label}
+                                    </div>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={formData.inventory?.[item.size] ?? 0}
+                                        onChange={(event) => onInventoryChange?.(item.size, Number(event.target.value) || 0)}
+                                        className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-center text-white outline-none"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                        {errors.inventory && <span className="mt-2 block text-xs text-rose-400">{errors.inventory}</span>}
+                    </div>
+                )}
 
                 {/* Popular */}
                 <div className="flex items-center pt-8 gap-3">

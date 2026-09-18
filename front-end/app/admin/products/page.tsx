@@ -34,17 +34,16 @@ export default function Products() {
                     }
                 );
 
-                if (
-                    response.data?.status &&
-                    response.data?.data?.products
-                ) {
-                    setProducts(response.data.data.products);
-                }
+                const fetchedProducts =
+                    response.data?.data?.products ?? [];
+
+                setProducts(Array.isArray(fetchedProducts) ? fetchedProducts : []);
             } catch (error) {
                 console.error(
                     'Failed to load products:',
                     error
                 );
+                setProducts([]);
             }
         }
 
@@ -94,8 +93,13 @@ export default function Products() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <select value={category} onChange={(e) => setCategory(e.target.value)} disabled={isCategoriesLoading} className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none">
-                            <option value="">{isCategoriesLoading ? 'Loading categories...' : 'All Categories'}</option>
+                        <select
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            disabled={Boolean(isCategoriesLoading)}
+                            className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
+                        >
+                            <option value="">{Boolean(isCategoriesLoading) ? 'Loading categories...' : 'All Categories'}</option>
                             {categories.map((cat) => (<option key={cat.id} value={cat.category_name}>{cat.category_name}</option>))}
                         </select>
 

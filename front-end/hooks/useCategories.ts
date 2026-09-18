@@ -9,7 +9,7 @@ interface Category {
 export function useCategories() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [isCategoriesLoading, setIsCategoriesLoading] =
-        useState(true);
+        useState(false);
     const [categoriesError, setCategoriesError] =
         useState<unknown>(null);
 

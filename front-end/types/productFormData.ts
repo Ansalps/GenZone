@@ -5,6 +5,7 @@ export interface ProductFormData {
     price: number
     stock: number
     size: string
+    inventory?: Record<string, number>
     popular: boolean
     discountPercentage: number
 }

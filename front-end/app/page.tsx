@@ -175,7 +175,7 @@ export default function LandingPage() {
                                     <div className="grid gap-3 sm:grid-cols-2">
                                         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                                             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Category</p>
-                                            <h3 className="mt-2 text-lg font-semibold text-white">Menswear</h3>
+                                            <h3 className="mt-2 text-lg font-semibold text-white">Men's Clothing</h3>
                                         </div>
                                         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                                             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Best price</p>
