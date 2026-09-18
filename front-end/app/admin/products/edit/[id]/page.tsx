@@ -1,6 +1,7 @@
 'use client'
 
 import axios from "axios";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ProductForm, { FormErrors } from "@/components/product-form";
@@ -315,32 +316,63 @@ export default function EditProduct() {
      */
     if (isFetching) {
         return (
-            <div className="flex justify-center items-center h-screen text-gray-500">
-                Loading product details...
+            <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-300">
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-5 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
+                    Loading product details...
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="p-6 max-w-4xl mx-auto">
-            <h1 className="font-bold text-2xl mb-6">
-                Edit Product
-            </h1>
+        <div className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-6xl">
+                <header className="mb-8 rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
+                                Product management
+                            </p>
+                            <h1 className="mt-2 text-3xl font-bold text-white">
+                                Edit product
+                            </h1>
+                        </div>
 
-            <form
-                onSubmit={handleSubmit}
-                className="w-full"
-            >
-                <ProductForm
-                    formData={formData}
-                    onChange={onChange}
-                    onImageChange={onImageChange}
-                    isLoading={isLoading}
-                    categories={categories}
-                    errors={errors}
-                    existingImageUrl={existingImageUrl}
-                />
-            </form>
+                        <div className="flex items-center gap-3">
+                            <Link
+                                href="/admin/products"
+                                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
+                            >
+                                Back to products
+                            </Link>
+                        </div>
+                    </div>
+                </header>
+
+                <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-5 shadow-2xl shadow-slate-950/30 backdrop-blur-xl md:p-8">
+                    <div className="mb-6 flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-violet-500 text-xl font-bold text-white shadow-lg shadow-cyan-500/20">
+                            ✎
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-semibold text-white">Product details</h2>
+                            <p className="text-sm text-slate-400">Update pricing, inventory, image, and offer data.</p>
+                        </div>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="w-full">
+                        <ProductForm
+                            formData={formData}
+                            onChange={onChange}
+                            onImageChange={onImageChange}
+                            isLoading={isLoading}
+                            categories={categories}
+                            errors={errors}
+                            existingImageUrl={existingImageUrl}
+                        />
+                    </form>
+                </div>
+            </div>
         </div>
     );
 }
