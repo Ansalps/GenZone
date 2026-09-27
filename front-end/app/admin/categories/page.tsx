@@ -8,31 +8,37 @@ import ConfirmModal from '@/components/admin/confirm-modal';
 import { toast } from 'sonner';
 import { Category } from '@/types/category';
 
-
+const API = 'http://localhost:8080';
 
 export default function Categories() {
     const [categories, setCategories] = useState<Category[]>([]);
-    const [sortOrder, setSortOrder] = useState("DSC");
+    const [search, setSearch] = useState('');
+    const [nameSort, setNameSort] = useState('');
+
     useEffect(() => {
         async function fetchData() {
             try {
-                const response = await axios.get(
-                    `http://localhost:8080/admin/category?list_order=${sortOrder}`,
-                    {
-                        withCredentials: true,
-                    }
-                );
+                const response = await axios.get(`${API}/public/category`, {
+                    withCredentials: true,
+                    params: {
+                        search: search || undefined,
+                        name_sort: nameSort || undefined,
+                    },
+                });
 
-                if (response.data?.status && response.data?.data?.categories) {
+                if (response.data?.status && Array.isArray(response.data?.data?.categories)) {
                     setCategories(response.data.data.categories);
+                } else {
+                    setCategories([]);
                 }
             } catch (error) {
                 console.error('Failed to load categories:', error);
+                setCategories([]);
             }
         }
 
         fetchData();
-    }, [sortOrder]);
+    }, [search, nameSort]);
 
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmId, setConfirmId] = useState<number | null>(null);
@@ -52,7 +58,7 @@ export default function Categories() {
 
         try {
             await axios.delete(
-                `http://localhost:8080/admin/category/${confirmId}`,
+                `${API}/admin/category/${confirmId}`,
                 { withCredentials: true }
             );
 
@@ -85,13 +91,22 @@ export default function Categories() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <select
-                            onChange={(e) => setSortOrder(e.target.value)}
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search categories..."
                             className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
-                            value={sortOrder}
+                        />
+
+                        <select
+                            value={nameSort}
+                            onChange={(e) => setNameSort(e.target.value)}
+                            className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
                         >
-                            <option value="DSC">Newest First</option>
-                            <option value="ASC">Oldest First</option>
+                            <option value="">Name order</option>
+                            <option value="aA-zZ">A to Z</option>
+                            <option value="zZ-aA">Z to A</option>
                         </select>
 
                         <Link

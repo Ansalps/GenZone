@@ -2,7 +2,7 @@
 
 import axios from 'axios';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface Category {
   id: number;
@@ -30,7 +30,11 @@ const API = 'http://localhost:8080';
 export default function DashboardPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [search, setSearch] = useState('');
+  const [categorySearch, setCategorySearch] = useState('');
+  const [categoryNameSort, setCategoryNameSort] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [productNameSort, setProductNameSort] = useState('');
+  const [productPriceSort, setProductPriceSort] = useState('');
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [cartCount, setCartCount] = useState(0);
@@ -38,23 +42,42 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await axios.get(`${API}/public/category`, { withCredentials: true });
+        setLoadingCategories(true);
+        const response = await axios.get(`${API}/public/category`, {
+          withCredentials: true,
+          params: {
+            search: categorySearch || undefined,
+            name_sort: categoryNameSort || undefined,
+          },
+        });
+
         if (response.data?.status && Array.isArray(response.data?.data?.categories)) {
           setCategories(response.data.data.categories);
+        } else {
+          setCategories([]);
         }
       } catch (error) {
         console.error('Failed to load categories', error);
+        setCategories([]);
       } finally {
         setLoadingCategories(false);
       }
     };
 
+    fetchCategories();
+  }, [categorySearch, categoryNameSort]);
+
+  useEffect(() => {
     const fetchProducts = async () => {
       try {
         setLoadingProducts(true);
         const response = await axios.get(`${API}/public/product`, {
           withCredentials: true,
-          params: { search: search || undefined },
+          params: {
+            search: productSearch || undefined,
+            name_sort: productNameSort || undefined,
+            price_sort: productPriceSort || undefined,
+          },
         });
 
         if (response.data?.status && Array.isArray(response.data?.data?.products)) {
@@ -70,9 +93,8 @@ export default function DashboardPage() {
       }
     };
 
-    fetchCategories();
     fetchProducts();
-  }, [search]);
+  }, [productSearch, productNameSort, productPriceSort]);
 
   useEffect(() => {
     const fetchCart = async () => {
@@ -88,19 +110,6 @@ export default function DashboardPage() {
 
     fetchCart();
   }, []);
-
-  const filteredProducts = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return products;
-
-    return products.filter((product) => {
-      return (
-        product.product_name.toLowerCase().includes(term) ||
-        product.product_description.toLowerCase().includes(term) ||
-        product.category_name.toLowerCase().includes(term)
-      );
-    });
-  }, [products, search]);
 
   const addToCart = async (productId: number) => {
     try {
@@ -151,6 +160,34 @@ export default function DashboardPage() {
           <h2 className="text-3xl font-bold">Shop the latest products</h2>
         </section>
 
+        <section className="mb-8 rounded-2xl bg-white p-4 shadow-sm">
+          <div className="grid gap-4 md:grid-cols-[1.5fr_0.8fr]">
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Search categories</label>
+              <input
+                type="text"
+                value={categorySearch}
+                onChange={(e) => setCategorySearch(e.target.value)}
+                placeholder="Search categories..."
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Category sort</label>
+              <select
+                value={categoryNameSort}
+                onChange={(e) => setCategoryNameSort(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+              >
+                <option value="">Default</option>
+                <option value="aA-zZ">A to Z</option>
+                <option value="zZ-aA">Z to A</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
         <section className="mb-8">
           <h3 className="mb-4 text-2xl font-bold">Categories</h3>
           {loadingCategories ? (
@@ -172,27 +209,61 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section>
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
+          <div className="grid gap-4 md:grid-cols-[1.3fr_0.8fr_0.8fr]">
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Search products</label>
+              <input
+                type="text"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Search products..."
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Name sort</label>
+              <select
+                value={productNameSort}
+                onChange={(e) => setProductNameSort(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+              >
+                <option value="">Default</option>
+                <option value="aA-zZ">A to Z</option>
+                <option value="zZ-aA">Z to A</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Price sort</label>
+              <select
+                value={productPriceSort}
+                onChange={(e) => setProductPriceSort(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+              >
+                <option value="">Default</option>
+                <option value="low-high">Low to High</option>
+                <option value="high-low">High to Low</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8">
           <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <h3 className="text-2xl font-bold">Products</h3>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products..."
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0 md:max-w-md"
-            />
           </div>
 
           {loadingProducts ? (
             <div className="text-slate-500">Loading products...</div>
-          ) : filteredProducts.length === 0 ? (
+          ) : products.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500">
               No matching products found.
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {filteredProducts.map((product) => {
+              {products.map((product) => {
                 const discountPercentage = Number(product.discount_percentage) || 0;
                 const hasDiscount = discountPercentage > 0;
                 const discountAmount = hasDiscount ? product.price * (discountPercentage / 100) : 0;

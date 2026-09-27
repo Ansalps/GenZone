@@ -28,43 +28,60 @@ interface Product {
     discount_percentage?: number
 }
 
+const API = 'http://localhost:8080'
+
 export default function LandingPage() {
     const [categories, setCategories] = useState<Category[]>([])
     const [products, setProducts] = useState<Product[]>([])
-    const [search, setSearch] = useState('')
+    const [categorySearch, setCategorySearch] = useState('')
+    const [categoryNameSort, setCategoryNameSort] = useState('')
+    const [productSearch, setProductSearch] = useState('')
+    const [productNameSort, setProductNameSort] = useState('')
+    const [productPriceSort, setProductPriceSort] = useState('')
     const [isLoadingCategories, setIsLoadingCategories] = useState(true)
     const [isLoadingProducts, setIsLoadingProducts] = useState(true)
 
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                const response = await axios.get('http://localhost:8080/public/category')
+                setIsLoadingCategories(true)
+                const response = await axios.get(`${API}/public/category`, {
+                    params: {
+                        search: categorySearch || undefined,
+                        name_sort: categoryNameSort || undefined,
+                    },
+                })
 
-                if (response.data?.status && response.data?.data?.categories) {
+                if (response.data?.status && Array.isArray(response.data?.data?.categories)) {
                     setCategories(response.data.data.categories)
+                } else {
+                    setCategories([])
                 }
             } catch (error) {
                 console.error('Failed to load categories:', error)
+                setCategories([])
             } finally {
                 setIsLoadingCategories(false)
             }
         }
 
         fetchCategories()
-    }, [])
+    }, [categorySearch, categoryNameSort])
 
     useEffect(() => {
         const fetchProducts = async () => {
             try {
                 setIsLoadingProducts(true)
 
-                const response = await axios.get('http://localhost:8080/public/product', {
+                const response = await axios.get(`${API}/public/product`, {
                     params: {
-                        search: search || undefined,
+                        search: productSearch || undefined,
+                        name_sort: productNameSort || undefined,
+                        price_sort: productPriceSort || undefined,
                     },
                 })
 
-                if (response.data?.status && response.data?.data?.products) {
+                if (response.data?.status && Array.isArray(response.data?.data?.products)) {
                     setProducts(response.data.data.products)
                 } else {
                     setProducts([])
@@ -78,7 +95,7 @@ export default function LandingPage() {
         }
 
         fetchProducts()
-    }, [search])
+    }, [productSearch, productNameSort, productPriceSort])
 
     return (
         <main className="min-h-screen bg-slate-950 text-white">
@@ -190,20 +207,38 @@ export default function LandingPage() {
             </section>
 
             <section className="mx-auto max-w-7xl px-6 py-6">
-                <div className="rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-                    <label htmlFor="product-search" className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
-                        Search the catalog
-                    </label>
-                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3">
-                        <span className="text-xl text-cyan-300">⌕</span>
-                        <input
-                            id="product-search"
-                            type="text"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search products, categories, styles..."
-                            className="w-full bg-transparent text-base text-white placeholder:text-slate-500 focus:outline-none"
-                        />
+                <div className="grid gap-4 rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-2xl shadow-slate-950/30 backdrop-blur-xl md:grid-cols-[1.4fr_0.6fr]">
+                    <div>
+                        <label htmlFor="category-search" className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                            Search categories
+                        </label>
+                        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3">
+                            <span className="text-xl text-cyan-300">⌕</span>
+                            <input
+                                id="category-search"
+                                type="text"
+                                value={categorySearch}
+                                onChange={(e) => setCategorySearch(e.target.value)}
+                                placeholder="Search categories..."
+                                className="w-full bg-transparent text-base text-white placeholder:text-slate-500 focus:outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label htmlFor="category-sort" className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                            Sort categories
+                        </label>
+                        <select
+                            id="category-sort"
+                            value={categoryNameSort}
+                            onChange={(e) => setCategoryNameSort(e.target.value)}
+                            className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-base text-white outline-none"
+                        >
+                            <option value="">Default</option>
+                            <option value="aA-zZ">A to Z</option>
+                            <option value="zZ-aA">Z to A</option>
+                        </select>
                     </div>
                 </div>
             </section>
@@ -235,12 +270,63 @@ export default function LandingPage() {
 
             <section className="bg-slate-900/60 py-12">
                 <div className="mx-auto max-w-7xl px-6">
+                    <div className="mb-6 grid gap-4 rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-2xl shadow-slate-950/30 backdrop-blur-xl md:grid-cols-[1.3fr_0.7fr_0.7fr]">
+                        <div>
+                            <label htmlFor="product-search" className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                                Search products
+                            </label>
+                            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3">
+                                <span className="text-xl text-cyan-300">⌕</span>
+                                <input
+                                    id="product-search"
+                                    type="text"
+                                    value={productSearch}
+                                    onChange={(e) => setProductSearch(e.target.value)}
+                                    placeholder="Search products..."
+                                    className="w-full bg-transparent text-base text-white placeholder:text-slate-500 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label htmlFor="product-name-sort" className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                                Name sort
+                            </label>
+                            <select
+                                id="product-name-sort"
+                                value={productNameSort}
+                                onChange={(e) => setProductNameSort(e.target.value)}
+                                className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-base text-white outline-none"
+                            >
+                                <option value="">Default</option>
+                                <option value="aA-zZ">A to Z</option>
+                                <option value="zZ-aA">Z to A</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label htmlFor="product-price-sort" className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                                Price sort
+                            </label>
+                            <select
+                                id="product-price-sort"
+                                value={productPriceSort}
+                                onChange={(e) => setProductPriceSort(e.target.value)}
+                                className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-base text-white outline-none"
+                            >
+                                <option value="">Default</option>
+                                <option value="low-high">Low to High</option>
+                                <option value="high-low">High to Low</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div className="mb-6 flex items-end justify-between gap-4">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">Collection</p>
-                            <h2 className="mt-2 text-3xl font-bold text-white">{search ? 'Search results' : 'Featured products'}</h2>
+                            <h2 className="mt-2 text-3xl font-bold text-white">{productSearch ? 'Search results' : 'Featured products'}</h2>
                         </div>
-                        {search && <p className="text-sm text-slate-400">Showing results for “{search}”</p>}
+                        {productSearch && <p className="text-sm text-slate-400">Showing results for “{productSearch}”</p>}
                     </div>
 
                     {isLoadingProducts ? (
@@ -252,7 +338,7 @@ export default function LandingPage() {
                             <div className="mb-3 text-5xl">🔍</div>
                             <h3 className="text-xl font-semibold text-white">No products found</h3>
                             <p className="mt-2 text-slate-400">
-                                {search ? `We couldn't find any products matching “${search}”.` : 'There are no products available right now.'}
+                                {productSearch ? `We couldn't find any products matching “${productSearch}”.` : 'There are no products available right now.'}
                             </p>
                         </div>
                     ) : (

@@ -9,46 +9,43 @@ import ConfirmModal from '@/components/admin/confirm-modal';
 import { toast } from 'sonner';
 import { useCategories } from '@/hooks/useCategories';
 
+const API = 'http://localhost:8080';
+
 export default function Products() {
     const [products, setProducts] = useState<Product[]>([]);
-    const [sortOrder, setSortOrder] = useState("DSC");
-    const [category, setCategory] = useState("");
+    const [category, setCategory] = useState('');
+    const [search, setSearch] = useState('');
+    const [nameSort, setNameSort] = useState('');
+    const [priceSort, setPriceSort] = useState('');
 
     const {
         categories,
         isCategoriesLoading,
-        categoriesError,
     } = useCategories();
 
     useEffect(() => {
         async function fetchData() {
             try {
-                const response = await axios.get(
-                    "http://localhost:8080/admin/product",
-                    {
-                        params: {
-                            list_order: sortOrder,
-                            category: category || undefined,
-                        },
-                        withCredentials: true,
-                    }
-                );
+                const response = await axios.get(`${API}/public/product`, {
+                    params: {
+                        search: search || undefined,
+                        name_sort: nameSort || undefined,
+                        price_sort: priceSort || undefined,
+                        category: category || undefined,
+                    },
+                    withCredentials: true,
+                });
 
-                const fetchedProducts =
-                    response.data?.data?.products ?? [];
-
+                const fetchedProducts = response.data?.data?.products ?? [];
                 setProducts(Array.isArray(fetchedProducts) ? fetchedProducts : []);
             } catch (error) {
-                console.error(
-                    'Failed to load products:',
-                    error
-                );
+                console.error('Failed to load products:', error);
                 setProducts([]);
             }
         }
 
         fetchData();
-    }, [sortOrder, category]);
+    }, [category, search, nameSort, priceSort]);
 
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmId, setConfirmId] = useState<number | null>(null);
@@ -67,7 +64,7 @@ export default function Products() {
         setIsDeleting(true);
 
         try {
-            await axios.delete(`http://localhost:8080/admin/product/${confirmId}`, { withCredentials: true });
+            await axios.delete(`${API}/admin/product/${confirmId}`, { withCredentials: true });
             setProducts((prev) => prev.filter((p) => p.id !== confirmId));
             toast.success('Product deleted');
         } catch (error) {
@@ -83,16 +80,22 @@ export default function Products() {
 
     return (
         <div className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
-
             <div className="mx-auto max-w-7xl">
                 <header className="mb-6 flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-slate-950/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
                         <Link href="/admin" className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-2 text-sm font-medium text-slate-200 hover:bg-slate-900 transition">← Back</Link>
-
                         <h1 className="text-2xl font-bold">Products Management</h1>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search products..."
+                            className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
+                        />
+
                         <select
                             value={category}
                             onChange={(e) => setCategory(e.target.value)}
@@ -100,12 +103,29 @@ export default function Products() {
                             className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
                         >
                             <option value="">{Boolean(isCategoriesLoading) ? 'Loading categories...' : 'All Categories'}</option>
-                            {categories.map((cat) => (<option key={cat.id} value={cat.category_name}>{cat.category_name}</option>))}
+                            {categories.map((cat) => (
+                                <option key={cat.id} value={cat.category_name}>{cat.category_name}</option>
+                            ))}
                         </select>
 
-                        <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none">
-                            <option value="DSC">Newest First</option>
-                            <option value="ASC">Oldest First</option>
+                        <select
+                            value={nameSort}
+                            onChange={(e) => setNameSort(e.target.value)}
+                            className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
+                        >
+                            <option value="">Name sort</option>
+                            <option value="aA-zZ">A to Z</option>
+                            <option value="zZ-aA">Z to A</option>
+                        </select>
+
+                        <select
+                            value={priceSort}
+                            onChange={(e) => setPriceSort(e.target.value)}
+                            className="rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
+                        >
+                            <option value="">Price sort</option>
+                            <option value="low-high">Low to High</option>
+                            <option value="high-low">High to Low</option>
                         </select>
 
                         <Link href="/admin/products/add" className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 hover:brightness-105 transition">+ Add Product</Link>
@@ -126,7 +146,6 @@ export default function Products() {
                     <ConfirmModal open={confirmOpen} title={`Delete product${confirmName ? `: ${confirmName}` : ''}`} description="This will delete the product permanently." confirmLabel="Delete" cancelLabel="Cancel" loading={isDeleting} onCancel={() => setConfirmOpen(false)} onConfirm={handleDelete} />
                 </main>
             </div>
-
         </div>
     );
 }

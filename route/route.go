@@ -62,9 +62,9 @@ func RegisterUrls(router *gin.Engine) {
 
 	//public
 	publicGroup := router.Group("/public")
-	publicGroup.GET("/category",public.ReadCategory)
-	publicGroup.GET("/product",public.ReadProducts)
-	publicGroup.GET("/product/search",  public.SearchProduct)
+	publicGroup.GET("/category",public.GetCategories)
+	//publicGroup.GET("/product",public.ReadProducts)
+	publicGroup.GET("/product",  public.GetProduct)
 	publicGroup.POST("/signup", public.UserSignUp)
 	publicGroup.POST("/verify-otp", public.VerifyOTPHandler)
 	publicGroup.POST("/resendotp/:email", user.ResendOtp)

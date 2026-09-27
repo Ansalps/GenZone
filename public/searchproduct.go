@@ -2,14 +2,14 @@ package public
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
 
-func SearchProduct(c *gin.Context) {
-
+func GetProduct(c *gin.Context) {
 	search := c.Query("search")
 	nameSort := c.Query("name_sort")
 	priceSort := c.Query("price_sort")
@@ -18,57 +18,49 @@ func SearchProduct(c *gin.Context) {
 
 	var products []responsemodels.Product
 
+	// Added WHERE 1=1 to ensure valid SQL syntax for subsequent AND filters
 	sql := `
-		SELECT
-			p.id,
-			p.created_at,
-			p.updated_at,
-			p.category_id,
-			c.category_name,
-			p.product_name,
-			p.description AS product_description,
-			p.image_url AS product_image_url,
-			p.price,
-			COALESCE(SUM(pv.stock), 0) AS stock,
-			p.popular,
-			COALESCE(string_agg(DISTINCT pv.size, ',' ORDER BY pv.size), '') AS size,
-			COALESCE(o.discount_percentage, 0) AS discount_percentage
-		FROM products p
-		JOIN categories c
-			ON p.category_id = c.id
-		LEFT JOIN product_variants pv
-			ON pv.product_id = p.id
-		LEFT JOIN offers o
-			ON p.id = o.product_id
-			AND o.deleted_at IS NULL
-	`
+        SELECT
+            p.id,
+            p.created_at,
+            p.updated_at,
+            p.category_id,
+            c.category_name,
+            p.product_name,
+            p.description AS product_description,
+            p.image_url AS product_image_url,
+            p.price,
+            COALESCE(SUM(pv.stock), 0) AS stock,
+            p.popular,
+            COALESCE(string_agg(DISTINCT pv.size, ',' ORDER BY pv.size), '') AS size,
+            COALESCE(o.discount_percentage, 0) AS discount_percentage
+        FROM products p
+        JOIN categories c
+            ON p.category_id = c.id
+        LEFT JOIN product_variants pv
+            ON pv.product_id = p.id
+        LEFT JOIN offers o
+            ON p.id = o.product_id
+        WHERE 1=1
+    `
 
 	var args []interface{}
 
 	// --------------------------------
-	// Search
+	// Search Filter
 	// --------------------------------
-
 	if search != "" {
 		sql += ` AND p.product_name ILIKE ?`
 		args = append(args, "%"+search+"%")
 	}
 
 	// --------------------------------
-	// Category
+	// Category Filter
 	// --------------------------------
-
 	if category != "" {
-
-		// Check category exists
 		var count int64
-
 		err := database.DB.
-			Raw(`
-				SELECT COUNT(*)
-				FROM categories
-				WHERE category_name = ?
-			`, category).
+			Raw(`SELECT COUNT(*) FROM categories WHERE category_name = ?`, category).
 			Scan(&count).Error
 
 		if err != nil {
@@ -92,114 +84,62 @@ func SearchProduct(c *gin.Context) {
 	}
 
 	// --------------------------------
+	// Group By
+	// --------------------------------
+	sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.category_id, c.category_name,
+        p.product_name, p.description, p.image_url, p.price, p.popular, o.discount_percentage `
+
+	// --------------------------------
 	// Sorting
 	// --------------------------------
-
 	var orderBy []string
 
 	if nameSort != "" {
-
 		switch nameSort {
-
 		case "aA-zZ":
-			orderBy = append(
-				orderBy,
-				"p.product_name ASC",
-			)
-
+			orderBy = append(orderBy, "p.product_name ASC")
 		case "zZ-aA":
-			orderBy = append(
-				orderBy,
-				"p.product_name DESC",
-			)
-
+			orderBy = append(orderBy, "p.product_name DESC")
 		default:
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status":  false,
-				"message": "Invalid name sort filter",
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid name sort filter"})
 			return
 		}
 	}
 
 	if priceSort != "" {
-
 		switch priceSort {
-
 		case "low-high":
-			orderBy = append(
-				orderBy,
-				"p.price ASC",
-			)
-
+			orderBy = append(orderBy, "p.price ASC")
 		case "high-low":
-			orderBy = append(
-				orderBy,
-				"p.price DESC",
-			)
-
+			orderBy = append(orderBy, "p.price DESC")
 		default:
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status":  false,
-				"message": "Invalid price sort filter",
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid price sort filter"})
 			return
 		}
 	}
 
 	if newArrivals != "" {
-
 		switch newArrivals {
-
 		case "true":
-			orderBy = append(
-				orderBy,
-				"p.created_at DESC",
-			)
-
+			orderBy = append(orderBy, "p.created_at DESC")
 		case "false":
-			// No sorting required for false
-
+			// No sorting required
 		default:
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status":  false,
-				"message": "new_arrivals must be true or false",
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "new_arrivals must be true or false"})
 			return
 		}
 	}
 
-	sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.category_id, c.category_name,
-		p.product_name, p.description, p.image_url, p.price, p.popular, o.discount_percentage `
-
-	// Default sorting
 	if len(orderBy) == 0 {
-		orderBy = append(
-			orderBy,
-			"p.created_at DESC",
-		)
+		orderBy = append(orderBy, "p.created_at DESC")
 	}
 
-	sql += ` ORDER BY `
-
-	for i, order := range orderBy {
-
-		if i > 0 {
-			sql += `, `
-		}
-
-		sql += order
-	}
+	sql += ` ORDER BY ` + strings.Join(orderBy, ", ")
 
 	// --------------------------------
 	// Execute query
 	// --------------------------------
-
-	if err := database.DB.
-		Raw(sql, args...).
-		Scan(&products).
-		Error; err != nil {
-
+	if err := database.DB.Raw(sql, args...).Scan(&products).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "Failed to retrieve products",
