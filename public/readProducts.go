@@ -101,22 +101,22 @@ func ReadProducts(c *gin.Context) {
 	productsResp := make([]map[string]interface{}, 0, len(products))
 	for _, p := range products {
 		prod := map[string]interface{}{
-			"id":                   p.ID,
-			"created_at":           p.CreatedAt,
-			"updated_at":           p.UpdatedAt,
-			"category_id":          p.CategoryID,
-			"category_name":        p.CategoryName,
-			"product_name":         p.ProductName,
-			"product_description":  p.ProductDescription,
-			"product_image_url":    p.ProductImageUrl,
-			"price":                p.Price,
-			"stock":                p.Stock,
-			"popular":              p.Popular,
-			"size":                 p.Size,
-			"inventory":            p.Inventory,
-			"discount_percentage":  p.DiscountPercentage,
-			"start_date":           p.StartDate,
-			"end_date":             p.EndDate,
+			"id":                  p.ID,
+			"created_at":          p.CreatedAt,
+			"updated_at":          p.UpdatedAt,
+			"category_id":         p.CategoryID,
+			"category_name":       p.CategoryName,
+			"product_name":        p.ProductName,
+			"product_description": p.ProductDescription,
+			"product_image_url":   p.ProductImageUrl,
+			"price":               p.Price,
+			"stock":               p.Stock,
+			"popular":             p.Popular,
+			"size":                p.Size,
+			"inventory":           p.Inventory,
+			"discount_percentage": p.DiscountPercentage,
+			"start_date":          p.StartDate,
+			"end_date":            p.EndDate,
 		}
 		productsResp = append(productsResp, prod)
 	}

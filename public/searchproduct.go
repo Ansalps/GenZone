@@ -197,4 +197,3 @@ func GetProduct(c *gin.Context) {
 		},
 	})
 }
-
