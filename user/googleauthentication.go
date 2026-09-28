@@ -105,8 +105,8 @@ func HandleGoogleCallback(c *gin.Context) {
 		return
 	}
 	fmt.Println("", jwttoken)
-	// Set token as cookie
-	c.SetCookie("jwt_token", jwttoken, 86400, "/", "", false, true)
+	// Set user token as a dedicated cookie.
+	c.SetCookie("jwt_user_token", jwttoken, 86400, "/", "", false, true)
 
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "User Login successful"})
 

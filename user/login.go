@@ -74,7 +74,7 @@ func UserLogin(c *gin.Context) {
 		return
 	}
 	fmt.Println("", token)
-	c.SetCookie("jwt_token", token, 86400, "/", "", false, true)
+	c.SetCookie("jwt_user_token", token, 86400, "/", "", false, true)
 
 	var count1 int64
 	database.DB.Raw(`SELECT COUNT(*) FROM wallets WHERE user_id = ?`, id).Scan(&count1)

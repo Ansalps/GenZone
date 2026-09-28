@@ -1,17 +1,22 @@
 'use client'
+
 import axios from 'axios';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
 
 export default function Login() {
+    const router = useRouter();
+
     const [formData, setFormData] = useState({
         email: '',
         password: '',
     });
     const [showPassword, setShowPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [submitError, setSubmitError] = useState('');
-
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
     const validateForm = () => {
@@ -23,10 +28,8 @@ export default function Login() {
             nextErrors.email = 'Enter a valid email address.';
         }
 
-        if (!formData.password.trim()) {
+        if (!formData.password) {
             nextErrors.password = 'Password is required.';
-        } else if (formData.password.length < 8) {
-            nextErrors.password = 'Password must be at least 8 characters.';
         }
 
         setErrors(nextErrors);
@@ -55,27 +58,31 @@ export default function Login() {
         e.preventDefault();
         setSubmitError('');
 
-        if (!validateForm()) {
-            return;
-        }
+        if (!validateForm()) return;
+
+        setLoading(true);
 
         try {
-            const response = await axios.post('http://localhost:8080/admin/login', formData, {
+            const response = await axios.post(`${API_URL}/admin/login`, formData, {
                 withCredentials: true,
             });
 
             if (response.status === 200) {
-                window.location.href = '/admin';
+                router.push('/admin');
             }
         } catch (error: unknown) {
-            const axiosError = error as { response?: { data?: { message?: string; error?: string } } };
-            const backendMessage =
-                axiosError.response?.data?.message ||
-                axiosError.response?.data?.error ||
-                'Unable to login. Please try again.';
-
-            setSubmitError(backendMessage);
+            if (axios.isAxiosError(error)) {
+                const backendMessage =
+                    error.response?.data?.message ||
+                    error.response?.data?.error ||
+                    'Unable to login. Please try again.';
+                setSubmitError(backendMessage);
+            } else {
+                setSubmitError('An unexpected error occurred.');
+            }
             console.error(error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -115,9 +122,10 @@ export default function Login() {
                             type="email"
                             id="email"
                             name="email"
+                            disabled={loading}
                             value={formData.email}
                             onChange={handleChange}
-                            className={`w-full rounded-xl border bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:ring-2 ${
+                            className={`w-full rounded-xl border bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:ring-2 disabled:opacity-50 ${
                                 errors.email
                                     ? 'border-rose-500 focus:border-rose-400 focus:ring-rose-400/30'
                                     : 'border-slate-700 focus:border-cyan-400 focus:ring-cyan-400/30'
@@ -136,9 +144,10 @@ export default function Login() {
                                 type={showPassword ? 'text' : 'password'}
                                 id="password"
                                 name="password"
+                                disabled={loading}
                                 value={formData.password}
                                 onChange={handleChange}
-                                className={`w-full rounded-xl border bg-slate-900/80 px-4 py-3 pr-12 text-white outline-none transition focus:ring-2 ${
+                                className={`w-full rounded-xl border bg-slate-900/80 px-4 py-3 pr-12 text-white outline-none transition focus:ring-2 disabled:opacity-50 ${
                                     errors.password
                                         ? 'border-rose-500 focus:border-rose-400 focus:ring-rose-400/30'
                                         : 'border-slate-700 focus:border-cyan-400 focus:ring-cyan-400/30'
@@ -159,9 +168,10 @@ export default function Login() {
 
                     <button
                         type="submit"
-                        className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:brightness-110"
+                        disabled={loading}
+                        className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        Sign in
+                        {loading ? 'Signing in...' : 'Sign in'}
                     </button>
                 </form>
             </div>

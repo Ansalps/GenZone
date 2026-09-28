@@ -2,12 +2,14 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function proxy(request: NextRequest) {
-    // 1. Extract the HttpOnly cookie set by your Go backend
-    const token = request.cookies.get('jwt_token')?.value;
     const { pathname } = request.nextUrl;
-
     const isLoginPage = pathname === '/admin/login';
     const isAdminRoute = pathname.startsWith('/admin');
+
+    // Read the cookie for the route type, while keeping legacy fallback support.
+    const token = isAdminRoute
+        ? request.cookies.get('jwt_admin_token')?.value || request.cookies.get('jwt_token')?.value
+        : request.cookies.get('jwt_user_token')?.value || request.cookies.get('jwt_token')?.value;
 
     // Case 1: Unauthenticated user trying to access ANY admin route (except /admin/login)
     if (isAdminRoute && !isLoginPage && !token) {

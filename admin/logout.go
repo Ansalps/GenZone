@@ -8,13 +8,20 @@ import (
 
 func Logout(c *gin.Context) {
 
-	//c.SetSameSite(http.SameSiteLaxMode) 
-	// If your login has no explicit SetSameSite line, do NOT use SetSameSite here either.
-	// Keeping it blank matches the "null" state perfectly so the browser allows the deletion.
+	// Clear the dedicated admin token and the legacy fallback to avoid stale sessions.
+	c.SetCookie(
+		"jwt_admin_token",
+		"",
+		-1,
+		"/",
+		"localhost",
+		false,
+		true,
+	)
 	c.SetCookie(
 		"jwt_token",
 		"",
-		-1, // -1 deletes it instantly
+		-1,
 		"/",
 		"localhost",
 		false,

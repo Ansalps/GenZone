@@ -50,7 +50,7 @@ func Login(c *gin.Context) {
 	database.DB.Model(&models.Admin{}).Where("email = ?", AdminLogin.Email).Pluck("password", &password)
 	if password != AdminLogin.Password {
 		// Return success response
-		fmt.Println("hi hello",password,AdminLogin.Password)
+		fmt.Println("hi hello", password, AdminLogin.Password)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "invalid email or password",
@@ -66,18 +66,15 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
 		return
 	}
-	// Set token as cookie
-
-	//c.SetSameSite(http.SameSiteLaxMode)
-	// Clean, built-in helper method:
+	// Set admin token as a dedicated cookie.
 	c.SetCookie(
-		"jwt_token", // Name (the key before '=')
-		token,       // Value
-		86400,       // MaxAge in seconds (1 day)
-		"/",         // Path
-		"localhost", // Domain
-		false,       // Secure (true in production for HTTPS)
-		true,        // HttpOnly (crucial for XSS protection!)
+		"jwt_admin_token",
+		token,
+		86400,
+		"/",
+		"localhost",
+		false,
+		true,
 	)
 
 	// Set the token in the Authorization header
