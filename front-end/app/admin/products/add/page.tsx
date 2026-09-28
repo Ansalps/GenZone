@@ -37,6 +37,22 @@ const validateForm = (data: ProductFormData): FormErrors => {
         errors.discountPercentage = "Discount percentage must be between 0 and 100"
     }
 
+    // Date validation: if either date provided, both required; end >= start
+    if ((data.startDate && !data.endDate) || (!data.startDate && data.endDate)) {
+        if (!data.startDate) errors.startDate = "Start date is required when end date is provided"
+        if (!data.endDate) errors.endDate = "End date is required when start date is provided"
+    }
+
+    if (data.startDate && data.endDate) {
+        const s = new Date(data.startDate)
+        const e = new Date(data.endDate)
+        if (isNaN(s.getTime())) errors.startDate = "Invalid start date"
+        if (isNaN(e.getTime())) errors.endDate = "Invalid end date"
+        if (!errors.startDate && !errors.endDate && e < s) {
+            errors.endDate = "End date must be the same or after start date"
+        }
+    }
+
     return errors
 }
 
@@ -60,6 +76,8 @@ export default function AddProduct() {
         },
         popular: false,
         discountPercentage: 0,
+        startDate: "",
+        endDate: "",
     })
 
     const [imageFile, setImageFile] = useState<File | null>(null)
@@ -147,6 +165,8 @@ export default function AddProduct() {
             data.append("size", primarySizeEntry?.size ?? "Small")
             data.append("stock", String(primarySizeEntry?.stock ?? 0))
             data.append("discount_percentage", String(formData.discountPercentage))
+            data.append("start_date", String(formData.startDate || ""))
+            data.append("end_date", String(formData.endDate || ""))
 
             if (imageFile) {
                 data.append("product_image", imageFile)

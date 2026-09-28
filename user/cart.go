@@ -32,22 +32,25 @@ func Cart(c *gin.Context) {
 	var cart []responsemodels.CartItems
 
 	// Join carts, cart_items, and products to resolve user_id correctly
+	// Provide original price, unit price, discount (total), and final amount per item
 	query := `
-        SELECT 
-            carts.user_id,
-            cart_items.product_id,
-            products.product_name,
-            cart_items.quantity,
-            cart_items.unit_price,
-            (cart_items.quantity * cart_items.unit_price) AS total_amount
-        FROM carts
-        JOIN cart_items ON carts.id = cart_items.cart_id
-        JOIN products ON cart_items.product_id = products.id
-        WHERE carts.user_id = ? 
-          AND cart_items.deleted_at IS NULL 
-          AND carts.deleted_at IS NULL 
-          AND cart_items.quantity > 0
-    `
+		SELECT 
+			carts.user_id,
+			cart_items.product_id,
+			products.product_name,
+			cart_items.quantity AS qty,
+			cart_items.unit_price AS price,
+			(products.price * cart_items.quantity) AS total_amount,
+			((products.price - cart_items.unit_price) * cart_items.quantity) AS discount,
+			(cart_items.quantity * cart_items.unit_price) AS final_amount
+		FROM carts
+		JOIN cart_items ON carts.id = cart_items.cart_id
+		JOIN products ON cart_items.product_id = products.id
+		WHERE carts.user_id = ? 
+		  AND cart_items.deleted_at IS NULL 
+		  AND carts.deleted_at IS NULL 
+		  AND cart_items.quantity > 0
+	`
 	tx := database.DB.Raw(query, userID).Scan(&cart)
 
 	if tx.Error != nil {
@@ -112,9 +115,19 @@ func CartAdd(c *gin.Context) {
 		return
 	}
 
-	// 4. Check available stock across all variants
+	// 4. Determine requested quantity (default 1) and check stock
+	reqQty := req.Quantity
+	if reqQty == 0 {
+		reqQty = 1
+	}
+
+	// Check available stock for the requested size if provided, otherwise across all variants
 	var stock uint
-	database.DB.Raw("SELECT COALESCE(SUM(stock), 0) FROM product_variants WHERE product_id = ?", req.ProductID).Scan(&stock)
+	if req.Size != "" {
+		database.DB.Raw("SELECT COALESCE(stock,0) FROM product_variants WHERE product_id = ? AND size = ?", req.ProductID, req.Size).Scan(&stock)
+	} else {
+		database.DB.Raw("SELECT COALESCE(SUM(stock), 0) FROM product_variants WHERE product_id = ?", req.ProductID).Scan(&stock)
+	}
 	if stock == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
@@ -146,13 +159,17 @@ func CartAdd(c *gin.Context) {
 		unitPrice -= discount
 	}
 
-	// 7. Check if the item is already in the user's cart
+	// 7. Check if the item (same product + size) is already in the user's cart
 	var cartItem models.CartItem
-	err = database.DB.Where("cart_id = ? AND product_id = ?", cart.ID, req.ProductID).First(&cartItem).Error
+	if req.Size != "" {
+		err = database.DB.Where("cart_id = ? AND product_id = ? AND size = ?", cart.ID, req.ProductID, req.Size).First(&cartItem).Error
+	} else {
+		err = database.DB.Where("cart_id = ? AND product_id = ?", cart.ID, req.ProductID).First(&cartItem).Error
+	}
 
 	if err == nil {
-		// Item exists -> Check quantity limits
-		if cartItem.Quantity >= 7 {
+		// Item exists -> Check quantity limits and stock
+		if cartItem.Quantity+reqQty > 7 {
 			c.JSON(http.StatusOK, gin.H{
 				"status":  false,
 				"message": "Exceeded maximum quantity for a product",
@@ -160,7 +177,7 @@ func CartAdd(c *gin.Context) {
 			return
 		}
 
-		if cartItem.Quantity >= stock {
+		if cartItem.Quantity+reqQty > stock {
 			c.JSON(http.StatusOK, gin.H{
 				"status":  false,
 				"message": "product out of stock",
@@ -169,7 +186,7 @@ func CartAdd(c *gin.Context) {
 		}
 
 		// Update quantity and unit price
-		cartItem.Quantity += 1
+		cartItem.Quantity += reqQty
 		cartItem.UnitPrice = unitPrice
 
 		if err := database.DB.Save(&cartItem).Error; err != nil {
@@ -187,12 +204,13 @@ func CartAdd(c *gin.Context) {
 		return
 	}
 
-	// 8. Item does not exist -> Insert new record
+	// 8. Item does not exist -> Insert new record with requested quantity and size
 	newCartItem := models.CartItem{
 		CartID:    cart.ID,
 		ProductID: product.ID,
-		Quantity:  1,
+		Quantity:  reqQty,
 		UnitPrice: unitPrice,
+		Size:      req.Size,
 	}
 
 	if err := database.DB.Create(&newCartItem).Error; err != nil {
@@ -225,77 +243,62 @@ func CartRemove(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var Cart requestmodemodels.CartAdd
-	err := c.BindJSON(&Cart)
-	response := gin.H{
-		"status":  false,
-		"message": "failed to bind request",
-	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response)
+	var req requestmodemodels.CartAdd
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "failed to bind request"})
 		return
 	}
-	//validate the content of the JSON
-	if err := helper.Validate(Cart); err != nil {
-		fmt.Println("", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":     false,
-			"message":    err.Error(),
-			"error_code": http.StatusBadRequest,
-		})
+
+	if err := helper.Validate(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error(), "error_code": http.StatusBadRequest})
 		return
 	}
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM cart_items WHERE user_id=? AND product_id=? and deleted_at IS NULL`, userID, Cart.ProductID).Scan(&count)
-	if count != 0 {
-		var quantity uint
-		database.DB.Model(&models.CartItem{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).Pluck("qty", &quantity)
-		if quantity == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"messsage": "Product Item doesn't exist in Cart",
-			})
+
+	// Fetch user's cart
+	var cart models.Cart
+	if err := database.DB.Where("user_id = ?", userID).First(&cart).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": false, "message": "cart not found"})
+		return
+	}
+
+	// Find the cart item (match size when provided)
+	var cartItem models.CartItem
+	if req.Size != "" {
+		err := database.DB.Where("cart_id = ? AND product_id = ? AND size = ?", cart.ID, req.ProductID, req.Size).First(&cartItem).Error
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"status": true, "message": "product does not exist in cart"})
 			return
 		}
-		fmt.Println("quantity:", quantity)
-		quantity = quantity - 1
-		fmt.Println("quantity:", quantity)
-		database.DB.Model(&models.CartItem{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).Update("qty", quantity)
-
-		var price float64
-		database.DB.Model(&models.CartItem{}).Where("product_id = ?", Cart.ProductID).Pluck("price", &price)
-		fmt.Println("product price:", price)
-		var totalamount float64
-		database.DB.Model(&models.CartItem{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).
-			Pluck("total_amount", &totalamount)
-		fmt.Println("t a-", totalamount)
-		totalamount = totalamount - price
-		fmt.Println("t a--", totalamount)
-		database.DB.Model(&models.CartItem{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).Order("total_amount DESC").Update("total_amount", totalamount)
-		var hasoffer bool
-		database.DB.Model(&models.Product{}).Where("id = ?", Cart.ProductID).Pluck("has_offer", &hasoffer)
-		fmt.Println("has offer==", hasoffer)
-		var discount float64
-		var finalamount float64
-		if hasoffer {
-			fmt.Println("is it entering in has offer ------")
-			var discountpercentage uint
-			database.DB.Model(&models.Offer{}).Where("product_id = ?", Cart.ProductID).Pluck("discount_percentage", &discountpercentage)
-			discount = price * float64(discountpercentage) / 100
-			finalamount = price - (price * float64(discountpercentage) / 100)
-			fmt.Println("price---", finalamount)
+	} else {
+		err := database.DB.Where("cart_id = ? AND product_id = ?", cart.ID, req.ProductID).First(&cartItem).Error
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"status": true, "message": "product does not exist in cart"})
+			return
 		}
-		fmt.Println("price---outside", finalamount)
-		var FinalAmount1 float64
-		database.DB.Model(&models.CartItem{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("final_amount", &FinalAmount1)
-		FinalAmount1 = FinalAmount1 - finalamount
-		database.DB.Model(&models.CartItem{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).Update("final_amount", FinalAmount1)
-		var Discount1 float64
-		database.DB.Model(&models.CartItem{}).Where("user_id = ? and product_id = ?", userID, Cart.ProductID).Pluck("discount", &Discount1)
-		Discount1 = Discount1 - discount
-		database.DB.Model(&models.CartItem{}).Where("user_id = ? AND product_id = ?", userID, Cart.ProductID).Update("discount", Discount1)
+	}
 
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "product removed from cart successfully"})
+	// Quantity to remove (default 1)
+	remQty := req.Quantity
+	if remQty == 0 {
+		remQty = 1
+	}
+
+	if cartItem.Quantity <= remQty {
+		// remove the item
+		if err := database.DB.Delete(&cartItem).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to remove cart item"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "product removed from cart"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "product does not exist in cart"})
+
+	// Decrease quantity
+	cartItem.Quantity = cartItem.Quantity - remQty
+	if err := database.DB.Save(&cartItem).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to update cart item quantity"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "cart item quantity updated"})
 }

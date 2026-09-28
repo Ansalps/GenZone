@@ -87,13 +87,13 @@ export default function Login() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10">
+        <div className="flex min-h-screen items-center justify-center bg-slate-950">
             <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -left-20 top-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
+                <div className="absolute -left-20 top-16 h-72 w-72 bg-cyan-500/20 blur-3xl" />
                 <div className="absolute bottom-10 right-10 h-80 w-80 rounded-full bg-violet-500/20 blur-3xl" />
             </div>
 
-            <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-cyan-950/40 backdrop-blur-xl">
+            <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8">
                 <div className="mb-8 text-center">
                     <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-violet-500 text-2xl font-bold text-white shadow-lg shadow-cyan-500/30">
                         A

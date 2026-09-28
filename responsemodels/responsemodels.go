@@ -1,6 +1,7 @@
 package responsemodels
 
 import "time"
+import "encoding/json"
 
 type Category struct {
 	//gorm.Model
@@ -30,7 +31,10 @@ type Product struct {
 	Popular            bool                   `json:"popular"`
 	Size               string                 `json:"size"`
 	Inventory          []ProductInventoryItem `gorm:"-" sql:"-" json:"inventory"`
+	InventoryRaw       json.RawMessage         `gorm:"column:inventory" json:"-"`
 	DiscountPercentage int64                  `json:"discount_percentage"` // 0 if no offer exists
+	StartDate          string                 `json:"start_date,omitempty"`
+	EndDate            string                 `json:"end_date,omitempty"`
 }
 
 type CartItems struct {

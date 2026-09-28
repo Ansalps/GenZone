@@ -1,10 +1,12 @@
 package public
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
 	"github.com/Ansalps/GeZOne/database"
+	"github.com/Ansalps/GeZOne/models"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -29,11 +31,16 @@ func GetProduct(c *gin.Context) {
             p.product_name,
             p.description AS product_description,
             p.image_url AS product_image_url,
-            p.price,
-            COALESCE(SUM(pv.stock), 0) AS stock,
+			p.price,
+			COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id), 0) AS stock,
             p.popular,
-            COALESCE(string_agg(DISTINCT pv.size, ',' ORDER BY pv.size), '') AS size,
-            COALESCE(o.discount_percentage, 0) AS discount_percentage
+				COALESCE(string_agg(DISTINCT pv.size, ',' ORDER BY pv.size), '') AS size,
+				-- inventory as JSON array of {size, stock}
+				COALESCE(json_agg(DISTINCT jsonb_build_object('size', pv.size, 'stock', pv.stock)) FILTER (WHERE pv.id IS NOT NULL), '[]') AS inventory,
+				-- Only expose discount_percentage when the offer is currently active
+				COALESCE(MAX(CASE WHEN o.start_at <= now() AND (o.end_at IS NULL OR o.end_at >= now()) THEN o.discount_percentage ELSE 0 END), 0) AS discount_percentage,
+				COALESCE(MAX(to_char(o.start_at, 'YYYY-MM-DD')), '') AS start_date,
+				COALESCE(MAX(to_char(o.end_at, 'YYYY-MM-DD')), '') AS end_date
         FROM products p
         JOIN categories c
             ON p.category_id = c.id
@@ -87,7 +94,7 @@ func GetProduct(c *gin.Context) {
 	// Group By
 	// --------------------------------
 	sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.category_id, c.category_name,
-        p.product_name, p.description, p.image_url, p.price, p.popular, o.discount_percentage `
+		p.product_name, p.description, p.image_url, p.price, p.popular, o.discount_percentage, to_char(o.start_at, 'YYYY-MM-DD'), to_char(o.end_at, 'YYYY-MM-DD') `
 
 	// --------------------------------
 	// Sorting
@@ -147,6 +154,41 @@ func GetProduct(c *gin.Context) {
 		return
 	}
 
+	// Try to unmarshal inventory JSON returned by the SQL into Product.Inventory
+	for i := range products {
+		if len(products[i].InventoryRaw) > 0 {
+			var inv []responsemodels.ProductInventoryItem
+			if err := json.Unmarshal(products[i].InventoryRaw, &inv); err == nil {
+				products[i].Inventory = inv
+				continue
+			}
+		}
+	}
+
+	// Batch fetch variants and attach inventory per product
+	if len(products) > 0 {
+		ids := make([]uint, 0, len(products))
+		for _, p := range products {
+			ids = append(ids, p.ID)
+		}
+
+		var variants []models.ProductVariant
+		if err := database.DB.Where("product_id IN ?", ids).Order("product_id ASC, size ASC").Find(&variants).Error; err == nil {
+			variantMap := make(map[uint][]responsemodels.ProductInventoryItem)
+			for _, v := range variants {
+				variantMap[v.ProductID] = append(variantMap[v.ProductID], responsemodels.ProductInventoryItem{Size: v.Size, Stock: v.Stock})
+			}
+
+			for i := range products {
+				if inv, ok := variantMap[products[i].ID]; ok {
+					products[i].Inventory = inv
+				} else {
+					products[i].Inventory = []responsemodels.ProductInventoryItem{}
+				}
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "Products retrieved successfully",
@@ -155,3 +197,4 @@ func GetProduct(c *gin.Context) {
 		},
 	})
 }
+

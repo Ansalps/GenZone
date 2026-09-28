@@ -8,4 +8,6 @@ export interface ProductFormData {
     inventory?: Record<string, number>
     popular: boolean
     discountPercentage: number
+    startDate?: string
+    endDate?: string
 }

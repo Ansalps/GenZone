@@ -20,6 +20,8 @@ type Product struct {
 	Popular            bool    `form:"popular" json:"popular"`
 	Size               string  `form:"size" json:"size" validate:"required"`
 	DiscountPercentage float64 `form:"discount_percentage" json:"discount_percentage" validate:"gte=0,lte=100"`
+	StartDate          string  `form:"start_date" json:"start_date"`
+	EndDate            string  `form:"end_date" json:"end_date"`
 }
 
 type UserSignUp struct {
@@ -58,6 +60,8 @@ type AddressAdd struct {
 
 type CartAdd struct {
 	ProductID string `json:"product_id" validate:"required,numeric"`
+	Quantity  uint   `json:"quantity,omitempty" validate:"omitempty,min=1"`
+	Size      string `json:"size,omitempty"`
 }
 
 type OrderAdd struct {

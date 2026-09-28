@@ -35,6 +35,44 @@ export default function ProductCard({
         };
     });
 
+    // Offer timing calculation
+    let daysLeft: number | null = null
+    let daysUntilStart: number | null = null
+    let offerStatus: 'upcoming' | 'active' | 'expired' | 'unknown' = 'unknown'
+
+    try {
+        const today = new Date()
+        if (product.start_date) {
+            const s = new Date(product.start_date)
+            daysUntilStart = Math.floor((Date.UTC(s.getFullYear(), s.getMonth(), s.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24))
+        }
+        if (product.end_date) {
+            const e = new Date(product.end_date)
+            daysLeft = Math.floor((Date.UTC(e.getFullYear(), e.getMonth(), e.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24))
+        }
+
+        if (product.start_date && daysUntilStart !== null && daysUntilStart > 0) {
+            offerStatus = 'upcoming'
+        } else {
+            // start is today or past, or not provided
+            if (product.end_date) {
+                if (daysLeft !== null && daysLeft >= 0) {
+                    offerStatus = 'active'
+                } else if (daysLeft !== null && daysLeft < 0) {
+                    offerStatus = 'expired'
+                }
+            } else if (hasOffer) {
+                offerStatus = 'active'
+            }
+        }
+    } catch (e) {
+        offerStatus = 'unknown'
+        daysLeft = null
+        daysUntilStart = null
+    }
+
+    const showDiscount = hasOffer && offerStatus === 'active'
+
     return (
         <div className="rounded-2xl border border-white/10 bg-slate-900/80 shadow-lg overflow-hidden hover:shadow-2xl transition">
 
@@ -60,8 +98,8 @@ export default function ProductCard({
                 )}
 
                 {/* Offer badge */}
-                {hasOffer && (
-                    <span className="absolute top-3 right-3 bg-red-600 text-white text-xs font-semibold px-2 py-1 rounded">
+                {showDiscount && (
+                    <span className={`absolute top-3 right-3 text-xs font-semibold px-2 py-1 rounded ${offerStatus==='active' ? 'bg-emerald-500 text-white' : offerStatus==='upcoming' ? 'bg-blue-500 text-white' : offerStatus==='expired' ? 'bg-gray-500 text-white' : 'bg-red-600 text-white'}`}>
                         {discountPercent}% OFF
                     </span>
                 )}
@@ -103,8 +141,20 @@ export default function ProductCard({
                 </div>
 
                 {/* Discount */}
-                {hasOffer && (
+                {showDiscount && (
                     <p className="text-xs text-emerald-300 mt-1">You save ₹{discountAmount.toFixed(2)}</p>
+                )}
+
+                {showDiscount && offerStatus === 'active' && daysLeft !== null && (
+                    <p className="text-xs mt-1">
+                        <span className="inline-block rounded-full bg-emerald-600/10 text-emerald-300 px-2 py-1">Offer ends in {daysLeft} day{daysLeft===1?'':'s'}</span>
+                    </p>
+                )}
+
+                {hasOffer && offerStatus === 'expired' && (
+                    <p className="text-xs mt-1">
+                        <span className="inline-block rounded-full bg-gray-600/10 text-gray-300 px-2 py-1">Offer expired</span>
+                    </p>
                 )}
 
                 {/* Product details */}

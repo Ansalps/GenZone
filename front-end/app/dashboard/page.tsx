@@ -3,6 +3,7 @@
 import axios from 'axios';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import DashboardProductCard from '@/components/dashboard/product-card'
 
 interface Category {
   id: number;
@@ -130,8 +131,8 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800">
-      <header className="bg-green-800 text-white shadow-md">
+    <div className="min-h-screen bg-slate-950 text-white">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div>
             <h1 className="text-2xl font-bold">GenZone</h1>
@@ -140,13 +141,13 @@ export default function DashboardPage() {
           <div className="flex items-center gap-4">
             <div className="relative">
               <span className="text-sm">Cart</span>
-              <span className="ml-2 rounded-full bg-white px-2 py-1 text-xs font-bold text-green-800">
+              <span className="ml-2 rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-950">
                 {cartCount}
               </span>
             </div>
             <Link
               href="/cart"
-              className="rounded-lg border border-white px-4 py-2 text-sm font-medium hover:bg-white hover:text-green-800"
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
             >
               View Cart
             </Link>
@@ -155,12 +156,12 @@ export default function DashboardPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">
-        <section className="mb-8 rounded-2xl bg-gradient-to-r from-green-700 to-emerald-600 p-8 text-white">
-          <p className="mb-2 text-sm uppercase tracking-[0.2em] text-green-100">Welcome back</p>
+        <section className="mb-8 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-violet-500/20 p-8 text-white">
+          <p className="mb-2 text-sm uppercase tracking-[0.2em] text-cyan-300">Welcome back</p>
           <h2 className="text-3xl font-bold">Shop the latest products</h2>
         </section>
 
-        <section className="mb-8 rounded-2xl bg-white p-4 shadow-sm">
+        <section className="mb-8 rounded-2xl bg-white/5 p-4 shadow-sm">
           <div className="grid gap-4 md:grid-cols-[1.5fr_0.8fr]">
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Search categories</label>
@@ -169,7 +170,7 @@ export default function DashboardPage() {
                 value={categorySearch}
                 onChange={(e) => setCategorySearch(e.target.value)}
                 placeholder="Search categories..."
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+                className="w-full rounded-lg border border-white/10 bg-slate-900/80 px-4 py-2 text-white placeholder:text-slate-400 outline-none ring-0"
               />
             </div>
 
@@ -178,7 +179,7 @@ export default function DashboardPage() {
               <select
                 value={categoryNameSort}
                 onChange={(e) => setCategoryNameSort(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+                className="w-full rounded-lg border border-white/10 bg-slate-900/80 px-4 py-2 text-white outline-none ring-0"
               >
                 <option value="">Default</option>
                 <option value="aA-zZ">A to Z</option>
@@ -197,11 +198,11 @@ export default function DashboardPage() {
           ) : (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {categories.map((category) => (
-                <div key={category.id} className="overflow-hidden rounded-xl bg-white shadow-sm">
+                <div key={category.id} className="overflow-hidden rounded-xl bg-white/5 shadow-sm">
                   <img src={category.category_image_url} alt={category.category_name} className="h-40 w-full object-cover" />
                   <div className="p-4">
                     <h4 className="text-lg font-semibold">{category.category_name}</h4>
-                    <p className="mt-2 text-sm text-slate-600">{category.category_description}</p>
+                    <p className="mt-2 text-sm text-slate-400">{category.category_description}</p>
                   </div>
                 </div>
               ))}
@@ -209,7 +210,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
+        <section className="rounded-2xl bg-white/5 p-4 shadow-sm">
           <div className="grid gap-4 md:grid-cols-[1.3fr_0.8fr_0.8fr]">
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Search products</label>
@@ -218,7 +219,7 @@ export default function DashboardPage() {
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 placeholder="Search products..."
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+                className="w-full rounded-lg border border-white/10 bg-slate-900/80 px-4 py-2 text-white placeholder:text-slate-400 outline-none ring-0"
               />
             </div>
 
@@ -227,7 +228,7 @@ export default function DashboardPage() {
               <select
                 value={productNameSort}
                 onChange={(e) => setProductNameSort(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+                className="w-full rounded-lg border border-white/10 bg-slate-900/80 px-4 py-2 text-white outline-none ring-0"
               >
                 <option value="">Default</option>
                 <option value="aA-zZ">A to Z</option>
@@ -240,7 +241,7 @@ export default function DashboardPage() {
               <select
                 value={productPriceSort}
                 onChange={(e) => setProductPriceSort(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 outline-none ring-0"
+                className="w-full rounded-lg border border-white/10 bg-slate-900/80 px-4 py-2 text-white outline-none ring-0"
               >
                 <option value="">Default</option>
                 <option value="low-high">Low to High</option>
@@ -263,44 +264,19 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {products.map((product) => {
-                const discountPercentage = Number(product.discount_percentage) || 0;
-                const hasDiscount = discountPercentage > 0;
-                const discountAmount = hasDiscount ? product.price * (discountPercentage / 100) : 0;
-                const finalPrice = product.price - discountAmount;
-
-                return (
-                  <div key={product.id} className="overflow-hidden rounded-xl bg-white shadow-sm">
-                    <img src={product.product_image_url} alt={product.product_name} className="h-52 w-full object-cover" />
-                    <div className="p-4">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">{product.category_name}</p>
-                      <h4 className="mt-2 text-lg font-semibold">{product.product_name}</h4>
-                      <p className="mt-2 line-clamp-3 text-sm text-slate-600">{product.product_description}</p>
-
-                      <div className="mt-4 flex items-center gap-2">
-                        {hasDiscount ? (
-                          <>
-                            <span className="text-xl font-bold text-green-700">₹{finalPrice.toFixed(2)}</span>
-                            <span className="text-sm text-slate-400 line-through">₹{product.price.toFixed(2)}</span>
-                          </>
-                        ) : (
-                          <span className="text-xl font-bold text-green-700">₹{product.price.toFixed(2)}</span>
-                        )}
-                      </div>
-
-                      <div className="mt-3 text-sm text-slate-600">Stock: {product.stock}</div>
-
-                      <button
-                        type="button"
-                        onClick={() => addToCart(product.id)}
-                        className="mt-5 w-full rounded-lg bg-green-700 px-4 py-2 font-medium text-white hover:bg-green-800"
-                      >
-                        Add to cart
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+              {products.map((product) => (
+                <DashboardProductCard key={product.id} product={product as any} onAdded={async (success) => {
+                    if (success) {
+                        try {
+                            const response = await axios.get(`${API}/cart`, { withCredentials: true })
+                            const cartItems = response.data?.data?.cart_items ?? []
+                            setCartCount(Array.isArray(cartItems) ? cartItems.length : 0)
+                        } catch (err) {
+                            console.error('Unable to refresh cart', err)
+                        }
+                    }
+                }} />
+              ))}
             </div>
           )}
         </section>

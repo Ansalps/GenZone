@@ -1,180 +1,199 @@
 'use client'
 
-import axios from 'axios';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import axios from 'axios'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useState, type SubmitEvent } from 'react'
+import { toast } from 'sonner'
+import { z } from 'zod'
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+const loginSchema = z.object({
+    email: z.email('Invalid email address'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+})
+
+type FormData = z.infer<typeof loginSchema>
 
 export default function Login() {
-    const router = useRouter();
-
-    const [formData, setFormData] = useState({
+    const router = useRouter()
+    const [formData, setFormData] = useState<FormData>({
         email: '',
         password: '',
-    });
-    const [showPassword, setShowPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [submitError, setSubmitError] = useState('');
-    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+    })
+    const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({})
+    const [showPassword, setShowPassword] = useState(false)
 
-    const validateForm = () => {
-        const nextErrors: { email?: string; password?: string } = {};
+    async function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
+        e.preventDefault()
+        setErrors({})
 
-        if (!formData.email.trim()) {
-            nextErrors.email = 'Email is required.';
-        } else if (!emailRegex.test(formData.email)) {
-            nextErrors.email = 'Enter a valid email address.';
+        const validationResult = loginSchema.safeParse(formData)
+        if (!validationResult.success) {
+            const fieldErrors: Partial<Record<keyof FormData, string>> = {}
+
+            validationResult.error.issues.forEach((issue) => {
+                const path = issue.path[0] as keyof FormData
+                if (path && !fieldErrors[path]) {
+                    fieldErrors[path] = issue.message
+                }
+            })
+
+            setErrors(fieldErrors)
+            toast.error(validationResult.error.issues[0].message)
+            return
         }
-
-        if (!formData.password) {
-            nextErrors.password = 'Password is required.';
-        }
-
-        setErrors(nextErrors);
-        return Object.keys(nextErrors).length === 0;
-    };
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-
-        setFormData((prevData) => ({
-            ...prevData,
-            [name]: value,
-        }));
-
-        setErrors((prev) => ({
-            ...prev,
-            [name]: undefined,
-        }));
-
-        if (submitError) {
-            setSubmitError('');
-        }
-    };
-
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        setSubmitError('');
-
-        if (!validateForm()) return;
-
-        setLoading(true);
 
         try {
-            const response = await axios.post(`${API_URL}/admin/login`, formData, {
-                withCredentials: true,
-            });
+            const response = await axios.post(
+                'http://localhost:8080/public/login',
+                {
+                    email: formData.email,
+                    password: formData.password,
+                },
+                {
+                    withCredentials: true,
+                }
+            )
 
-            if (response.status === 200) {
-                router.push('/admin');
-            }
-        } catch (error: unknown) {
+            toast.success(response.data?.message || 'Login successful')
+            router.push('/dashboard')
+        } catch (error) {
+            console.error('Login error:', error)
+
             if (axios.isAxiosError(error)) {
-                const backendMessage =
-                    error.response?.data?.message ||
-                    error.response?.data?.error ||
-                    'Unable to login. Please try again.';
-                setSubmitError(backendMessage);
+                toast.error(error.response?.data?.message || 'Login failed')
             } else {
-                setSubmitError('An unexpected error occurred.');
+                toast.error('Something went wrong')
             }
-            console.error(error);
-        } finally {
-            setLoading(false);
         }
-    };
+    }
+
+    function onChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const { name, value } = e.target
+        setFormData((prev) => ({
+            ...prev,
+            [name]: value,
+        }))
+    }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10">
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -left-20 top-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-                <div className="absolute bottom-10 right-10 h-80 w-80 rounded-full bg-violet-500/20 blur-3xl" />
+        <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+            <div className="absolute inset-0 -z-10 overflow-hidden">
+                <div className="absolute -left-16 top-20 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
+                <div className="absolute right-0 top-40 h-80 w-80 rounded-full bg-violet-500/20 blur-3xl" />
+                <div className="absolute bottom-10 left-1/3 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
             </div>
 
-            <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-cyan-950/40 backdrop-blur-xl">
-                <div className="mb-8 text-center">
-                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-violet-500 text-2xl font-bold text-white shadow-lg shadow-cyan-500/30">
-                        A
+            <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+                <Link href="/" className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-violet-500 font-black text-slate-950 shadow-lg shadow-cyan-500/30">
+                        G
                     </div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
-                        Admin Portal
-                    </p>
-                    <h1 className="mt-3 text-3xl font-bold text-white">Welcome back</h1>
-                    <p className="mt-2 text-sm text-slate-300">
-                        Sign in to manage your store and operations.
-                    </p>
-                </div>
+                    <div>
+                        <p className="text-lg font-bold tracking-tight">GenZone</p>
+                        <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">Store</p>
+                    </div>
+                </Link>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
-                    {submitError && (
-                        <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
-                            {submitError}
+                <Link
+                    href="/"
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
+                >
+                    Home
+                </Link>
+            </header>
+
+            <section className="mx-auto flex min-h-[calc(100vh-88px)] max-w-6xl items-center justify-center px-6 py-10">
+                <div className="grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/70 shadow-2xl shadow-slate-950/50 backdrop-blur-xl lg:grid-cols-[1.1fr_0.9fr]">
+                    <div className="relative hidden flex-col justify-between bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-8 lg:flex">
+                        <div>
+                            <span className="inline-flex rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-cyan-200">
+                                Welcome back
+                            </span>
+                            <h1 className="mt-6 max-w-sm text-4xl font-black tracking-tight text-white">
+                                Your style, your routine, your account.
+                            </h1>
                         </div>
-                    )}
 
-                    <div className="space-y-2">
-                        <label htmlFor="email" className="text-sm font-medium text-slate-200">
-                            Email address
-                        </label>
-                        <input
-                            type="email"
-                            id="email"
-                            name="email"
-                            disabled={loading}
-                            value={formData.email}
-                            onChange={handleChange}
-                            className={`w-full rounded-xl border bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:ring-2 disabled:opacity-50 ${
-                                errors.email
-                                    ? 'border-rose-500 focus:border-rose-400 focus:ring-rose-400/30'
-                                    : 'border-slate-700 focus:border-cyan-400 focus:ring-cyan-400/30'
-                            }`}
-                            placeholder="admin@example.com"
-                        />
-                        {errors.email && <p className="text-xs text-rose-400">{errors.email}</p>}
-                    </div>
-
-                    <div className="space-y-2">
-                        <label htmlFor="password" className="text-sm font-medium text-slate-200">
-                            Password
-                        </label>
-                        <div className="relative">
-                            <input
-                                type={showPassword ? 'text' : 'password'}
-                                id="password"
-                                name="password"
-                                disabled={loading}
-                                value={formData.password}
-                                onChange={handleChange}
-                                className={`w-full rounded-xl border bg-slate-900/80 px-4 py-3 pr-12 text-white outline-none transition focus:ring-2 disabled:opacity-50 ${
-                                    errors.password
-                                        ? 'border-rose-500 focus:border-rose-400 focus:ring-rose-400/30'
-                                        : 'border-slate-700 focus:border-cyan-400 focus:ring-cyan-400/30'
-                                }`}
-                                placeholder="Enter your password"
+                        <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/60 p-4">
+                            <img
+                                src="https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80"
+                                alt="Fashion collection"
+                                className="h-60 w-full rounded-[1.1rem] object-cover"
                             />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword((prev) => !prev)}
-                                className="absolute inset-y-0 right-3 flex items-center text-xs font-medium text-cyan-300 transition hover:text-cyan-200"
-                                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                            >
-                                {showPassword ? 'Hide' : 'Show'}
-                            </button>
                         </div>
-                        {errors.password && <p className="text-xs text-rose-400">{errors.password}</p>}
                     </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        {loading ? 'Signing in...' : 'Sign in'}
-                    </button>
-                </form>
-            </div>
-        </div>
-    );
+                    <div className="p-6 sm:p-8 lg:p-10">
+                        <div className="mb-6">
+                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">Member login</p>
+                            <h2 className="mt-3 text-3xl font-bold text-white">Sign in</h2>
+                            <p className="mt-2 text-sm text-slate-400">Access your saved items, orders, and account details.</p>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-5">
+                            <div className="space-y-2">
+                                <label htmlFor="email" className="text-sm font-medium text-slate-200">
+                                    Email address
+                                </label>
+                                <input
+                                    type="email"
+                                    id="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={onChange}
+                                    className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-400/60"
+                                    placeholder="you@example.com"
+                                />
+                                {errors.email && <span className="text-xs text-rose-400">{errors.email}</span>}
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="password" className="text-sm font-medium text-slate-200">
+                                    Password
+                                </label>
+                                <div className="flex items-center rounded-xl border border-white/10 bg-slate-950/70 px-3 transition focus-within:border-cyan-400/60">
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        id="password"
+                                        name="password"
+                                        value={formData.password}
+                                        onChange={onChange}
+                                        className="w-full bg-transparent px-2 py-3 text-white outline-none placeholder:text-slate-500"
+                                        placeholder="Enter your password"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="px-2 text-xs font-medium text-cyan-300 transition hover:text-cyan-200"
+                                        onClick={() => setShowPassword((prev) => !prev)}
+                                    >
+                                        {showPassword ? 'Hide' : 'Show'}
+                                    </button>
+                                </div>
+                                {errors.password && <span className="text-xs text-rose-400">{errors.password}</span>}
+                            </div>
+
+                            <div className="flex items-center justify-between text-sm">
+                                <label className="flex items-center gap-2 text-slate-300">
+                                    <input type="checkbox" className="h-4 w-4 rounded border-white/10 bg-slate-950/70" />
+                                    Remember me
+                                </label>
+                                <Link href="/signup" className="text-cyan-300 hover:text-cyan-200">
+                                    Create account
+                                </Link>
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:brightness-110"
+                            >
+                                Sign in
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </main>
+    )
 }
+

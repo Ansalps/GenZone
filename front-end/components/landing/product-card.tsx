@@ -10,6 +10,8 @@ interface Product {
     popular: boolean;
     size: string;
     discount_percentage?: number;
+    start_date?: string;
+    end_date?: string;
 }
 
 interface ProductCardProps {
@@ -29,6 +31,25 @@ export default function ProductCard({ product }: ProductCardProps) {
               .join(', ')
         : 'N/A'
 
+    const showDiscount = (() => {
+        try {
+            const today = new Date()
+            if (product.start_date) {
+                const s = new Date(product.start_date)
+                const daysUntilStart = Math.floor((Date.UTC(s.getFullYear(), s.getMonth(), s.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24))
+                if (daysUntilStart > 0) return false
+            }
+            if (product.end_date) {
+                const e = new Date(product.end_date)
+                const daysLeft = Math.floor((Date.UTC(e.getFullYear(), e.getMonth(), e.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24))
+                if (daysLeft < 0) return false
+            }
+            return hasDiscount
+        } catch (e) {
+            return hasDiscount
+        }
+    })()
+
     return (
         <div className="group overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/80 shadow-lg shadow-slate-950/20 transition duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-cyan-950/20">
             <div className="relative h-64 overflow-hidden">
@@ -44,12 +65,102 @@ export default function ProductCard({ product }: ProductCardProps) {
                     </span>
                 )}
 
-                {hasDiscount && (
-                    <span className="absolute right-3 top-3 rounded-full bg-red-500 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white">
-                        {discountPercentage}% off
-                    </span>
-                )}
+                {/* Offer / timing */}
+                {showDiscount && (() => {
+                    let daysUntilStart: number | null = null
+                    let daysLeft: number | null = null
+                    let status: 'upcoming' | 'active' | 'expired' | 'unknown' = 'unknown'
+
+                    try {
+                        const today = new Date()
+                        if (product.start_date) {
+                            const s = new Date(product.start_date)
+                            daysUntilStart = Math.floor((Date.UTC(s.getFullYear(), s.getMonth(), s.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24))
+                        }
+                        if (product.end_date) {
+                            const e = new Date(product.end_date)
+                            daysLeft = Math.floor((Date.UTC(e.getFullYear(), e.getMonth(), e.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24))
+                        }
+
+                        if (product.start_date && daysUntilStart !== null && daysUntilStart > 0) {
+                            status = 'upcoming'
+                        } else {
+                            if (product.end_date) {
+                                if (daysLeft !== null && daysLeft >= 0) {
+                                    status = 'active'
+                                } else if (daysLeft !== null && daysLeft < 0) {
+                                    status = 'expired'
+                                }
+                            } else {
+                                status = 'active'
+                            }
+                        }
+                    } catch (e) {
+                        status = 'unknown'
+                    }
+
+                    if (status === 'active') {
+                        return <span className="absolute right-3 top-3 rounded-full bg-red-500 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white">{discountPercentage}% off</span>
+                    }
+
+                    // hide upcoming "Starts in" badge to avoid confusing users
+
+                    return null
+                })()}
             </div>
+
+            {/* Offer days left */}
+            {hasDiscount && (() => {
+                let daysUntilStart: number | null = null
+                let daysLeft = null as number | null
+                let status: 'upcoming' | 'active' | 'expired' | 'unknown' = 'unknown'
+
+                try {
+                    const today = new Date()
+                    if (product.start_date) {
+                        const s = new Date(product.start_date)
+                        daysUntilStart = Math.floor((Date.UTC(s.getFullYear(), s.getMonth(), s.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24))
+                    }
+                    if (product.end_date) {
+                        const e = new Date(product.end_date)
+                        daysLeft = Math.floor((Date.UTC(e.getFullYear(), e.getMonth(), e.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24))
+                    }
+
+                    if (product.start_date && daysUntilStart !== null && daysUntilStart > 0) {
+                        status = 'upcoming'
+                    } else {
+                        if (product.end_date) {
+                            if (daysLeft !== null && daysLeft >= 0) {
+                                status = 'active'
+                            } else if (daysLeft !== null && daysLeft < 0) {
+                                status = 'expired'
+                            }
+                        } else {
+                            status = 'active'
+                        }
+                    }
+                } catch (e) {
+                    status = 'unknown'
+                }
+
+                if (status === 'active' && daysLeft !== null) {
+                    return (
+                        <div className="p-5 pt-0">
+                            <p className="text-xs text-slate-300">Offer ends in {daysLeft} day{daysLeft===1? '':'s'}</p>
+                        </div>
+                    )
+                }
+
+                if (status === 'expired') {
+                    return (
+                        <div className="p-5 pt-0">
+                            <p className="text-xs text-slate-300">Offer expired</p>
+                        </div>
+                    )
+                }
+
+                return null
+            })()}
 
             <div className="space-y-4 p-5">
                 <div>
@@ -61,7 +172,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        {hasDiscount ? (
+                        {showDiscount ? (
                             <div className="flex items-end gap-2">
                                 <span className="text-2xl font-bold text-emerald-300">₹{finalPrice.toFixed(2)}</span>
                                 <span className="text-sm text-slate-500 line-through">₹{product.price.toFixed(2)}</span>

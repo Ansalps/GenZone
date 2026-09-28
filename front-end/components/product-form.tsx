@@ -15,6 +15,8 @@ export interface FormErrors {
     size?: string
     inventory?: string
     discountPercentage?: string
+    startDate?: string
+    endDate?: string
 }
 
 interface ProductFormProps {
@@ -212,6 +214,22 @@ export default function ProductForm({
                     <input type="number" id="discountPercentage" name="discountPercentage" min="0" max="100" value={formData.discountPercentage || ""} onChange={onChange} className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 text-white outline-none" placeholder="0" />
 
                     {errors.discountPercentage && <span className="text-rose-400 text-xs mt-1">{errors.discountPercentage}</span>}
+                </div>
+
+                {/* Offer Start Date */}
+                <div className="flex flex-col">
+                    <label htmlFor="startDate" className="mb-1 text-sm font-medium">Offer Start Date</label>
+
+                    <input type="date" id="startDate" name="startDate" value={formData.startDate || ""} onChange={onChange} className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 text-white outline-none" />
+                    {errors.startDate && <span className="text-rose-400 text-xs mt-1">{errors.startDate}</span>}
+                </div>
+
+                {/* Offer End Date */}
+                <div className="flex flex-col">
+                    <label htmlFor="endDate" className="mb-1 text-sm font-medium">Offer End Date</label>
+
+                    <input type="date" id="endDate" name="endDate" value={formData.endDate || ""} onChange={onChange} className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 text-white outline-none" />
+                    {errors.endDate && <span className="text-rose-400 text-xs mt-1">{errors.endDate}</span>}
                 </div>
 
                 {/* Discount Amount */}

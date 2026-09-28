@@ -12,7 +12,6 @@ type Admin struct {
 	Password string `json:"password"`
 }
 
-
 type TempUser struct {
 	FirstName string
 	LastName  string
@@ -49,7 +48,6 @@ type TempAddress struct {
 	CouponCode string `json:"coupon_code"`
 }
 
-
 type User struct {
 	gorm.Model
 	FirstName string `validate:"required"`
@@ -71,8 +69,8 @@ type Category struct {
 	ImageURL     string `gorm:"not null" json:"category_image_url" validate:"required"`
 
 	// Self-referencing relationship
-	ParentID *uint     `gorm:"index" json:"parent_id"`
-	Parent   *Category `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+	ParentID *uint      `gorm:"index" json:"parent_id"`
+	Parent   *Category  `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
 	Children []Category `gorm:"foreignKey:ParentID" json:"children,omitempty"`
 
 	Products []Product `gorm:"foreignKey:CategoryID" json:"products,omitempty"`
@@ -111,15 +109,14 @@ type ProductVariant struct {
 	Stock uint   `gorm:"not null;default:0" json:"stock"`
 }
 
-
 type Offer struct {
-	ID        uint `gorm:"primarykey"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	ProductID          uint `gorm:"not null"`
+	ID                 uint `gorm:"primarykey"`
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	ProductID          uint    `gorm:"not null"`
 	DiscountPercentage float64 `gorm:"not null"`
-	StartAt time.Time
-	EndAt time.Time
+	StartAt            time.Time
+	EndAt              time.Time
 }
 
 type Cart struct {
@@ -142,6 +139,7 @@ type CartItem struct {
 
 	Quantity  uint
 	UnitPrice float64 `gorm:"type:decimal(10,2)"`
+	Size      string  `gorm:"type:varchar(32)" json:"size"`
 }
 
 type Order struct {
@@ -164,7 +162,7 @@ type OrderItems struct {
 	gorm.Model
 	OrderID   uint    `validate:"required"`
 	Order     Order   `gorm:"foriegnkey:OrderID;references:ID"`
-	ProductID uint  `validate:"required,numeric"`
+	ProductID uint    `validate:"required,numeric"`
 	Product   Product `gorm:"foriegnkey:ProductID;references:ID"`
 	//Qty         uint
 	Price float64
@@ -224,8 +222,6 @@ type Coupon struct {
 	Discount    float64 `gorm:"type:decimal(5,2);not null" json:"discount"`
 	MinPurchase float64 `gorm:"type:decimal(10,2)" json:"min_purchase"`
 }
-
-
 
 type WalletTransaction struct {
 	gorm.Model

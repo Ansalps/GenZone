@@ -26,7 +26,7 @@ export default function Products() {
     useEffect(() => {
         async function fetchData() {
             try {
-                const response = await axios.get(`${API}/public/product`, {
+                const response = await axios.get(`${API}/admin/product`, {
                     params: {
                         search: search || undefined,
                         name_sort: nameSort || undefined,

@@ -23,4 +23,6 @@ export interface Product {
     inventory?: ProductInventoryItem[];
 
     discount_percentage?: number;
+    start_date?: string;
+    end_date?: string;
 }

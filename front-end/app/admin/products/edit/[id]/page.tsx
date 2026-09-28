@@ -8,6 +8,8 @@ import ProductForm, { FormErrors } from "@/components/product-form";
 import { useCategories } from "@/hooks/useCategories";
 import { ProductFormData } from "@/types/productFormData";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+
 const validateForm = (data: ProductFormData): FormErrors => {
     const errors: FormErrors = {};
 
@@ -34,12 +36,36 @@ const validateForm = (data: ProductFormData): FormErrors => {
         errors.inventory = "Inventory stock must be a non-negative whole number for each size";
     }
 
-    if (
-        data.discountPercentage < 0 ||
-        data.discountPercentage > 100
-    ) {
-        errors.discountPercentage =
-            "Discount percentage must be between 0 and 100";
+    if (data.discountPercentage < 0 || data.discountPercentage > 100) {
+        errors.discountPercentage = "Discount percentage must be between 0 and 100";
+    }
+
+        // Date validation: if either date provided, both required; end >= start
+        if ((data.startDate && !data.endDate) || (!data.startDate && data.endDate)) {
+            if (!data.startDate) errors.startDate = "Start date is required when end date is provided"
+            if (!data.endDate) errors.endDate = "End date is required when start date is provided"
+        }
+
+        if (data.startDate && data.endDate) {
+            const s = new Date(data.startDate)
+            const e = new Date(data.endDate)
+            if (isNaN(s.getTime())) errors.startDate = "Invalid start date"
+            if (isNaN(e.getTime())) errors.endDate = "Invalid end date"
+            if (!errors.startDate && !errors.endDate && e < s) {
+                errors.endDate = "End date must be the same or after start date"
+            }
+        }
+
+    if (data.discountPercentage > 0) {
+        if (!data.startDate) {
+            errors.startDate = "Start date is required when discount is provided";
+        }
+        if (!data.endDate) {
+            errors.endDate = "End date is required when discount is provided";
+        }
+        if (data.startDate && data.endDate && new Date(data.startDate) >= new Date(data.endDate)) {
+            errors.endDate = "End date must be after start date";
+        }
     }
 
     return errors;
@@ -47,29 +73,21 @@ const validateForm = (data: ProductFormData): FormErrors => {
 
 export default function EditProduct() {
     const { categories } = useCategories();
-
     const router = useRouter();
     const params = useParams();
-
     const id = params?.id as string;
 
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
+    const [submitError, setSubmitError] = useState<string>("");
 
-    /*
-     * Product information
-     *
-     * Notice that image is NOT inside formData.
-     * The existing image is stored separately and
-     * the newly selected image is stored as a File.
-     */
     const [formData, setFormData] = useState<ProductFormData>({
         categoryName: "",
         productName: "",
         productDescription: "",
         price: 0,
         stock: 0,
-        size: "",
+        size: "Small",
         inventory: {
             Small: 0,
             Medium: 0,
@@ -77,30 +95,22 @@ export default function EditProduct() {
         },
         popular: false,
         discountPercentage: 0,
+        startDate: "",
+        endDate: "",
     });
 
-    // Image currently stored in S3
     const [existingImageUrl, setExistingImageUrl] = useState<string>("");
-
-    // New image selected by the user
     const [imageFile, setImageFile] = useState<File | null>(null);
-
     const [errors, setErrors] = useState<FormErrors>({});
 
-    /*
-     * Fetch existing product
-     */
     useEffect(() => {
         if (!id) return;
 
         const fetchProduct = async () => {
             try {
-                const response = await axios.get(
-                    `http://localhost:8080/admin/product/${id}`,
-                    {
-                        withCredentials: true,
-                    }
-                );
+                const response = await axios.get(`${API_BASE_URL}/admin/product/${id}`, {
+                    withCredentials: true,
+                });
 
                 if (response.data?.data) {
                     const product = response.data.data;
@@ -110,52 +120,39 @@ export default function EditProduct() {
                         Large: 0,
                     };
 
-                    (product.inventory || []).forEach((entry: { size: string; stock: number }) => {
-                        if (entry.size && inventoryMap[entry.size] !== undefined) {
-                            inventoryMap[entry.size] = entry.stock ?? 0;
+                    (product.variants || []).forEach((variant: { size: string; stock: number }) => {
+                        if (variant.size && inventoryMap[variant.size] !== undefined) {
+                            inventoryMap[variant.size] = variant.stock ?? 0;
                         }
                     });
 
+                    // Format dates for HTML date/time inputs if existing
+                    const formattedStartDate = product.offer?.start_at 
+                        ? new Date(product.offer.start_at).toISOString().slice(0, 16) 
+                        : product.start_date || "";
+                    const formattedEndDate = product.offer?.end_at 
+                        ? new Date(product.offer.end_at).toISOString().slice(0, 16) 
+                        : product.end_date || "";
+
                     setFormData({
-                        categoryName:
-                            product.category_name || "",
-
-                        productName:
-                            product.product_name || "",
-
-                        productDescription:
-                            product.product_description || "",
-
-                        price:
-                            product.price || 0,
-
-                        stock:
-                            product.stock || 0,
-
-                        size:
-                            product.size || "",
-
+                        categoryName: product.category?.category_name || product.category_name || "",
+                        productName: product.product_name || "",
+                        productDescription: product.description || product.product_description || "",
+                        price: product.price || 0,
+                        stock: product.stock || 0,
+                        size: product.size || "Small",
                         inventory: inventoryMap,
-
-                        popular:
-                            product.popular || false,
-
-                        discountPercentage:
-                            product.discount_percentage || 0,
+                        popular: product.popular || false,
+                        discountPercentage: product.offer?.discount_percentage || product.discount_percentage || 0,
+                        startDate: formattedStartDate,
+                        endDate: formattedEndDate,
                     });
 
-                    /*
-                     * Store the existing S3 image URL separately.
-                     */
-                    setExistingImageUrl(
-                        product.product_image_url || ""
-                    );
+                    setExistingImageUrl(product.product_image_url || product.image_url || "");
                 }
             } catch (error) {
-                console.error(
-                    "Failed to fetch product details:",
-                    error
-                );
+                console.error("Failed to fetch product details:", error);
+                setSubmitError("Failed to load product details.");
             } finally {
                 setIsFetching(false);
             }
@@ -164,26 +161,17 @@ export default function EditProduct() {
         fetchProduct();
     }, [id]);
 
-    /*
-     * Handle text/select/number/checkbox fields
-     */
-    const onChange = (
-        e: React.ChangeEvent<
-            HTMLInputElement | HTMLSelectElement
-        >
-    ) => {
+    const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
-
         setFormData((prev) => ({
             ...prev,
-
-            [name]:
-                type === "checkbox"
-                    ? (e.target as HTMLInputElement).checked
-                    : type === "number"
-                    ? Number(value)
-                    : value,
+            [name]: type === "checkbox" 
+                ? (e.target as HTMLInputElement).checked 
+                : type === "number" 
+                ? Number(value) 
+                : value,
         }));
+        if (submitError) setSubmitError("");
     };
 
     const onInventoryChange = (size: string, value: number) => {
@@ -194,52 +182,22 @@ export default function EditProduct() {
                 [size]: value,
             },
         }));
+        if (submitError) setSubmitError("");
     };
 
-    /*
-     * Handle new image selection
-     */
-    const onImageChange = (
-        e: React.ChangeEvent<HTMLInputElement>
-    ) => {
+    const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] ?? null;
-
         setImageFile(file);
     };
 
-    /*
-     * Submit updated product
-     */
-    const handleSubmit = async (
-        e: React.FormEvent<HTMLFormElement>
-    ) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        setSubmitError("");
 
-        /*
-         * Validate normal fields
-         */
         const newErrors = validateForm(formData);
 
-        /*
-         * IMPORTANT:
-         *
-         * Image is NOT required when editing.
-         *
-         * If imageFile is null:
-         *     keep existing image.
-         *
-         * If imageFile exists:
-         *     upload new image.
-         */
-
-        /*
-         * Validate new image only if user selected one.
-         */
-        if (imageFile) {
-            if (!imageFile.type.startsWith("image/")) {
-                newErrors.productImage =
-                    "Please select a valid image";
-            }
+        if (imageFile && !imageFile.type.startsWith("image/")) {
+            newErrors.productImage = "Please select a valid image file.";
         }
 
         if (Object.keys(newErrors).length > 0) {
@@ -251,42 +209,15 @@ export default function EditProduct() {
         setIsLoading(true);
 
         try {
-            /*
-             * Because we are uploading a file,
-             * we MUST use FormData.
-             */
             const data = new FormData();
-
-            data.append(
-                "category_name",
-                formData.categoryName
-            );
-
-            data.append(
-                "product_name",
-                formData.productName
-            );
-
-            data.append(
-                "product_description",
-                formData.productDescription
-            );
-
-            data.append(
-                "price",
-                String(formData.price)
-            );
-
-            data.append(
-                "stock",
-                String(formData.stock)
-            );
-
-            data.append(
-                "popular",
-                String(formData.popular)
-            );
-
+            data.append("category_name", formData.categoryName);
+            data.append("product_name", formData.productName);
+            data.append("product_description", formData.productDescription);
+            data.append("price", String(formData.price));
+            data.append("popular", String(formData.popular));
+            data.append("size", formData.size || "Small");
+            data.append("stock", String(formData.inventory?.[formData.size] ?? 0));
+            
             data.append(
                 "inventory",
                 JSON.stringify(
@@ -297,49 +228,35 @@ export default function EditProduct() {
                 )
             );
 
-            data.append(
-                "discount_percentage",
-                String(formData.discountPercentage)
-            );
+            data.append("discount_percentage", String(formData.discountPercentage));
+            if (formData.startDate) data.append("start_date", formData.startDate);
+            if (formData.endDate) data.append("end_date", formData.endDate);
 
-            /*
-             * Only append product_image when
-             * the user selected a NEW image.
-             */
             if (imageFile) {
-                data.append(
-                    "product_image",
-                    imageFile
-                );
+                data.append("product_image", imageFile);
             }
 
-            const response = await axios.put(
-                `http://localhost:8080/admin/product/${id}`,
-                data,
-                {
-                    withCredentials: true,
-                }
-            );
+            const response = await axios.put(`${API_BASE_URL}/admin/product/${id}`, data, {
+                withCredentials: true,
+            });
 
-            if (
-                response.status === 200 ||
-                response.status === 201
-            ) {
+            if (response.status === 200 || response.status === 201) {
                 router.push("/admin/products");
             }
-        } catch (error) {
-            console.error(
-                "Failed to update product:",
-                error
-            );
+        } catch (error: unknown) {
+            if (axios.isAxiosError(error)) {
+                setSubmitError(
+                    error.response?.data?.message || "Failed to update product. Please try again."
+                );
+            } else {
+                setSubmitError("An unexpected error occurred.");
+            }
+            console.error("Failed to update product:", error);
         } finally {
             setIsLoading(false);
         }
     };
 
-    /*
-     * Loading existing product
-     */
     if (isFetching) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-300">
@@ -359,9 +276,7 @@ export default function EditProduct() {
                             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
                                 Product management
                             </p>
-                            <h1 className="mt-2 text-3xl font-bold text-white">
-                                Edit product
-                            </h1>
+                            <h1 className="mt-2 text-3xl font-bold text-white">Edit product</h1>
                         </div>
 
                         <div className="flex items-center gap-3">
@@ -385,6 +300,12 @@ export default function EditProduct() {
                             <p className="text-sm text-slate-400">Update pricing, inventory, image, and offer data.</p>
                         </div>
                     </div>
+
+                    {submitError && (
+                        <div className="mb-6 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+                            {submitError}
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmit} className="w-full">
                         <ProductForm
