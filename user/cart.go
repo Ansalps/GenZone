@@ -36,6 +36,9 @@ func Cart(c *gin.Context) {
 	query := `
 		SELECT 
 			carts.user_id,
+			cart_items.id,
+			cart_items.cart_id,
+			cart_items.size,
 			cart_items.product_id,
 			products.product_name,
 			cart_items.quantity AS qty,
@@ -47,8 +50,6 @@ func Cart(c *gin.Context) {
 		JOIN cart_items ON carts.id = cart_items.cart_id
 		JOIN products ON cart_items.product_id = products.id
 		WHERE carts.user_id = ? 
-		  AND cart_items.deleted_at IS NULL 
-		  AND carts.deleted_at IS NULL 
 		  AND cart_items.quantity > 0
 	`
 	tx := database.DB.Raw(query, userID).Scan(&cart)
@@ -243,7 +244,7 @@ func CartRemove(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var req requestmodemodels.CartAdd
+	var req requestmodemodels.CartRemove
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "failed to bind request"})
 		return
@@ -301,4 +302,8 @@ func CartRemove(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "cart item quantity updated"})
+}
+
+func UpdateQuantity(c *gin.Context){
+
 }

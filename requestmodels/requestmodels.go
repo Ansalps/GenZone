@@ -64,6 +64,12 @@ type CartAdd struct {
 	Size      string `json:"size,omitempty"`
 }
 
+type CartRemove struct {
+	ProductID string `json:"product_id" validate:"required,numeric"`
+	Quantity  uint   `json:"quantity,omitempty" validate:"omitempty,min=1"`
+	Size      string `json:"size,omitempty"`
+}
+
 type OrderAdd struct {
 	AddressID  uint   `json:"address_id" validate:"required"`
 	CouponCode string `json:"coupon_code"`

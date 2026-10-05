@@ -18,25 +18,46 @@ interface CartItem {
 export default function CartPage() {
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [removing, setRemoving] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadCart = async () => {
-      try {
-        const response = await axios.get('http://localhost:8080/cart', { withCredentials: true });
-        const cartItems = response.data?.data?.cart_items ?? [];
-        setItems(Array.isArray(cartItems) ? cartItems : []);
-      } catch (error) {
-        console.error('Failed to load cart', error);
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadCart();
   }, []);
 
   const subtotal = items.reduce((sum, item) => sum + Number(item.final_amount ?? item.total_amount ?? 0), 0);
+
+  const handleRemove = async (productId?: number | string, qty?: number) => {
+    if (!productId) return;
+    const should = window.confirm('Remove this item from cart?');
+    if (!should) return;
+    try {
+      setRemoving(String(productId));
+      await axios.delete('http://localhost:8080/cart', {
+        data: { product_id: productId, quantity: qty ?? 0 },
+        withCredentials: true,
+      });
+      await loadCart();
+    } catch (err) {
+      console.error('Failed to remove item', err);
+    } finally {
+      setRemoving(null);
+    }
+  };
+
+  // extracted so it can be reused after mutations
+  const loadCart = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get('http://localhost:8080/cart', { withCredentials: true });
+      const cartItems = response.data?.data?.cart_items ?? [];
+      setItems(Array.isArray(cartItems) ? cartItems : []);
+    } catch (error) {
+      console.error('Failed to load cart', error);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -70,11 +91,20 @@ export default function CartPage() {
                       <p className="text-xs text-rose-500">You saved: ₹{Number(item.discount).toFixed(2)}</p>
                     )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col items-end gap-2">
                     <p className="font-semibold text-emerald-300">₹{Number(item.final_amount ?? item.total_amount ?? 0).toFixed(2)}</p>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(item.product_id, item.qty)}
+                      disabled={removing === String(item.product_id)}
+                      className="mt-2 rounded-lg bg-rose-600/80 px-3 py-1 text-sm font-medium text-white hover:bg-rose-600/95 disabled:opacity-60"
+                    >
+                      {removing === String(item.product_id) ? 'Removing...' : 'Remove'}
+                    </button>
                   </div>
                 </div>
               ))}
+
             </div>
 
             <aside className="rounded-xl bg-slate-900/80 p-6 shadow-sm">

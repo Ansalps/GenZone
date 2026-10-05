@@ -119,27 +119,38 @@ type Offer struct {
 	EndAt              time.Time
 }
 
+// Cart represents a user's shopping cart.
 type Cart struct {
-	gorm.Model
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 
-	UserID uint
-	User   User
+	// Foreign Key to User model with UNIQUE constraint (One Cart per User)
+	UserID uint `gorm:"not null;uniqueIndex;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"user_id"`
+	User   User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 
-	CartItems []CartItem
+	// Relationship to CartItems
+	CartItems []CartItem `gorm:"foreignKey:CartID" json:"cart_items,omitempty"`
 }
 
+// CartItem represents individual product entries within a user's cart.
 type CartItem struct {
-	gorm.Model
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 
-	CartID uint
-	Cart   Cart
+	// Foreign Key linking to Cart
+	CartID uint `gorm:"not null;index;uniqueIndex:idx_cart_product_size;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"cart_id"`
+	Cart   Cart `gorm:"foreignKey:CartID" json:"cart,omitempty"`
 
-	ProductID uint
-	Product   Product
+	// Foreign Key linking to Product
+	ProductID uint    `gorm:"not null;index;uniqueIndex:idx_cart_product_size;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"product_id"`
+	Product   Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
 
-	Quantity  uint
-	UnitPrice float64 `gorm:"type:decimal(10,2)"`
-	Size      string  `gorm:"type:varchar(32)" json:"size"`
+	Size string `gorm:"type:varchar(32);not null;uniqueIndex:idx_cart_product_size" json:"size" validate:"required"`
+
+	Quantity  uint    `gorm:"not null;default:1" json:"quantity" validate:"required,gt=0"`
+	UnitPrice float64 `gorm:"type:decimal(10,2);not null" json:"unit_price" validate:"required,gt=0"`
 }
 
 type Order struct {

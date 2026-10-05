@@ -41,6 +41,7 @@ func AutoMigrate() error{
 	DB.AutoMigrate(&models.TempUser{})
 	DB.AutoMigrate(&models.UserLoginMethod{})
 	DB.AutoMigrate(&models.Address{})
+	DB.AutoMigrate(&models.Cart{})
 	DB.AutoMigrate(&models.CartItem{})
 	DB.AutoMigrate(&models.Order{})
 	DB.AutoMigrate(&models.OrderItems{})
