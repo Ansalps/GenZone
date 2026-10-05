@@ -96,6 +96,7 @@ func RegisterUrls(router *gin.Engine) {
 	router.DELETE("profile/useraddress/:address_id", middleware.AuthMiddleware("user"), user.AddressDelete)
 
 	router.GET("cart", middleware.AuthMiddleware("user"), user.Cart)
+	router.GET("cart-total-quantity", middleware.AuthMiddleware("user"), user.TotalQuantity)
 	router.POST("cart", middleware.AuthMiddleware("user"), user.CartAdd)
 	router.DELETE("cart", middleware.AuthMiddleware("user"), user.CartRemove)
 

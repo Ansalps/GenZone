@@ -100,9 +100,9 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchCart = async () => {
       try {
-        const response = await axios.get(`${API}/cart`, { withCredentials: true });
-        const cartItems = response.data?.data?.cart_items ?? [];
-        setCartCount(Array.isArray(cartItems) ? cartItems.length : 0);
+        const response = await axios.get(`${API}/cart-total-quantity`, { withCredentials: true });
+        const totalQuantity = response.data?.total_quantity ?? 0;
+        setCartCount(totalQuantity);
       } catch (error) {
         console.error('Unable to load cart', error);
         setCartCount(0);
@@ -120,9 +120,10 @@ export default function DashboardPage() {
         { withCredentials: true }
       );
 
-      const response = await axios.get(`${API}/cart`, { withCredentials: true });
-      const cartItems = response.data?.data?.cart_items ?? [];
-      setCartCount(Array.isArray(cartItems) ? cartItems.length : 0);
+      const response = await axios.get(`${API}/cart-total-quantity`, { withCredentials: true });
+      console.log('Cart total quantity response:', response.data);
+      const totalQuantity = response.data?.total_quantity ?? 0;
+      setCartCount(totalQuantity);
       alert('Product added to cart');
     } catch (error) {
       console.error('Failed to add to cart', error);
@@ -268,9 +269,9 @@ export default function DashboardPage() {
                 <DashboardProductCard key={product.id} product={product as any} onAdded={async (success) => {
                     if (success) {
                         try {
-                            const response = await axios.get(`${API}/cart`, { withCredentials: true })
-                            const cartItems = response.data?.data?.cart_items ?? []
-                            setCartCount(Array.isArray(cartItems) ? cartItems.length : 0)
+                            const response = await axios.get(`${API}/cart-total-quantity`, { withCredentials: true })
+                            const totalQuantity = response.data?.total_quantity ?? 0
+                            setCartCount(totalQuantity)
                         } catch (err) {
                             console.error('Unable to refresh cart', err)
                         }

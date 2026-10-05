@@ -14,6 +14,44 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	maxQuantityPerProduct = 5
+	maxCartTotalQuantity  = 25
+)
+
+func validateCartAddition(currentItemQty, requestedQty, currentCartTotal uint) (bool, string) {
+	if requestedQty == 0 {
+		requestedQty = 1
+	}
+
+	if requestedQty > maxQuantityPerProduct {
+		return false, fmt.Sprintf("Maximum quantity allowed for each product is %d", maxQuantityPerProduct)
+	}
+
+	if currentItemQty+requestedQty > maxQuantityPerProduct {
+		return false, fmt.Sprintf("Maximum quantity allowed for this product is %d", maxQuantityPerProduct)
+	}
+
+	if currentCartTotal+requestedQty > maxCartTotalQuantity {
+		return false, fmt.Sprintf("Cart total quantity cannot exceed %d", maxCartTotalQuantity)
+	}
+
+	return true, ""
+}
+
+func getUserCartTotalQuantity(userID uint) (uint, error) {
+	var total int64
+	err := database.DB.Table("carts").
+		Joins("JOIN cart_items ON carts.id = cart_items.cart_id").
+		Where("carts.user_id = ?", userID).
+		Select("COALESCE(SUM(cart_items.quantity), 0)").
+		Scan(&total).Error
+	if err != nil {
+		return 0, err
+	}
+	return uint(total), nil
+}
+
 func Cart(c *gin.Context) {
 	claims, exists := c.Get("claims")
 	if !exists {
@@ -52,6 +90,7 @@ func Cart(c *gin.Context) {
 		WHERE carts.user_id = ? 
 		  AND cart_items.quantity > 0
 	`
+
 	tx := database.DB.Raw(query, userID).Scan(&cart)
 
 	if tx.Error != nil {
@@ -147,12 +186,21 @@ func CartAdd(c *gin.Context) {
 		return
 	}
 
+	currentCartTotal, err := getUserCartTotalQuantity(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to calculate cart total quantity",
+		})
+		return
+	}
+
 	// 6. Check for an active offer and calculate unit price
 	unitPrice := product.Price
 	var offer models.Offer
 	now := time.Now()
 
-	err := database.DB.Where("product_id = ? AND start_at <= ? AND end_at >= ?", product.ID, now, now).
+	err = database.DB.Where("product_id = ? AND start_at <= ? AND end_at >= ?", product.ID, now, now).
 		First(&offer).Error
 
 	if err == nil && offer.DiscountPercentage > 0 {
@@ -169,17 +217,17 @@ func CartAdd(c *gin.Context) {
 	}
 
 	if err == nil {
-		// Item exists -> Check quantity limits and stock
-		if cartItem.Quantity+reqQty > 7 {
-			c.JSON(http.StatusOK, gin.H{
+		if ok, msg := validateCartAddition(cartItem.Quantity, reqQty, currentCartTotal); !ok {
+			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  false,
-				"message": "Exceeded maximum quantity for a product",
+				"message": msg,
 			})
 			return
 		}
 
+		// Item exists -> Check quantity limits and stock
 		if cartItem.Quantity+reqQty > stock {
-			c.JSON(http.StatusOK, gin.H{
+			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  false,
 				"message": "product out of stock",
 			})
@@ -201,6 +249,14 @@ func CartAdd(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  true,
 			"message": "product quantity updated in cart successfully",
+		})
+		return
+	}
+
+	if ok, msg := validateCartAddition(0, reqQty, currentCartTotal); !ok {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": msg,
 		})
 		return
 	}
@@ -304,6 +360,39 @@ func CartRemove(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "cart item quantity updated"})
 }
 
-func UpdateQuantity(c *gin.Context){
+func TotalQuantity(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
 
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+
+	var totalQuantity int64
+	err := database.DB.Table("carts").
+		Joins("JOIN cart_items ON carts.id = cart_items.cart_id").
+		Where("carts.user_id = ?", userID).
+		Select("COALESCE(SUM(cart_items.quantity), 0)").
+		Scan(&totalQuantity).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to calculate total quantity",
+		})
+		return
+	}
+	fmt.Println("Total Quantity: ", totalQuantity)
+	c.JSON(http.StatusOK, gin.H{
+		"status":         true,
+		"message":        "successfully retrieved total quantity",
+		"total_quantity": totalQuantity,
+	})
 }
