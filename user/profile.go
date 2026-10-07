@@ -30,7 +30,7 @@ func Profile(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var User []responsemodels.User
+	var User responsemodels.User
 	database.DB.Where("id = ?", userID).First(&User)
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,

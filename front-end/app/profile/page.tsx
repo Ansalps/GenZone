@@ -22,7 +22,7 @@ export default function ProfilePage() {
     const fetchProfile = async () => {
       try {
         const response = await axios.get(`${API}/profile`, { withCredentials: true });
-        const user = response.data?.data?.user ?? response.data?.user ?? {};
+        const user = response.data?.data?.User ?? response.data?.user ?? {};
         setProfile(user);
       } catch (error) {
         console.error('Failed to load profile', error);
