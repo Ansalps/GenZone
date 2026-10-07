@@ -11,14 +11,14 @@ import (
 func RegisterUrls(router *gin.Engine) {
 
 	adminGroup := router.Group("admin")
-	
+
 	//admin login/logout
 	adminGroup.POST("/login", admin.Login)
 	adminGroup.POST("/logout", admin.Logout)
 
 	//admin category management
 	adminGroup.GET("category", middleware.AuthMiddleware("admin"), admin.ReadCategory)
-	adminGroup.GET("category/:id",middleware.AuthMiddleware("admin"),admin.ReadCategoryById)
+	adminGroup.GET("category/:id", middleware.AuthMiddleware("admin"), admin.ReadCategoryById)
 	adminGroup.POST("category", middleware.AuthMiddleware("admin"), admin.AddCategory)
 	adminGroup.PUT("category/:id", middleware.AuthMiddleware("admin"), admin.EditCategory)
 	adminGroup.DELETE("category/:id", middleware.AuthMiddleware("admin"), admin.CategoryDelete)
@@ -34,8 +34,7 @@ func RegisterUrls(router *gin.Engine) {
 	adminGroup.GET("listusers", middleware.AuthMiddleware("admin"), admin.ListUsers)
 	adminGroup.PUT("listusers/blockuser", middleware.AuthMiddleware("admin"), admin.BlockUser)
 	adminGroup.PUT("listusers/unblockuser", middleware.AuthMiddleware("admin"), admin.UnblockUser)
-	
-	
+
 	//order management
 	adminGroup.GET("orderlist", middleware.AuthMiddleware("admin"), admin.OrderList)
 	adminGroup.GET("orderlist/items/:order_id", middleware.AuthMiddleware("admin"), admin.OrderItemsList)
@@ -62,16 +61,15 @@ func RegisterUrls(router *gin.Engine) {
 
 	//public
 	publicGroup := router.Group("/public")
-	publicGroup.GET("/category",public.GetCategories)
+	publicGroup.GET("/category", public.GetCategories)
 	//publicGroup.GET("/product",public.ReadProducts)
-	publicGroup.GET("/product",  public.GetProduct)
+	publicGroup.GET("/product", public.GetProduct)
 	publicGroup.POST("/signup", public.UserSignUp)
 	publicGroup.POST("/verify-otp", public.VerifyOTPHandler)
 	publicGroup.POST("/resendotp/:email", user.ResendOtp)
 	publicGroup.POST("/login", user.UserLogin)
 	publicGroup.GET("/auth/google/login", user.HandleGoogleLogin)
 	publicGroup.GET("/auth/google/callback", user.HandleGoogleCallback)
-	
 
 	//user
 	router.GET("profile", middleware.AuthMiddleware("user"), user.Profile)
@@ -96,8 +94,10 @@ func RegisterUrls(router *gin.Engine) {
 	router.DELETE("profile/useraddress/:address_id", middleware.AuthMiddleware("user"), user.AddressDelete)
 
 	router.GET("cart", middleware.AuthMiddleware("user"), user.Cart)
+	router.GET("cart/summary", middleware.AuthMiddleware("user"), user.CartSummary)
 	router.GET("cart-total-quantity", middleware.AuthMiddleware("user"), user.TotalQuantity)
 	router.POST("cart", middleware.AuthMiddleware("user"), user.CartAdd)
+	router.PUT("cart/update-quantity", middleware.AuthMiddleware("user"), user.UpdateQuantity)
 	router.DELETE("cart", middleware.AuthMiddleware("user"), user.CartRemove)
 
 	router.GET("checkout", middleware.AuthMiddleware("user"), user.CheckOut)

@@ -4,26 +4,13 @@ import axios from 'axios';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import DashboardProductCard from '@/components/dashboard/product-card'
+import type { Product } from '@/types/product'
 
 interface Category {
   id: number;
   category_name: string;
   category_description: string;
   category_image_url: string;
-}
-
-interface Product {
-  id: number;
-  category_id: number;
-  category_name: string;
-  product_name: string;
-  product_description: string;
-  product_image_url: string;
-  price: number;
-  stock: number;
-  popular: boolean;
-  size: string;
-  discount_percentage?: number;
 }
 
 const API = 'http://localhost:8080';
@@ -152,6 +139,16 @@ export default function DashboardPage() {
             >
               View Cart
             </Link>
+            <Link
+              href="/profile"
+              aria-label="Open profile"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                <path d="M20 21a8 8 0 0 0-16 0" />
+                <circle cx="12" cy="8" r="4" />
+              </svg>
+            </Link>
           </div>
         </div>
       </header>
@@ -266,7 +263,7 @@ export default function DashboardPage() {
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {products.map((product) => (
-                <DashboardProductCard key={product.id} product={product as any} onAdded={async (success) => {
+                <DashboardProductCard key={product.id} product={product} onAdded={async (success) => {
                     if (success) {
                         try {
                             const response = await axios.get(`${API}/cart-total-quantity`, { withCredentials: true })

@@ -20,6 +20,7 @@ export default function DashboardProductCard({ product, onAdded }: Props) {
     const [selectedSize, setSelectedSize] = useState<string>(defaultSize)
     const [qty, setQty] = useState<number>(1)
     const [loading, setLoading] = useState(false)
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const discountPercentage = Number(product.discount_percentage) || 0
     const hasDiscount = discountPercentage > 0
     const discountAmount = hasDiscount ? product.price * (discountPercentage / 100) : 0
@@ -35,10 +36,65 @@ export default function DashboardProductCard({ product, onAdded }: Props) {
     }
 
     const maxStock = getStockForSize(selectedSize)
+    const maxPerProduct = 5
+    const maxCartTotal = 25
+
+    const validateAddToCart = async () => {
+        if (sizes.length > 0 && !selectedSize) {
+            setErrorMessage("Please select a size before adding to cart.")
+            return false
+        }
+
+        if (!Number.isFinite(qty) || qty < 1) {
+            setErrorMessage("Quantity must be at least 1.")
+            return false
+        }
+
+        if (qty > maxPerProduct) {
+            setErrorMessage(`You can add at most ${maxPerProduct} of this product at a time.`)
+            return false
+        }
+
+        if (maxStock <= 0) {
+            setErrorMessage("This product is currently out of stock.")
+            return false
+        }
+
+        if (qty > maxStock) {
+            setErrorMessage(`Only ${maxStock} item(s) available in stock for this selection.`)
+            return false
+        }
+
+        try {
+            const response = await axios.get("http://localhost:8080/cart-total-quantity", { withCredentials: true })
+            const cartTotal = Number(response.data?.total_quantity ?? 0)
+            const remainingCapacity = maxCartTotal - cartTotal
+
+            if (cartTotal >= maxCartTotal) {
+                setErrorMessage(`Your cart is full. You already have ${cartTotal} item(s) and the limit is ${maxCartTotal}.`)
+                return false
+            }
+
+            if (qty > remainingCapacity) {
+                setErrorMessage(`Cart limit reached: you can add at most ${remainingCapacity} more item(s) right now. Total cart limit is ${maxCartTotal}.`)
+                return false
+            }
+        } catch (e) {
+            console.error("Failed to check cart capacity", e)
+            setErrorMessage("Unable to verify cart capacity right now.")
+            return false
+        }
+
+        return true
+    }
 
     const handleAdd = async () => {
-        if (qty <= 0) return onAdded(false)
-        if (qty > maxStock) return onAdded(false)
+        setErrorMessage(null)
+
+        if (!(await validateAddToCart())) {
+            onAdded(false)
+            return
+        }
 
         setLoading(true)
         try {
@@ -49,11 +105,17 @@ export default function DashboardProductCard({ product, onAdded }: Props) {
             }, { withCredentials: true })
 
             onAdded(true)
+            setErrorMessage(null)
             alert("Added to cart")
         } catch (e) {
             console.error("Add to cart failed", e)
             onAdded(false)
-            alert("Failed to add to cart")
+
+            const backendMessage = axios.isAxiosError(e)
+                ? e.response?.data?.message || e.response?.data?.error || "Failed to add to cart"
+                : "Failed to add to cart"
+
+            setErrorMessage(backendMessage)
         } finally {
             setLoading(false)
         }
@@ -173,15 +235,35 @@ export default function DashboardProductCard({ product, onAdded }: Props) {
                     <div className="mb-3">
                         <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Quantity</label>
                         <div className="mt-2">
-                            <input type="number" min={1} max={maxStock} value={qty} onChange={(e) => setQty(Math.max(1, Math.min(Number(e.target.value) || 1, maxStock)))} className="w-full rounded-md border border-white/10 bg-slate-900/70 px-2 py-1 text-white" />
+                            <input
+                                type="number"
+                                min={1}
+                                max={maxStock || 1}
+                                value={qty}
+                                onChange={(e) => {
+                                    const nextQty = Number(e.target.value)
+                                    if (!Number.isFinite(nextQty)) {
+                                        setQty(1)
+                                        return
+                                    }
+                                    const limitedQty = Math.min(Math.max(1, nextQty), Math.max(1, maxStock || 1))
+                                    setQty(limitedQty)
+                                }}
+                                className="w-full rounded-md border border-white/10 bg-slate-900/70 px-2 py-1 text-white"
+                            />
                             <p className="text-xs text-slate-400 mt-1">Max: {maxStock}</p>
                         </div>
                     </div>
 
                     <div>
-                        <button onClick={handleAdd} disabled={loading || qty < 1 || qty > maxStock} className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm px-3 py-2 font-medium transition hover:opacity-95 disabled:opacity-60">
+                        <button onClick={handleAdd} disabled={loading || maxStock <= 0} className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm px-3 py-2 font-medium transition hover:opacity-95 disabled:opacity-60">
                             {loading ? 'Adding...' : 'Add to cart'}
                         </button>
+                        {errorMessage && (
+                            <p className="mt-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-xs text-rose-200">
+                                {errorMessage}
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

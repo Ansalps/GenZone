@@ -45,14 +45,17 @@ function VerifyOtpForm() {
       setLoading(true);
       const response = await axios.post(
         `http://localhost:8080/public/verify-otp?email=${encodeURIComponent(email)}`,
-        { otp: validationResult.data.otp }, // Fixed: Using validationResult instead of formData
+        { otp: validationResult.data.otp },
         { withCredentials: true }
       );
 
       toast.success(response.data?.message || "OTP verified successfully");
       router.push("/login");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to verify OTP");
+    } catch (err: unknown) {
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.message || "Failed to verify OTP"
+        : "Failed to verify OTP";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -73,8 +76,11 @@ function VerifyOtpForm() {
       );
 
       toast.success(response.data?.message || "OTP resent successfully");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to resend OTP");
+    } catch (err: unknown) {
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.message || "Failed to resend OTP"
+        : "Failed to resend OTP";
+      toast.error(message);
     } finally {
       setResending(false);
     }

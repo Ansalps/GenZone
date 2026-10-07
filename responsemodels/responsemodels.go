@@ -40,19 +40,32 @@ type Product struct {
 }
 
 type CartItems struct {
-	//gorm.Model
-	UserID string `validate:"required,numeric" json:"user_id"`
-	//User   User   `gorm:"foriegnkey:UserID;references:ID"`
-	// CartID      string  `validate:"required,numeric"`
-	// Cart        Cart    `gorm:"foriegnkey:CartID;references:ID"`
-	ProductID   string `validate:"required,numeric" json:"product_id"`
-	ProductName string `json:"product_name" validate:"required"`
-	//Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
-	TotalAmount float64 `gorm:"type:decimal(10,2);default:0.00" json:"total_amount" validate:"required"`
-	Qty         uint    `gorm:"default:0" json:"qty"`
-	Price       float64 `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
-	Discount    float64 `json:"discount"`
-	FinalAmount float64 `json:"final_amount"`
+	ID                 uint                   `json:"id"`
+	CartID             uint                   `json:"cart_id"`
+	UserID             string                 `json:"user_id"`
+	ProductID          string                 `json:"product_id"`
+	ProductName        string                 `json:"product_name"`
+	CategoryName       string                 `json:"category_name"`
+	ProductDescription string                 `json:"product_description"`
+	ProductImageUrl    string                 `json:"product_image_url"`
+	Popular            bool                   `json:"popular"`
+	Size               string                 `json:"size"`
+	Stock              int64                  `json:"stock"`
+	Inventory          []ProductInventoryItem `gorm:"-" sql:"-" json:"inventory"`
+	InventoryRaw       json.RawMessage        `gorm:"column:inventory" json:"-"`
+	DiscountPercentage int64                  `json:"discount_percentage"`
+	StartDate          string                 `json:"start_date,omitempty"`
+	EndDate            string                 `json:"end_date,omitempty"`
+	OriginalPrice      float64                `json:"original_price"`
+	OfferUnitPrice     float64                `json:"offer_unit_price"`
+	OriginalTotalPrice float64                `json:"original_total_price"`
+	OfferTotalPrice    float64                `json:"offer_total_price"`
+	TotalAmount        float64                `gorm:"type:decimal(10,2);default:0.00" json:"total_amount" validate:"required"`
+	Qty                uint                   `gorm:"default:0" json:"qty"`
+	Price              float64                `gorm:"type:decimal(10,2)" json:"price" validate:"required"`
+	Discount           float64                `json:"discount"`
+	FinalAmount        float64                `json:"final_amount"`
+	FinalPrice         float64                `json:"final_price"`
 }
 
 type Address struct {
