@@ -10,6 +10,7 @@ interface UserProfile {
   email?: string;
   phone?: string;
   status?: string;
+  profile_picture?: string;
 }
 
 interface AddressItem {
@@ -53,6 +54,7 @@ export default function ProfilePage() {
   const [form, setForm] = useState<AddressFormState>(createEmptyAddressForm());
   const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [profileImageUploading, setProfileImageUploading] = useState(false);
   const [error, setError] = useState('');
 
   const fetchProfile = async () => {
@@ -109,6 +111,44 @@ export default function ProfilePage() {
     setForm(createEmptyAddressForm());
     setEditingAddressId(null);
     setError('');
+  };
+
+  const handleProfilePictureChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      setProfileImageUploading(true);
+      const response = await axios.post(`${API}/profile/picture`, formData, {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const uploadedUrl = response.data?.data?.profile_picture || response.data?.profile_picture || '';
+      if (uploadedUrl) {
+        setProfile((previous) => ({
+          ...previous,
+          profile_picture: uploadedUrl,
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to upload profile picture', err);
+      setError(
+        axios.isAxiosError(err)
+          ? err.response?.data?.message || err.response?.data?.error || 'Unable to upload profile picture.'
+          : 'Unable to upload profile picture.'
+      );
+    } finally {
+      setProfileImageUploading(false);
+      event.target.value = '';
+    }
   };
 
   const submitAddress = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -216,8 +256,29 @@ export default function ProfilePage() {
           <>
             <div className="grid gap-6 md:grid-cols-[260px_1fr]">
               <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-6 text-center shadow-sm">
-                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-violet-500 text-2xl font-bold text-white">
-                  {fullName.charAt(0).toUpperCase()}
+                <div className="relative mx-auto mb-4 h-24 w-24">
+                  {profile.profile_picture ? (
+                    <img
+                      src={profile.profile_picture}
+                      alt={fullName}
+                      className="h-24 w-24 rounded-full object-cover ring-2 ring-cyan-400/60"
+                    />
+                  ) : (
+                    <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-violet-500 text-2xl font-bold text-white">
+                      {fullName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  <label className="absolute -bottom-1 -right-1 flex cursor-pointer items-center justify-center rounded-full border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-cyan-200 shadow-lg shadow-slate-950/40 transition hover:border-cyan-400/50 hover:text-cyan-100">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleProfilePictureChange}
+                      disabled={profileImageUploading}
+                    />
+                    {profileImageUploading ? '...' : 'Edit'}
+                  </label>
                 </div>
                 <h2 className="text-xl font-semibold">{fullName}</h2>
                 <p className="mt-2 text-sm text-slate-400">{profile.status || 'Active'}</p>

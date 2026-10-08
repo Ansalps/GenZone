@@ -130,7 +130,7 @@ func AddCategory(c *gin.Context) {
 	}
 
 	// 5. Upload the file to S3 using your helper
-	imageURL, err := helper.UploadToS3(fileHeader)
+	imageURL, err := helper.UploadToS3(fileHeader,"categories","S3_BUCKET_NAME")
 	if err != nil {
 		log.Println("S3 Upload Error:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -238,7 +238,7 @@ func EditCategory(c *gin.Context) {
 	if err == nil {
 		// New image uploaded
 
-		imageURL, err := helper.UploadToS3(fileHeader)
+		imageURL, err := helper.UploadToS3(fileHeader,"categories","S3_BUCKET_NAME")
 
 		if err != nil {
 			log.Println("S3 Upload Error:", err)

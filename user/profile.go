@@ -41,6 +41,99 @@ func Profile(c *gin.Context) {
 	})
 }
 
+func ProfilePicture(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	var user models.User
+	if err := database.DB.Select("profile_picture").First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  false,
+			"message": "profile picture not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "profile picture retrieved successfully",
+		"data": gin.H{
+			"profile_picture": user.ProfilePicture,
+		},
+	})
+}
+
+func ProfilePictureUpload(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	fileHeader, err := c.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "image file is required",
+		})
+		return
+	}
+
+	imageURL, err := helper.UploadToS3(fileHeader, "profile-pictures", "PRIVATE_S3_BUCKET_NAME")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to upload profile picture",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	updateData := models.User{ProfilePicture: imageURL}
+	if err := database.DB.Model(&models.User{}).Where("id = ?", userID).Updates(&updateData).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to save profile picture",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	var updatedUser models.User
+	if err := database.DB.First(&updatedUser, userID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to fetch updated profile",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "profile picture updated successfully",
+		"data": gin.H{
+			"profile_picture": updatedUser.ProfilePicture,
+		},
+	})
+}
+
 func ProfileEdit(c *gin.Context) {
 	//userID := c.Param("user_id")
 	claims, exists := c.Get("claims")

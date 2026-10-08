@@ -73,6 +73,8 @@ func RegisterUrls(router *gin.Engine) {
 
 	//user
 	router.GET("profile", middleware.AuthMiddleware("user"), user.Profile)
+	router.GET("profile/picture", middleware.AuthMiddleware("user"), user.ProfilePicture)
+	router.POST("profile/picture", middleware.AuthMiddleware("user"), user.ProfilePictureUpload)
 	router.PUT("profile", middleware.AuthMiddleware("user"), user.ProfileEdit)
 	router.GET("profile/userorders", middleware.AuthMiddleware("user"), user.OrderList)
 	router.GET("profile/userorders/items/:order_id", middleware.AuthMiddleware("user"), user.OrderItemsList)

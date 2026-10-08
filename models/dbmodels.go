@@ -36,7 +36,7 @@ type Address struct {
 	User       User   `gorm:"foriegnkey:UserID;references:ID"`
 	Country    string `validate:"required"`
 	State      string `validate:"required"`
-	City   string `validate:"required"`
+	City       string `validate:"required"`
 	StreetName string `validate:"required"`
 	PinCode    string `validate:"required,numeric"`
 	Phone      string `validate:"required,numeric,len=10"`
@@ -50,12 +50,13 @@ type TempAddress struct {
 
 type User struct {
 	gorm.Model
-	FirstName string `validate:"required"`
-	LastName  string `validate:"required"`
-	Email     string `gorm:"unique" validate:"required"`
-	Password  string `validate:"required"`
-	Phone     string `json:"phone" validate:"required,numeric,len=10"`
-	Status    string `gorm:"type:varchar(10); check(status IN ('Active', 'Blocked', 'Deleted')) ;default:'Active'" json:"status" validate:"required"`
+	FirstName      string `validate:"required"`
+	LastName       string `validate:"required"`
+	Email          string `gorm:"unique" validate:"required"`
+	Password       string `validate:"required"`
+	Phone          string `json:"phone" validate:"required,numeric,len=10"`
+	ProfilePicture string `gorm:"default:null" json:"profile_picture"`
+	Status         string `gorm:"type:varchar(10); check(status IN ('Active', 'Blocked', 'Deleted')) ;default:'Active'" json:"status" validate:"required"`
 }
 
 type Category struct {

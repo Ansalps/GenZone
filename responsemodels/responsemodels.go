@@ -124,13 +124,14 @@ type OrderItems struct {
 
 type User struct {
 	//gorm.Model
-	ID        uint   ` json:"id"`
-	FirstName string `validate:"required" json:"first_name"`
-	LastName  string `validate:"required" json:"last_name"`
-	Email     string `gorm:"unique" validate:"required" json:"email"`
-	Password  string `validate:"required" json:"password"`
-	Phone     string `json:"phone" validate:"required,numeric,len=10"`
-	Status    string `gorm:"type:varchar(10); check(status IN ('Active', 'Blocked', 'Deleted')) ;default:'Active'" json:"status" validate:"required"`
+	ID             uint   ` json:"id"`
+	FirstName      string `validate:"required" json:"first_name"`
+	LastName       string `validate:"required" json:"last_name"`
+	Email          string `gorm:"unique" validate:"required" json:"email"`
+	Password       string `validate:"required" json:"password"`
+	Phone          string `json:"phone" validate:"required,numeric,len=10"`
+	ProfilePicture string `gorm:"default:null" json:"profile_picture"`
+	Status         string `gorm:"type:varchar(10); check(status IN ('Active', 'Blocked', 'Deleted')) ;default:'Active'" json:"status" validate:"required"`
 }
 
 type Wishlist struct {

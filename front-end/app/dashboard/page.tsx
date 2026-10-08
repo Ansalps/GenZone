@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [cartCount, setCartCount] = useState(0);
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -99,6 +100,21 @@ export default function DashboardPage() {
     fetchCart();
   }, []);
 
+  useEffect(() => {
+    const fetchProfilePicture = async () => {
+      try {
+        const response = await axios.get(`${API}/profile/picture`, { withCredentials: true });
+        const picture = response.data?.data?.profile_picture ?? response.data?.profile_picture ?? null;
+        setProfilePicture(picture || null);
+      } catch (error) {
+        console.error('Unable to load profile picture', error);
+        setProfilePicture(null);
+      }
+    };
+
+    fetchProfilePicture();
+  }, []);
+
   const addToCart = async (productId: number) => {
     try {
       await axios.post(
@@ -142,12 +158,16 @@ export default function DashboardPage() {
             <Link
               href="/profile"
               aria-label="Open profile"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
+              className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/5 text-slate-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
-                <path d="M20 21a8 8 0 0 0-16 0" />
-                <circle cx="12" cy="8" r="4" />
-              </svg>
+              {profilePicture ? (
+                <img src={profilePicture} alt="Profile" className="h-full w-full object-cover" />
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                  <path d="M20 21a8 8 0 0 0-16 0" />
+                  <circle cx="12" cy="8" r="4" />
+                </svg>
+              )}
             </Link>
           </div>
         </div>
