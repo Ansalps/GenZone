@@ -22,7 +22,7 @@ func CouponList(c *gin.Context) {
 }
 
 func CouponAdd(c *gin.Context) {
-	var couponadd requestmodemodels.CouponAdd
+	var couponadd requestmodels.CouponAdd
 	err := c.BindJSON(&couponadd)
 	response := gin.H{
 		"status":  false,

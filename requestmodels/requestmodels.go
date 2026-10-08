@@ -1,4 +1,4 @@
-package requestmodemodels
+package requestmodels
 
 type AdminLogin struct {
 	Email    string `json:"email" validate:"required,email"`

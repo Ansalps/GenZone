@@ -283,16 +283,20 @@ func PaymentWebhook(c *gin.Context) {
 		}
 		var offerapplied float64
 		database.DB.Raw(`SELECT SUM(discount) FROM cart_items WHERE deleted_at IS NULL`).Scan(&offerapplied)
+		var couponID uint
+		if couponcode != "" {
+			database.DB.Model(&models.Coupon{}).Where("code = ?", couponcode).Select("id").Scan(&couponID)
+		}
 		Finalamount = totalamount - discountamount
 		order := models.Order{
-			UserID:         userID,
-			AddressID:      addressid,
-			TotalAmount:    totalamount,
-			PaymentMethod:  "RazorPay",
-			OfferApplied:   offerapplied,
-			CouponCode:     couponcode,
-			DiscountAmount: discountamount,
-			FinalAmount:    Finalamount,
+			UserID:              userID,
+			AddressID:           addressid,
+			TotalAmount:         totalamount,
+			PaymentMethod:       "RazorPay",
+			OrderStatus:         "pending",
+			CouponID:            couponID,
+			TotalDiscountAmount: offerapplied + discountamount,
+			FinalAmount:         Finalamount,
 		}
 		database.DB.Create(&order)
 		var CartItems []models.CartItem

@@ -14,7 +14,7 @@ import (
 func UnblockUser(c *gin.Context) {
 	//unblockID := c.Param("id")
 	//fmt.Println(unblockID)
-	var blockuser requestmodemodels.BlockUser
+	var blockuser requestmodels.BlockUser
 	err := c.BindJSON(&blockuser)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

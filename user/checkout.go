@@ -3,6 +3,7 @@ package user
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -31,15 +32,18 @@ func CheckOut(c *gin.Context) {
 
 	userID := customClaims.ID
 	fmt.Println("print user id : ", userID)
-	var couponcheckout requestmodemodels.CouponCheckout
-	err := c.BindJSON(&couponcheckout)
-	response := gin.H{
-		"status":  false,
-		"message": "failed to bind request",
+	var couponcheckout requestmodels.CouponCheckout
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&couponcheckout); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "failed to bind request",
+			})
+			return
+		}
 	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response)
-		return
+	if couponcheckout.CouponCode == "" {
+		couponcheckout.CouponCode = strings.TrimSpace(c.Query("coupon_code"))
 	}
 	var coupondiscount float64
 	if couponcheckout.CouponCode != "" {
@@ -67,13 +71,13 @@ func CheckOut(c *gin.Context) {
 	//var CartItem models.CartItems
 	var Mix mix
 	//database.DB.Where("user_id = ? AND qty != 0 AND deleted_at IS NULL", userID).Find(&Mix.CartItem)
-	database.DB.Raw(`select cart_items.user_id,cart_items.product_id,products.product_name,cart_items.total_amount,cart_items.qty,cart_items.price,cart_items.discount,cart_items.final_amount from cart_items join products on cart_items.product_id = products.id where cart_items.user_id = ? and cart_items.qty != 0 and cart_items.deleted_at is null`, userID).Scan(&Mix.CartItem)
+	database.DB.Raw(`select carts.user_id,cart_items.product_id,products.product_name,cart_items.total_amount,cart_items.qty,cart_items.price,cart_items.discount,cart_items.final_amount from cart_items join products on cart_items.product_id = products.id where cart_items.user_id = ? and cart_items.qty != 0 and cart_items.deleted_at is null`, userID).Scan(&Mix.CartItem)
 	//var totalamount float64
 	//database.DB.Model(&models.CartItems{}).Where("user_id = ?", userID).Pluck("total_amount", &totalamount)
 	var count int64
-	database.DB.Raw("SELECT COUNT(*) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&count)
+	database.DB.Raw("SELECT COUNT(*) from carts where user_id = ? and deleted_at IS NULL", userID).Scan(&count)
 	if count != 0 {
-		err := database.DB.Raw("SELECT SUM(final_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&Mix.Totalamount).Error
+		err := database.DB.Raw("SELECT SUM(final_amount) from carts where user_id = ? and deleted_at IS NULL", userID).Scan(&Mix.Totalamount).Error
 		fmt.Println("-----------", Mix.Totalamount)
 		if err != nil {
 			fmt.Println("failed to execute query", err)
@@ -146,7 +150,7 @@ func CheckOutAddressEdit(c *gin.Context) {
 		})
 		return
 	}
-	var Address requestmodemodels.AddressAdd
+	var Address requestmodels.AddressAdd
 	err := c.BindJSON(&Address)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -168,7 +172,7 @@ func CheckOutAddressEdit(c *gin.Context) {
 		//UserID:     UserID,
 		Country:    Address.Country,
 		State:      Address.State,
-		City:   Address.City,
+		City:       Address.City,
 		StreetName: Address.StreetName,
 		PinCode:    Address.PinCode,
 		Phone:      Address.Phone,

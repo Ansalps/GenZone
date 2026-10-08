@@ -155,18 +155,21 @@ type CartItem struct {
 }
 
 type Order struct {
-	gorm.Model
+	ID        uint `gorm:"primarykey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 	UserID uint `validate:"required"`
-	//OrderDate   time.Time
+	User User `gorm:"foriegnkey:UserID;reference:ID"`
 	AddressID   uint
 	Address     Address `gorm:"foriegnkey:AddressID;references:ID"`
 	TotalAmount float64
-	// OrderStatus string `gorm:"type:varchar(10); check(order_status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
 	PaymentMethod  string  `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_method" validate:"required"`
 	OrderStatus    string  `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
-	OfferApplied   float64 `gorm:"default:0.00"`
-	CouponCode     string
-	DiscountAmount float64 `gorm:"type:decimal(10,2);default:0.00"`
+	OfferId   uint 
+	Offer Offer `gorm:"foriegnkey:OfferID;reference:ID"`
+	CouponID    uint
+	Coupon Coupon `gorm:"foriegnkey:CouponID;references:ID"`
+	TotalDiscountAmount float64 `gorm:"type:decimal(10,2);default:0.00"`
 	FinalAmount    float64 `gorm:"type:decimal(10,2);not null"`
 }
 

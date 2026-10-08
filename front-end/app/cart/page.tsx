@@ -177,8 +177,8 @@ export default function CartPage() {
         { withCredentials: true },
       );
       await loadCart();
-    } catch (err: any) {
-      const message = err?.response?.data?.message || 'Unable to update quantity right now.';
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Unable to update quantity right now.';
       setQuantityErrors((prev) => ({ ...prev, [String(productId) + '-' + size]: message }));
       console.error('Failed to update quantity', err);
     }
@@ -352,9 +352,12 @@ export default function CartPage() {
                 </div>
               </div>
 
-              <button type="button" className="mt-6 w-full rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-medium text-white hover:brightness-105">
+              <Link
+                href="/checkout"
+                className="mt-6 block w-full rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 text-center font-medium text-white hover:brightness-105"
+              >
                 Checkout
-              </button>
+              </Link>
             </aside>
           </div>
         )}

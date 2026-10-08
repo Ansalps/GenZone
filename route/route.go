@@ -48,6 +48,7 @@ func RegisterUrls(router *gin.Engine) {
 	//productoffer management
 	adminGroup.GET("offer", middleware.AuthMiddleware("admin"), admin.OfferList)
 	adminGroup.POST("offer", middleware.AuthMiddleware("admin"), admin.OfferAdd)
+	adminGroup.PUT("offer/:id", middleware.AuthMiddleware("admin"), admin.OfferEdit)
 	adminGroup.DELETE("offer/:id", middleware.AuthMiddleware("admin"), admin.OfferRemove)
 
 	//salesreport generation
