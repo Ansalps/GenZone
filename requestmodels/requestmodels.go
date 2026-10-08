@@ -51,11 +51,11 @@ type AddressAdd struct {
 	//User       User   `gorm:"foriegnkey:UserID;references:ID"`
 	Country    string `json:"country" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50,alpha"`
 	State      string `json:"state" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50,alpha"`
-	District   string `json:"district" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50,alpha"`
+	City       string `json:"city" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50,alpha"`
 	StreetName string `json:"street_name" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50,alpha"`
 	PinCode    string `json:"pin_code" validate:"required,numeric"`
 	Phone      string `json:"phone" validate:"required,numeric,len=10"`
-	Default    bool   `json:"Default" `
+	Default    bool   `json:"default"`
 }
 
 type CartAdd struct {

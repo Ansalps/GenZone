@@ -8,7 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
-	"github.com/Ansalps/GeZOne/requestmodels"
+	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -107,13 +107,19 @@ func AddressAdd(c *gin.Context) {
 		UserID:     userID,
 		Country:    Address.Country,
 		State:      Address.State,
-		District:   Address.District,
+		City:       Address.City,
 		StreetName: Address.StreetName,
 		PinCode:    Address.PinCode,
 		Phone:      Address.Phone,
 		Default:    Address.Default,
 	}
-	database.DB.Create(&address)
+	if err := database.DB.Create(&address).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to add address"})
+		return
+	}
+	if address.Default {
+		database.DB.Model(&models.Address{}).Where("user_id = ? AND id != ? AND deleted_at IS NULL", userID, address.ID).Update("default", false)
+	}
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "address added successfully"})
 }
 
@@ -165,14 +171,55 @@ func AddressEdit(c *gin.Context) {
 		//UserID:     UserID,
 		Country:    Address.Country,
 		State:      Address.State,
-		District:   Address.District,
+		City:       Address.City,
 		StreetName: Address.StreetName,
 		PinCode:    Address.PinCode,
 		Phone:      Address.Phone,
 		Default:    Address.Default,
 	}
-	database.DB.Model(&models.Address{}).Where("id = ?", AddressID).Updates(&address)
+	if err := database.DB.Model(&models.Address{}).Where("id = ? AND user_id = ?", AddressID, userID).Updates(&address).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to update address"})
+		return
+	}
+	if address.Default {
+		database.DB.Model(&models.Address{}).Where("user_id = ? AND id != ? AND deleted_at IS NULL", userID, AddressID).Update("default", false)
+	}
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Address updated successfully"})
+}
+
+func AddressSetDefault(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	addressID := c.Param("address_id")
+
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? AND deleted_at IS NULL`, addressID, userID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "particular address id does not exist for this user"})
+		return
+	}
+
+	if err := database.DB.Model(&models.Address{}).Where("user_id = ? AND id != ? AND deleted_at IS NULL", userID, addressID).Update("default", false).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to update default address"})
+		return
+	}
+	if err := database.DB.Model(&models.Address{}).Where("id = ? AND user_id = ? AND deleted_at IS NULL", addressID, userID).Update("default", true).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to set default address"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Default address set successfully"})
 }
 
 func AddressDelete(c *gin.Context) {

@@ -90,6 +90,7 @@ func RegisterUrls(router *gin.Engine) {
 	//router.GET("address", helper.AuthMiddleware("user"), user.Address)
 	router.GET("profile/useraddress", middleware.AuthMiddleware("user"), user.AddressList)
 	router.POST("profile/useraddress", middleware.AuthMiddleware("user"), user.AddressAdd)
+	router.PUT("profile/useraddress/default/:address_id", middleware.AuthMiddleware("user"), user.AddressSetDefault)
 	router.PUT("profile/useraddress/:address_id", middleware.AuthMiddleware("user"), user.AddressEdit)
 	router.DELETE("profile/useraddress/:address_id", middleware.AuthMiddleware("user"), user.AddressDelete)
 

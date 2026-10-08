@@ -85,7 +85,7 @@ func GenerateInvoice(c *gin.Context) {
 
 	Country := order.Address.Country
 	State := order.Address.State
-	District := order.Address.District
+	District := order.Address.City
 	StreetName := order.Address.StreetName
 	PinCode := order.Address.PinCode
 	Phone := order.Address.Phone

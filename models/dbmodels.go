@@ -36,7 +36,7 @@ type Address struct {
 	User       User   `gorm:"foriegnkey:UserID;references:ID"`
 	Country    string `validate:"required"`
 	State      string `validate:"required"`
-	District   string `validate:"required"`
+	City   string `validate:"required"`
 	StreetName string `validate:"required"`
 	PinCode    string `validate:"required,numeric"`
 	Phone      string `validate:"required,numeric,len=10"`

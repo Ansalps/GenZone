@@ -168,7 +168,7 @@ func CheckOutAddressEdit(c *gin.Context) {
 		//UserID:     UserID,
 		Country:    Address.Country,
 		State:      Address.State,
-		District:   Address.District,
+		City:   Address.City,
 		StreetName: Address.StreetName,
 		PinCode:    Address.PinCode,
 		Phone:      Address.Phone,
