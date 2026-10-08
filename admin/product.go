@@ -337,7 +337,7 @@ func AddProduct(c *gin.Context) {
 		return
 	}
 
-	imageURL, err := helper.UploadToS3(fileHeader,"products","S3_BUCKET_NAME")
+	imageURL, err := helper.UploadToS3(c.Request.Context(), fileHeader, "products", "S3_BUCKET_NAME")
 	if err != nil {
 		log.Println("S3 Upload Error:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -629,7 +629,7 @@ func EditProduct(c *gin.Context) {
 			return
 		}
 
-		uploadedURL, err := helper.UploadToS3(fileHeader,"products","S3_BUCKET_NAME")
+		uploadedURL, err := helper.UploadToS3(c.Request.Context(), fileHeader, "products", "S3_BUCKET_NAME")
 		if err != nil {
 			log.Println("S3 Upload Error:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{

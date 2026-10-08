@@ -15,7 +15,6 @@ import (
 )
 
 func Profile(c *gin.Context) {
-	//userID := c.Param("user_id")
 	claims, exists := c.Get("claims")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
@@ -29,9 +28,16 @@ func Profile(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	fmt.Println("print user id : ", userID)
 	var User responsemodels.User
-	database.DB.Where("id = ?", userID).First(&User)
+	if err := database.DB.Where("id = ?", userID).First(&User).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": false, "message": "user not found"})
+		return
+	}
+	if User.ProfilePicture != "" {
+		if resolvedURL, err := helper.ResolveObjectURL(c.Request.Context(), "PRIVATE_S3_BUCKET_NAME", User.ProfilePicture); err == nil {
+			User.ProfilePicture = resolvedURL
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "successfully retrieved user informations",
@@ -64,11 +70,18 @@ func ProfilePicture(c *gin.Context) {
 		return
 	}
 
+	profilePicture := user.ProfilePicture
+	if profilePicture != "" {
+		if resolvedURL, err := helper.ResolveObjectURL(c.Request.Context(), "PRIVATE_S3_BUCKET_NAME", profilePicture); err == nil {
+			profilePicture = resolvedURL
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "profile picture retrieved successfully",
 		"data": gin.H{
-			"profile_picture": user.ProfilePicture,
+			"profile_picture": profilePicture,
 		},
 	})
 }
@@ -96,7 +109,7 @@ func ProfilePictureUpload(c *gin.Context) {
 		return
 	}
 
-	imageURL, err := helper.UploadToS3(fileHeader, "profile-pictures", "PRIVATE_S3_BUCKET_NAME")
+	imageKey, err := helper.UploadToS3(c.Request.Context(), fileHeader, "profile-pictures", "PRIVATE_S3_BUCKET_NAME")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
@@ -106,7 +119,7 @@ func ProfilePictureUpload(c *gin.Context) {
 		return
 	}
 
-	updateData := models.User{ProfilePicture: imageURL}
+	updateData := models.User{ProfilePicture: imageKey}
 	if err := database.DB.Model(&models.User{}).Where("id = ?", userID).Updates(&updateData).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
@@ -125,11 +138,18 @@ func ProfilePictureUpload(c *gin.Context) {
 		return
 	}
 
+	resolvedProfilePicture := updatedUser.ProfilePicture
+	if resolvedProfilePicture != "" {
+		if resolvedURL, err := helper.ResolveObjectURL(c.Request.Context(), "PRIVATE_S3_BUCKET_NAME", resolvedProfilePicture); err == nil {
+			resolvedProfilePicture = resolvedURL
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "profile picture updated successfully",
 		"data": gin.H{
-			"profile_picture": updatedUser.ProfilePicture,
+			"profile_picture": resolvedProfilePicture,
 		},
 	})
 }

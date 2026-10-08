@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Ansalps/GeZOne/database"
+	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -100,6 +101,13 @@ func ReadProducts(c *gin.Context) {
 	// Build response objects explicitly to ensure inventory is included
 	productsResp := make([]map[string]interface{}, 0, len(products))
 	for _, p := range products {
+		productImageURL := p.ProductImageUrl
+		if productImageURL != "" {
+			if resolvedURL, err := helper.ResolveObjectURL(c.Request.Context(), "S3_BUCKET_NAME", productImageURL); err == nil {
+				productImageURL = resolvedURL
+			}
+		}
+
 		prod := map[string]interface{}{
 			"id":                  p.ID,
 			"created_at":          p.CreatedAt,
@@ -108,7 +116,7 @@ func ReadProducts(c *gin.Context) {
 			"category_name":       p.CategoryName,
 			"product_name":        p.ProductName,
 			"product_description": p.ProductDescription,
-			"product_image_url":   p.ProductImageUrl,
+			"product_image_url":   productImageURL,
 			"price":               p.Price,
 			"stock":               p.Stock,
 			"popular":             p.Popular,
