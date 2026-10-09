@@ -8,7 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
-	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
+	requestmodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -76,7 +76,7 @@ func ChangeOrderStatus(c *gin.Context) {
 		return
 	}
 
-	var Order requestmodemodels.CancelOrder
+	var Order requestmodels.CancelOrder
 	err := c.BindJSON(&Order)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -136,8 +136,7 @@ func ChangeOrderStatus(c *gin.Context) {
 		return
 	}
 	if Order.OrderStatus == "delivered" {
-		fmt.Println("update in payments table")
-		//var payment models.Payments
+		
 		now := time.Now()
 		today := now.Format("2006-01-02")
 		var paymentmethod string
@@ -147,9 +146,9 @@ func ChangeOrderStatus(c *gin.Context) {
 				PaymentDate:   today,
 				PaymentStatus: "paid",
 			}
-			fmt.Println("hi")
+			
 			database.DB.Model(&models.Payments{}).Where("order_id = ?", orderID).Updates(&payment)
-			fmt.Println("hello")
+			
 		}
 
 		var OrderItems []models.OrderItems
@@ -159,7 +158,7 @@ func ChangeOrderStatus(c *gin.Context) {
 			if v.OrderStatus != "cancelled" && v.OrderStatus != "return" {
 				var stock uint
 				database.DB.Raw("SELECT COALESCE(SUM(stock), 0) FROM product_variants WHERE product_id = ?", v.ProductID).Scan(&stock)
-				fmt.Println("stock first", stock)
+				
 				stock = stock - 1
 				database.DB.Exec("UPDATE product_variants SET stock = stock - 1 WHERE product_id = ?", v.ProductID)
 				paidamount := v.Price - v.TotalDiscount
@@ -167,13 +166,7 @@ func ChangeOrderStatus(c *gin.Context) {
 				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("delivered_date", today)
 			}
 
-			// if stock == 0 {
-			// 	continue
-			// }
-			//fmt.Println("qty", v.Qty)
-			//stoc := stock - v.Qty
-			//fmt.Println("stock : v.product_id v.qty", stock, v.ProductID, v.Qty)
-
+			
 		}
 	}
 	order := models.Order{

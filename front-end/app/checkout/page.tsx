@@ -53,28 +53,26 @@ interface CheckoutResponse {
 }
 
 export default function CheckoutPage() {
-  const [checkout, setCheckout] = useState<CheckoutResponse>({});
   const [cartSummary, setCartSummary] = useState<CartSummary>({});
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadCheckout = useCallback(async (value = couponCode) => {
+  const loadCheckoutData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
 
-      const [cartResponse, cartSummaryResponse, checkoutResponse] = await Promise.all([
+      const [cartResponse, cartSummaryResponse, addressResponse] = await Promise.all([
         axios.get(`${API}/cart`, { withCredentials: true }),
         axios.get(`${API}/cart/summary`, { withCredentials: true }),
-        axios.get(`${API}/checkout`, {
-          withCredentials: true,
-          params: value ? { coupon_code: value } : {},
-        }),
+        axios.get(`${API}/profile/useraddress`, { withCredentials: true }),
       ]);
 
       const cartPayload = Array.isArray(cartResponse.data?.data?.cart_items)
@@ -82,28 +80,20 @@ export default function CheckoutPage() {
         : [];
       const nextCartItems = Array.isArray(cartPayload) ? cartPayload : [];
       const nextCartSummary = (cartSummaryResponse.data?.data ?? {}) as CartSummary;
+      const nextAddresses = Array.isArray(addressResponse.data?.data?.address)
+        ? addressResponse.data.data.address ?? []
+        : [];
 
       setCartItems(nextCartItems);
       setCartSummary(nextCartSummary);
-
-      const result = checkoutResponse.data?.result ?? checkoutResponse.data?.data ?? checkoutResponse.data ?? {};
-      const nextCheckout = (result as CheckoutResponse) ?? {};
-      const nextAddresses = Array.isArray((result as { address?: AddressItem[] })?.address)
-        ? (result as { address?: AddressItem[] }).address ?? []
-        : Array.isArray(nextCheckout.address)
-          ? nextCheckout.address
-          : [];
-
-      setCheckout(nextCheckout);
       setAddresses(nextAddresses);
 
-      const defaultAddress = nextAddresses.find((address) => Boolean(address.default ?? address.Default));
+      const defaultAddress = nextAddresses.find((address: AddressItem) => Boolean(address.default ?? address.Default));
       setSelectedAddressId(defaultAddress?.id ?? nextAddresses[0]?.id ?? null);
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Unable to load checkout summary.';
-      console.error('Failed to load checkout', err);
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Unable to load checkout data.';
+      console.error('Failed to load checkout data', err);
       setError(message);
-      setCheckout({});
       setCartSummary({});
       setCartItems([]);
       setAddresses([]);
@@ -111,13 +101,13 @@ export default function CheckoutPage() {
     } finally {
       setLoading(false);
     }
-  }, [couponCode]);
+  }, []);
 
   useEffect(() => {
     let active = true;
 
     const init = async () => {
-      await loadCheckout();
+      await loadCheckoutData();
       if (!active) return;
     };
 
@@ -126,45 +116,54 @@ export default function CheckoutPage() {
     return () => {
       active = false;
     };
-  }, [loadCheckout]);
+  }, [loadCheckoutData]);
 
   const subtotal = Number(cartSummary.original_total ?? 0);
-  const discount = Number(checkout.coupon_discount ?? 0);
   const offerDiscount = Number(cartSummary.discount_amount ?? 0);
-  const finalTotal = Math.max(subtotal - offerDiscount - discount, 0);
+  const finalTotal = Math.max(subtotal - offerDiscount - couponDiscount, 0);
 
   const handleApplyCoupon = async () => {
-    await loadCheckout(couponCode.trim());
+    const trimmedCoupon = couponCode.trim();
+    if (!trimmedCoupon) {
+      setError('Please enter a coupon code.');
+      setCouponDiscount(0);
+      return;
+    }
+
+    try {
+      setApplyingCoupon(true);
+      setError('');
+
+      const response = await axios.get(`${API}/checkout/coupon`, {
+        withCredentials: true,
+        params: { coupon_code: trimmedCoupon },
+      });
+
+      const value = Number(response.data?.data?.coupon_discount ?? 0);
+      setCouponDiscount(value);
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Unable to apply coupon.';
+      console.error('Failed to apply coupon', err);
+      setCouponDiscount(0);
+      setError(message);
+    } finally {
+      setApplyingCoupon(false);
+    }
   };
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = () => {
     if (!selectedAddressId) {
       setError('Please choose a delivery address before placing the order.');
       return;
     }
 
-    try {
-      setPlacingOrder(true);
-      setError('');
+    const params = new URLSearchParams({
+      address_id: String(selectedAddressId),
+      coupon_code: couponCode.trim(),
+    });
 
-      await axios.post(
-        `${API}/checkout/order`,
-        {
-          address_id: selectedAddressId,
-          coupon_code: couponCode.trim(),
-        },
-        { withCredentials: true }
-      );
-
-      window.alert('Order placed successfully!');
-      window.location.href = '/dashboard';
-    } catch (err: unknown) {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Unable to place the order right now.';
-      console.error('Failed to place order', err);
-      setError(message);
-    } finally {
-      setPlacingOrder(false);
-    }
+    setError('');
+    window.location.href = `/payment-option?${params.toString()}`;
   };
 
   return (
@@ -295,7 +294,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="flex items-center justify-between text-rose-300">
                   <span>Coupon Discount</span>
-                  <span>-₹{discount.toFixed(2)}</span>
+                  <span>-₹{couponDiscount.toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between border-t border-white/10 pt-3 text-base font-semibold text-white">
                   <span>Final total</span>
@@ -303,7 +302,13 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <div className="mt-5 space-y-3">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleApplyCoupon();
+                }}
+                className="mt-5 space-y-3"
+              >
                 <label className="block text-sm text-slate-300">Coupon code</label>
                 <div className="flex gap-2">
                   <input
@@ -314,22 +319,22 @@ export default function CheckoutPage() {
                     className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-cyan-400"
                   />
                   <button
-                    type="button"
-                    onClick={handleApplyCoupon}
-                    className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/20"
+                    type="submit"
+                    disabled={applyingCoupon}
+                    className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Apply
+                    {applyingCoupon ? 'Applying...' : 'Apply'}
                   </button>
                 </div>
-              </div>
+              </form>
 
               <button
                 type="button"
                 onClick={handlePlaceOrder}
-                disabled={placingOrder || cartItems.length === 0 || !selectedAddressId}
+                disabled={cartItems.length === 0 || !selectedAddressId}
                 className="mt-6 w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {placingOrder ? 'Placing order...' : 'Place order'}
+                Place order
               </button>
             </aside>
           </div>

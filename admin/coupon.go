@@ -1,8 +1,8 @@
 package admin
 
 import (
-	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -13,28 +13,35 @@ import (
 )
 
 func CouponList(c *gin.Context) {
-	var coupon []responsemodels.Coupon
-	database.DB.Raw(`SELECT * FROM coupons WHERE deleted_at IS NULL`).Scan(&coupon)
+	var coupons []responsemodels.Coupon
+	if err := database.DB.Order("created_at DESC").Find(&coupons).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to fetch coupons",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"data":    coupon,
+		"status":  true,
 		"message": "listing coupons successfully",
+		"data": gin.H{
+			"coupons": coupons,
+		},
 	})
 }
 
 func CouponAdd(c *gin.Context) {
-	var couponadd requestmodels.CouponAdd
-	err := c.BindJSON(&couponadd)
-	response := gin.H{
-		"status":  false,
-		"message": "failed to bind request",
-	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response)
+	var req requestmodels.CouponAdd
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "failed to bind request",
+		})
 		return
 	}
-	// Validate the content of the JSON
-	if err := helper.Validate(couponadd); err != nil {
-		fmt.Println("", err)
+
+	if err := helper.Validate(req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":     false,
 			"message":    err.Error(),
@@ -42,36 +49,221 @@ func CouponAdd(c *gin.Context) {
 		})
 		return
 	}
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM coupons WHERE code = ? AND deleted_at IS NULL`, couponadd.Code).Scan(&count)
-	if count != 0 {
+
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "coupon code is required",
+		})
+		return
+	}
+
+	if req.Discount < 0 || req.MinPurchase < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "discount and minimum purchase must be greater than or equal to 0",
+		})
+		return
+	}
+
+	startAt, endAt, err := parseProductOfferDates(req.StartAt, req.EndAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	var existing models.Coupon
+	if err := database.DB.Where("code = ?", code).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
 			"message": "coupon code already exists",
 		})
 		return
 	}
+
 	coupon := models.Coupon{
-		Code:        couponadd.Code,
-		Discount:    couponadd.Discount,
-		MinPurchase: couponadd.MinPurchase,
+		Code:        strings.ToUpper(code),
+		Discount:    req.Discount,
+		MinPurchase: req.MinPurchase,
+		StartAt:     startAt,
+		EndAt:       endAt,
+		IsActive:    req.IsActive,
 	}
-	database.DB.Create(&coupon)
-	c.JSON(http.StatusOK, gin.H{
-		"message": "coupon addded succeessfully",
-	})
-}
-func CouponRemove(c *gin.Context) {
-	CouponID := c.Param("id")
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM coupons WHERE id = ? AND deleted_at IS NULL`, CouponID).Scan(&count)
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Coupon id id does not exist",
+	if err := database.DB.Create(&coupon).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to add coupon",
 		})
 		return
 	}
-	database.DB.Where("id = ?", CouponID).Delete(&models.Coupon{})
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Coupon deleted successfully",
+		"status":  true,
+		"message": "coupon added successfully",
+	})
+}
+
+func CouponEdit(c *gin.Context) {
+	couponID := c.Param("id")
+	var existing models.Coupon
+	if err := database.DB.First(&existing, couponID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  false,
+			"message": "coupon id does not exist",
+		})
+		return
+	}
+
+	var req requestmodels.CouponAdd
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "failed to bind request",
+		})
+		return
+	}
+
+	if err := helper.Validate(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":     false,
+			"message":    err.Error(),
+			"error_code": http.StatusBadRequest,
+		})
+		return
+	}
+
+	if req.Discount < 0 || req.MinPurchase < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "discount and minimum purchase must be greater than or equal to 0",
+		})
+		return
+	}
+
+	startAt, endAt, err := parseProductOfferDates(req.StartAt, req.EndAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "coupon code is required",
+		})
+		return
+	}
+
+	var duplicate models.Coupon
+	if err := database.DB.Where("code = ? AND id != ?", code, existing.ID).First(&duplicate).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "coupon code already exists",
+		})
+		return
+	}
+
+	existing.Code = strings.ToUpper(code)
+	existing.Discount = req.Discount
+	existing.MinPurchase = req.MinPurchase
+	existing.StartAt = startAt
+	existing.EndAt = endAt
+	existing.IsActive = req.IsActive
+	if err := database.DB.Save(&existing).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to update coupon",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "coupon updated successfully",
+	})
+}
+
+func CouponActivate(c *gin.Context) {
+	couponID := c.Param("id")
+	var coupon models.Coupon
+	if err := database.DB.First(&coupon, couponID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  false,
+			"message": "coupon id does not exist",
+		})
+		return
+	}
+
+	coupon.IsActive = true
+	if err := database.DB.Save(&coupon).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to activate coupon",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "coupon activated successfully",
+	})
+}
+
+func CouponInactivate(c *gin.Context) {
+	couponID := c.Param("id")
+	var coupon models.Coupon
+	if err := database.DB.First(&coupon, couponID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  false,
+			"message": "coupon id does not exist",
+		})
+		return
+	}
+
+	coupon.IsActive = false
+	if err := database.DB.Save(&coupon).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to deactivate coupon",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "coupon deactivated successfully",
+	})
+}
+
+func CouponRemove(c *gin.Context) {
+	couponID := c.Param("id")
+	var coupon models.Coupon
+	if err := database.DB.First(&coupon, couponID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  false,
+			"message": "coupon id does not exist",
+		})
+		return
+	}
+
+	if err := database.DB.Delete(&coupon).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to delete coupon",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "coupon deleted successfully",
 	})
 }

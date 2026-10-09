@@ -108,9 +108,6 @@ func ReadProducts(c *gin.Context) {
 
 	// If product has offer dates returned as strings from SQL, they're already set in product.StartDate / EndDate.
 
-	fmt.Println("category:", category)
-	fmt.Println("products:", products)
-
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "Successfully retrieved products",
@@ -176,7 +173,9 @@ func ReadProductById(c *gin.Context) {
 	discountPercent := int64(0)
 	startDateStr := ""
 	endDateStr := ""
+	hasOffer := false
 	if err := database.DB.Where("product_id = ?", product.ID).First(&offer).Error; err == nil {
+		hasOffer = true
 		// Only treat the offer as active for discount if current time is within the offer window
 		now := time.Now()
 		active := !offer.StartAt.IsZero() && offer.StartAt.After(time.Time{}) && offer.StartAt.Before(now.Add(time.Second))
@@ -218,6 +217,8 @@ func ReadProductById(c *gin.Context) {
 			DiscountPercentage: discountPercent,
 			StartDate:          startDateStr,
 			EndDate:            endDateStr,
+			OfferID:            offer.ID,
+			HasOffer:           hasOffer,
 		},
 	})
 }
@@ -761,7 +762,7 @@ func EditProduct(c *gin.Context) {
 
 func ProductDelete(c *gin.Context) {
 	ProductID := c.Param("id")
-	fmt.Println(ProductID)
+
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM products WHERE id = ?`, ProductID).Scan(&count)
 	if count == 0 {

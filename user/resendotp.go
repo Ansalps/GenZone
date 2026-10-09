@@ -15,16 +15,11 @@ import (
 func ResendOtp(c *gin.Context) {
 	Email := c.Param("email")
 	Otp := utils.GenerateOTP()
-	//var VerifyOTP models.VerifyOTP
-	//VerifyOTP.Otp=Otp
+
 	// Send OTP via email
 	fmt.Println("", Otp)
 	err := helper.SendOTPEmail(Email, Otp)
-	// if err != nil {
-	// 	c.JSON(http.StatusOK, gin.H{"message": "Failed to send otp to mail"})
-	// } else {
-	// 	c.JSON(http.StatusOK, gin.H{"message": "Otp generated successfully"})
-	// }
+	
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "Failed to send otp to mail"})
 		return

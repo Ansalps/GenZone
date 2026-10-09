@@ -47,7 +47,7 @@ func AddressList(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	fmt.Println("print user id : ", userID)
+
 	listorder := c.Query("list_order")
 	var Address []responsemodels.Address
 	//database.DB.Where("user_id = ? and deleted_at IS NULL", userID).Find(&Address)
@@ -82,7 +82,7 @@ func AddressAdd(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	fmt.Println("print user id : ", userID)
+
 	var Address requestmodemodels.AddressAdd
 	err := c.BindJSON(&Address)
 	response := gin.H{
@@ -137,9 +137,9 @@ func AddressEdit(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	fmt.Println("user id ", userID)
+
 	AddressID := c.Param("address_id")
-	fmt.Println("address id ", AddressID)
+
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? and deleted_at IS NULL`, AddressID, userID).Scan(&count)
 	if count == 0 {
@@ -236,9 +236,9 @@ func AddressDelete(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	fmt.Println("user_id", userID)
+
 	AddressID := c.Param("address_id")
-	fmt.Println("Address id : ", AddressID)
+
 	//var Address models.Address
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? and deleted_at IS NULL`, AddressID, userID).Scan(&count)

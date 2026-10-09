@@ -2,8 +2,8 @@ package user
 
 import (
 	"fmt"
-	"math"
 	"net/http"
+	"time"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -28,18 +28,16 @@ func Order(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	//addressid verifying
+
 	var OrderAdd requestmodels.OrderAdd
-	err := c.BindJSON(&OrderAdd)
-	response := gin.H{
-		"status":  false,
-		"message": "failed to bind request",
-	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response)
+	if err := c.BindJSON(&OrderAdd); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "failed to bind request",
+		})
 		return
 	}
-	// Validate the content of the JSON
+
 	if err := helper.Validate(OrderAdd); err != nil {
 		fmt.Println("", err)
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -49,8 +47,9 @@ func Order(c *gin.Context) {
 		})
 		return
 	}
+
 	var count1 int64
-	database.DB.Raw(`SELECT COUNT(*) FROM addresses where id = ? AND user_id = ? AND deleted_at IS NULL`, OrderAdd.AddressID, userID).Scan(&count1)
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? AND deleted_at IS NULL`, OrderAdd.AddressID, userID).Scan(&count1)
 	if count1 == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "address_id does not exist for this particular user",
@@ -58,169 +57,298 @@ func Order(c *gin.Context) {
 		return
 	}
 
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&count)
-	fmt.Println("count ", count)
-	if count == 0 {
+	var cart models.Cart
+	if err := database.DB.Where("user_id = ?", userID).First(&cart).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "false",
+			"status":  false,
 			"message": "cart empty, order can't be placed",
 		})
 		return
 	}
-	var totalquantity uint
-	database.DB.Raw(`SELECT SUM(qty) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&totalquantity)
-	fmt.Println("total quantity", totalquantity)
-	if totalquantity == 0 {
+
+	var cartItems []models.CartItem
+	if err := database.DB.Where("cart_id = ?", cart.ID).Find(&cartItems).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to load cart items",
+		})
+		return
+	}
+	if len(cartItems) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "false",
+			"status":  false,
 			"message": "cart empty, order can't be placed",
 		})
 		return
 	}
-	var totalamount float64
-	database.DB.Raw("SELECT SUM(final_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount)
-	var totalamount1 float64
-	database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount1)
-	if totalamount > 1000 {
+
+	totalAmount := 0.0
+	totalQuantity := uint(0)
+	for _, item := range cartItems {
+		if item.Quantity == 0 {
+			continue
+		}
+		totalAmount += item.UnitPrice * float64(item.Quantity)
+		totalQuantity += item.Quantity
+	}
+
+	if totalQuantity == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "orders above Rs.1000 cannot be done through cas on delivery",
+			"status":  false,
+			"message": "cart empty, order can't be placed",
 		})
 		return
 	}
-	var Finalamount float64
-	var discountamount float64
-	fmt.Println("coupon code----", OrderAdd.CouponCode)
+
+	if OrderAdd.PaymentMethod == "COD" && totalAmount > 100000 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "orders above Rs.1000 cannot be done through cash on delivery",
+		})
+		return
+	}
+
+	discountAmount := 0.0
+	var couponID uint
 	if OrderAdd.CouponCode != "" {
-		fmt.Println("is it here?")
-		var count2 int64
-		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ? and deleted_at IS NULL`, OrderAdd.CouponCode).Scan(&count2)
-		if count2 == 0 {
+		var coupon models.Coupon
+		if err := database.DB.Where("code = ? AND is_active = true AND start_at <= ? AND end_at >= ?", OrderAdd.CouponCode, time.Now(), time.Now()).First(&coupon).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "such coupon does not exists",
+				"message": "such coupon does not exists or is not active",
 			})
 			return
 		}
-		var minpurchase float64
-		database.DB.Model(&models.Coupon{}).Where("code = ?", OrderAdd.CouponCode).Pluck("min_purchase", &minpurchase)
-		if totalamount1 > minpurchase {
-
-			database.DB.Model(&models.Coupon{}).Where("code = ?", OrderAdd.CouponCode).Pluck("discount", &discountamount)
-
-		} else {
+		if totalAmount < coupon.MinPurchase {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"message": "A minimum purchase amount is required to apply this coupon",
 			})
 			return
 		}
-	}
-	var offerapplied float64
-	database.DB.Raw(`SELECT SUM(discount) FROM cart_items WHERE deleted_at IS NULL`).Scan(&offerapplied)
-
-	var couponID uint
-	if OrderAdd.CouponCode != "" {
-		database.DB.Model(&models.Coupon{}).Where("code = ?", OrderAdd.CouponCode).Select("id").Scan(&couponID)
+		discountAmount = coupon.Discount
+		couponID = coupon.ID
 	}
 
-	Finalamount = totalamount - discountamount
-	order := models.Order{
-		UserID:              userID,
-		AddressID:           OrderAdd.AddressID,
-		TotalAmount:         totalamount,
-		PaymentMethod:       "COD",
-		OrderStatus:         "pending",
-		CouponID:            couponID,
-		TotalDiscountAmount: offerapplied + discountamount,
-		FinalAmount:         Finalamount,
-	}
-	database.DB.Create(&order)
-	var CartItems []models.CartItem
-	database.DB.Where("user_id = ?", userID).Find(&CartItems)
-
-	var ID uint
-	//database.DB.Model(&models.Order{}).Where("user_id = ?", userID).Pluck("id", &ID)
-	database.DB.Raw(`SELECT id FROM orders where user_id = ? ORDER BY created_at DESC LIMIT 1`, userID).Scan(&ID)
-	fmt.Println("latest order id ", ID)
-	//var orderItem models.OrderItems
-	for _, v := range CartItems {
-		//var Product models.Product
-		//database.DB.Where("id = ?", v.ProductID).First(&Product)
-		//database.DB.Where("price=?",v.)
-		fmt.Println("qty", v.Quantity)
-		if v.Quantity == 0 {
+	offerDiscountAmount := 0.0
+	for _, item := range cartItems {
+		if item.Quantity == 0 {
+			continue
+		}
+		var product models.Product
+		if err := database.DB.First(&product, item.ProductID).Error; err != nil {
 			continue
 		}
 
-		for i := 0; i < int(v.Quantity); i++ {
-			var price float64
-			database.DB.Model(&models.CartItem{}).Where("product_id = ?", v.ProductID).Pluck("price", &price)
-			fmt.Println("order_item price", price)
-			fmt.Println("id", ID)
-			var offerdiscount float64
-			var coupondiscount float64
-			var hasoffer bool
-			database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Pluck("has_offer", &hasoffer)
-			if hasoffer {
-				var discountpercentage uint
-				database.DB.Model(&models.Offer{}).Where("product_id = ?", v.ProductID).Pluck("discount_percentage", &discountpercentage)
-				offerdiscount = price * float64(discountpercentage) / 100
-			}
-			var totalamount float64
-			database.DB.Model(&models.Order{}).Where("id = ?", ID).Pluck("total_amount", &totalamount)
-			coupondiscount = (price / totalamount1) * discountamount
-			coupondiscount = math.Round(coupondiscount*100) / 100
-			fmt.Println("coupon discount---", coupondiscount)
-			totaldiscount := offerdiscount + coupondiscount
-			//paidamount := price - totaldiscount
-			orderItem := models.OrderItems{
-				OrderID:   ID,
-				ProductID: v.ProductID,
-				//Qty:         v.Qty,
-				Price: price,
-				//TotalAmount: float64(v.Qty) * price,
-				OfferDiscount:  offerdiscount,
-				CouponDiscount: coupondiscount,
-				TotalDiscount:  totaldiscount,
-				//PaidAmount:     paidamount,
-			}
-			fmt.Println("order id", orderItem.OrderID)
-			fmt.Println("order item create hi")
-			database.DB.Create(&orderItem)
-			fmt.Println("order item create hello")
+		var activeOffer models.Offer
+		if err := database.DB.Where("product_id = ? AND start_at <= ? AND end_at >= ?", item.ProductID, time.Now(), time.Now()).Order("created_at DESC").First(&activeOffer).Error; err == nil {
+			offerDiscountAmount += (item.UnitPrice * float64(item.Quantity)) * (activeOffer.DiscountPercentage / 100)
+		}
+	}
+
+	paymentMethod := OrderAdd.PaymentMethod
+	if paymentMethod == "" {
+		paymentMethod = "COD"
+	}
+
+	finalAmount := totalAmount - discountAmount
+	if finalAmount < 0 {
+		finalAmount = 0
+	}
+
+	order := models.Order{
+		UserID:              userID,
+		AddressID:           OrderAdd.AddressID,
+		TotalAmount:         totalAmount,
+		PaymentMethod:       paymentMethod,
+		OrderStatus:         "pending",
+		CouponID:            couponID,
+		TotalDiscountAmount: offerDiscountAmount + discountAmount,
+		FinalAmount:         finalAmount,
+	}
+	if err := database.DB.Create(&order).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to create order",
+		})
+		return
+	}
+
+	for _, item := range cartItems {
+		if item.Quantity == 0 {
+			continue
 		}
 
-	}
-	//clearing cart
-	//var cart models.CartItem
-	//database.DB.Exec("DELETE FROM cart_items where user_id=?", userID).Scan(&cart)
+		unitPrice := item.UnitPrice
+		if unitPrice == 0 {
+			var product models.Product
+			if err := database.DB.First(&product, item.ProductID).Error; err == nil {
+				unitPrice = product.Price
+			}
+		}
 
-	//database.DB.Create(&orderItem)
-	//var Payment models.Payments
-	Payment := models.Payments{
-		UserID:      userID,
-		OrderID:     order.ID,
-		TotalAmount: Finalamount,
+		itemOfferDiscount := 0.0
+		var activeOffer models.Offer
+		if err := database.DB.Where("product_id = ? AND start_at <= ? AND end_at >= ?", item.ProductID, time.Now(), time.Now()).Order("created_at DESC").First(&activeOffer).Error; err == nil {
+			itemOfferDiscount = (unitPrice * float64(item.Quantity)) * (activeOffer.DiscountPercentage / 100)
+		}
+
+		itemCouponDiscount := 0.0
+		if discountAmount > 0 && totalAmount > 0 {
+			itemCouponDiscount = (unitPrice * float64(item.Quantity) / totalAmount) * discountAmount
+		}
+
+		orderItem := models.OrderItems{
+			OrderID:        order.ID,
+			ProductID:      item.ProductID,
+			Price:          unitPrice,
+			OrderStatus:    "pending",
+			PaymentMethod:  paymentMethod,
+			CouponDiscount: itemCouponDiscount,
+			OfferDiscount:  itemOfferDiscount,
+			TotalDiscount:  itemOfferDiscount + itemCouponDiscount,
+			PaidAmount:     unitPrice * float64(item.Quantity),
+		}
+		if err := database.DB.Create(&orderItem).Error; err != nil {
+			continue
+		}
 	}
-	database.DB.Create(&Payment)
-	database.DB.Where("user_id = ?", userID).Delete(&models.CartItem{})
-	var order1 responsemodels.Order
+
+	payment := models.Payments{
+		UserID:        userID,
+		OrderID:       order.ID,
+		TotalAmount:   finalAmount,
+		PaymentType:   paymentMethod,
+		PaymentStatus: "pending",
+	}
+	if err := database.DB.Create(&payment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to create payment record",
+		})
+		return
+	}
+
+	if err := database.DB.Where("cart_id = ?", cart.ID).Delete(&models.CartItem{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to clear cart after placing order",
+		})
+		return
+	}
+
+	var responseOrder responsemodels.Order
 	var address responsemodels.Address
-	var orderitems1 []responsemodels.OrderItems
-	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_applied,orders.coupon_code,orders.discount_amount,orders.final_amount FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
-	fmt.Println("-----------------")
-	fmt.Println("user id ", userID)
-	var orderid uint
-	database.DB.Raw(`SELECT id FROM orders WHERE user_id = ? ORDER BY created_at desc limit 1`, userID).Scan(&orderid)
-	fmt.Println("order id ", orderid)
-	var addressid uint
-	database.DB.Raw(`SELECT address_id FROM orders WHERE user_id = ? ORDER BY created_at desc limit 1`, userID).Scan(&addressid)
-	fmt.Println("address id", addressid)
-	database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, addressid).Scan(&address)
-	order1.Address = address
-	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)
-	c.JSON(http.StatusOK, gin.H{"message": "Order added successfully",
-		"order":       order1,
-		"order_items": orderitems1})
+	var responseOrderItems []responsemodels.OrderItems
+
+	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_applied,orders.coupon_code,orders.discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID).Scan(&responseOrder)
+
+	var latestOrderID uint
+	database.DB.Raw(`SELECT id FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, userID).Scan(&latestOrderID)
+	var latestAddressID uint
+	database.DB.Raw(`SELECT address_id FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, userID).Scan(&latestAddressID)
+	database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, latestAddressID).Scan(&address)
+	responseOrder.Address = address
+	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, latestOrderID).Scan(&responseOrderItems)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Order added successfully",
+		"order":       responseOrder,
+		"order_items": responseOrderItems,
+	})
 }
 
-//Address selection, clearing cart, updating payments table
+func OrderList(c *gin.Context) {
+	//userID := c.Param("user_id")
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+
+	listorder := c.Query("list_order")
+	var orders []responsemodels.Order
+	var address responsemodels.Address
+
+	sql := `SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.coupon_id,orders.order_status,orders.final_amount,orders.payment_method,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.city,addresses.pin_code,addresses.phone,addresses.default
+	FROM orders
+	JOIN addresses ON orders.address_id = addresses.id where orders.user_id = ?`
+	switch listorder {
+	case "":
+		sql += ` ORDER BY orders.id ASC`
+	case "ASC":
+		sql += ` ORDER BY orders.id ASC`
+	case "DSC":
+		sql += ` ORDER BY orders.id DESC`
+	}
+
+	database.DB.Raw(sql, userID).Scan(&orders)
+	
+	for i, v := range orders {
+		database.DB.Raw(`SELECT *
+	        FROM orders
+	        JOIN addresses ON orders.address_id = addresses.id
+	        WHERE orders.user_id = ? AND orders.id = ?`, userID, v.ID).Scan(&address)
+		orders[i].Address = address
+	}
+
+	// query.Find(&Address)
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "successfully retrieved user informations",
+		"data": gin.H{
+			//"Address": Address,
+			"Order": orders,
+		},
+	})
+}
+
+func OrderItemsList(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+
+	orderId := c.Param("order_id")
+	listorder := c.Query("list_order")
+
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ? AND user_id = ?`, orderId, userID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order id does not exist for this particular user",
+		})
+		return
+	}
+	var orderitems []responsemodels.OrderItems
+
+	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
+
+	switch listorder {
+	case "":
+		sql += ` ORDER BY order_items.id ASC`
+	case "ASC":
+		sql += ` ORDER BY order_items.id ASC`
+	case "DSC":
+		sql += ` ORDER BY order_items.id DESC`
+	}
+
+	database.DB.Raw(sql, orderId).Scan(&orderitems)
+	c.JSON(http.StatusOK, gin.H{
+		"order items": orderitems,
+	})
+}

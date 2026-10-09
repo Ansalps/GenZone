@@ -67,7 +67,7 @@ func HandleGoogleCallback(c *gin.Context) {
 	if err != nil {
 		fmt.Println("", err)
 	}
-	fmt.Println("----", User.Email, User.Name)
+	
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM user_login_methods WHERE user_login_method_email=?`, User.Email).Scan(&count)
 	if count != 0 {
@@ -104,7 +104,7 @@ func HandleGoogleCallback(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
 		return
 	}
-	fmt.Println("", jwttoken)
+	
 	// Set user token as a dedicated cookie.
 	c.SetCookie("jwt_user_token", jwttoken, 86400, "/", "", false, true)
 

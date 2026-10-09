@@ -61,8 +61,7 @@ func CreateOrder(c *gin.Context) {
 		})
 		return
 	}
-	fmt.Println("tempaddress.AddressID---", tempaddress.AddressID)
-	fmt.Println("", userID)
+	
 	var count1 int64
 	database.DB.Raw(`SELECT COUNT(*) FROM addresses where id = ? AND user_id = ? AND deleted_at IS NULL`, tempaddress.AddressID, userID).Scan(&count1)
 	if count1 == 0 {
@@ -71,19 +70,10 @@ func CreateOrder(c *gin.Context) {
 		})
 		return
 	}
-	// var requestData struct {
-	// 	Amount   int    `json:"amount" binding:"required"`
-	// 	Currency string `json:"currency" binding:"required"`
-	// 	Receipt  string `json:"receipt" binding:"required"`
-	// }
-
-	// if err := c.ShouldBindJSON(&requestData); err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	// 	return
-	// }
+	
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&count)
-	fmt.Println("count ", count)
+	
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "false",
@@ -93,7 +83,7 @@ func CreateOrder(c *gin.Context) {
 	}
 	var totalquantity uint
 	database.DB.Raw(`SELECT SUM(qty) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&totalquantity)
-	fmt.Println("total quantity", totalquantity)
+	
 	if totalquantity == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "false",
@@ -143,7 +133,7 @@ func CreateOrder(c *gin.Context) {
 	headers := map[string]string{} // Optional headers if any
 
 	order, err := RazorpayClient.Order.Create(data, headers)
-	//fmt.Println("order from razorpay")
+	
 	if err != nil {
 		log.Println(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order"})
@@ -163,7 +153,7 @@ func CreateOrder(c *gin.Context) {
 		CouponCode: tempaddress.CouponCode,
 	}
 	database.DB.Create(&tempaddress1)
-	fmt.Println("razor pay order id", order["id"])
+	
 	order_id := order["id"].(string)
 	c.HTML(http.StatusOK, "razorpay.html", OrderID{
 		Orderid: order_id,
@@ -171,34 +161,6 @@ func CreateOrder(c *gin.Context) {
 	//c.JSON(http.StatusOK, order)
 }
 
-// type Order struct {
-// 	gorm.Model
-// 	UserID uint ` gorm:"default:1"`
-// 	//OrderDate   time.Time
-// 	TotalAmount float64 `gorm:"default:100.00"`
-// 	// OrderStatus string `gorm:"type:varchar(10); check(order_status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
-// 	OrderStatus string `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status"`
-// }
-// type OrderRequest struct {
-// 	TotalAmount float64 `gorm:"default:100.00" json:"total_amount"`
-// }
-
-//	func CreateOrder(c *gin.Context) {
-//		var orderrequest OrderRequest
-//		err := c.BindJSON(&orderrequest)
-//		response := gin.H{
-//			"status":  false,
-//			"message": "failed to bind request",
-//		}
-//		if err != nil {
-//			c.JSON(http.StatusBadRequest, response)
-//			return
-//		}
-//		order := Order{
-//			TotalAmount: orderrequest.TotalAmount,
-//		}
-//		DB.Create(&order)
-//	}
 type Payload struct {
 	OrderID   string `json:"order_id"`
 	PaymentID string `json:"payment_id"`
@@ -210,8 +172,7 @@ func verifySignature(orderID string, paymentID string, razorpaySignature string,
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(data))
 	generatedSignature := hex.EncodeToString(h.Sum(nil))
-	fmt.Println(generatedSignature)
-	fmt.Println(razorpaySignature)
+	
 	return generatedSignature == razorpaySignature
 }
 
@@ -240,10 +201,9 @@ func PaymentWebhook(c *gin.Context) {
 	paymentID := payload.PaymentID
 	signature := payload.Signature
 	secret := "5nCtZw13gRp79G3ptqHut3Fl"
-	fmt.Println("signature", signature)
+	
 	if verifySignature(orderID, paymentID, signature, secret) {
 		// Process the payment event
-		fmt.Println("Payment verified:", payload)
 		var totalamount float64
 		database.DB.Raw("SELECT SUM(final_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount)
 		var totalamount1 float64
@@ -256,7 +216,7 @@ func PaymentWebhook(c *gin.Context) {
 		if result.Error != nil {
 			panic(result.Error)
 		}
-		fmt.Println("count printing--", count)
+		
 
 		if count != 0 {
 			database.DB.Raw(`SELECT coupon_code from temp_addresses`).Scan(&couponcode)
@@ -303,23 +263,19 @@ func PaymentWebhook(c *gin.Context) {
 		database.DB.Where("user_id = ?", userID).Find(&CartItems)
 
 		var ID uint
-		//database.DB.Model(&models.Order{}).Where("user_id = ?", userID).Pluck("id", &ID)
+		
 		database.DB.Raw(`SELECT id FROM orders where user_id = ? ORDER BY created_at DESC LIMIT 1`, userID).Scan(&ID)
-		fmt.Println("latest order id ", ID)
-		//var orderItem models.OrderItems
+		
 		for _, v := range CartItems {
-			//var Product models.Product
-			//database.DB.Where("id = ?", v.ProductID).First(&Product)
-			//database.DB.Where("price=?",v.)
-			fmt.Println("qty", v.Quantity)
+			
+			
 			if v.Quantity == 0 {
 				continue
 			}
 			for i := 0; i < int(v.Quantity); i++ {
 				var price float64
 				database.DB.Model(&models.CartItem{}).Where("product_id = ?", v.ProductID).Pluck("price", &price)
-				fmt.Println("id", ID)
-				fmt.Println("price printing--", price)
+				
 				var offerdiscount float64
 				var coupondiscount float64
 				var hasoffer bool
@@ -347,10 +303,9 @@ func PaymentWebhook(c *gin.Context) {
 					TotalDiscount:  totaldiscount,
 					PaidAmount:     paidamount,
 				}
-				fmt.Println("order id", orderItem.OrderID)
-				fmt.Println("order item create hi")
+				
 				database.DB.Create(&orderItem)
-				fmt.Println("order item create hello")
+				
 			}
 
 		}
@@ -370,14 +325,12 @@ func PaymentWebhook(c *gin.Context) {
 		var address responsemodels.Address
 		var orderitems1 []responsemodels.OrderItems
 		database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_applied,orders.coupon_code,orders.discount_amount,orders.final_amount,orders.order_status,orders.payment_method FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
-		fmt.Println("-----------------")
-		fmt.Println("user id ", userID)
+
 		var orderid uint
 		database.DB.Raw(`SELECT id FROM orders WHERE user_id = ? ORDER BY created_at desc limit 1`, userID).Scan(&orderid)
-		fmt.Println("order id ", orderid)
-		//var addressid uint
+	
 		database.DB.Raw(`SELECT address_id FROM orders WHERE user_id = ? ORDER BY created_at desc limit 1`, userID).Scan(&addressid)
-		fmt.Println("address id", addressid)
+	
 		database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, addressid).Scan(&address)
 		order1.Address = address
 		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)

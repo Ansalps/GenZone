@@ -9,7 +9,7 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
-	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -84,8 +84,8 @@ func AddCategory(c *gin.Context) {
 	// 1. Get textual form fields instead of c.BindJSON
 	categoryName := c.PostForm("category_name")
 	description := c.PostForm("description")
-	fmt.Println("hello")
-	categoryReq := requestmodemodels.Category{
+	
+	categoryReq := requestmodels.Category{
 		CategoryName: categoryName,
 		Description:  description,
 	}
@@ -110,7 +110,7 @@ func AddCategory(c *gin.Context) {
 		return
 	}
 	if count != 0 {
-		fmt.Println("hi")
+		
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "category name already exists",
@@ -185,7 +185,7 @@ func EditCategory(c *gin.Context) {
 	description := c.PostForm("description")
 
 	// 3. Validate request
-	categoryRequest := requestmodemodels.Category{
+	categoryRequest := requestmodels.Category{
 		CategoryName: categoryName,
 		Description:  description,
 	}
@@ -277,9 +277,9 @@ func EditCategory(c *gin.Context) {
 }
 
 func CategoryDelete(c *gin.Context) {
-	fmt.Println("hello")
+	
 	CategoryID := c.Param("id")
-	fmt.Println(CategoryID)
+	
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE id = ?`, CategoryID).Scan(&count)
 	if count == 0 {

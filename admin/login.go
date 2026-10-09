@@ -8,13 +8,13 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
-	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/gin-gonic/gin"
 )
 
 func Login(c *gin.Context) {
-	fmt.Println("hi")
-	var AdminLogin requestmodemodels.AdminLogin
+	
+	var AdminLogin requestmodels.AdminLogin
 	err := c.BindJSON(&AdminLogin)
 	response := gin.H{
 		"status":  false,
@@ -50,7 +50,7 @@ func Login(c *gin.Context) {
 	database.DB.Model(&models.Admin{}).Where("email = ?", AdminLogin.Email).Pluck("password", &password)
 	if password != AdminLogin.Password {
 		// Return success response
-		fmt.Println("hi hello", password, AdminLogin.Password)
+		
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "invalid email or password",
@@ -58,7 +58,7 @@ func Login(c *gin.Context) {
 		})
 		return
 	}
-	fmt.Println("reached here")
+	
 	var id uint
 	database.DB.Model(&models.Admin{}).Where("email = ?", AdminLogin.Email).Pluck("id", &id)
 	token, err := middleware.CreateToken("admin", AdminLogin.Email, id)

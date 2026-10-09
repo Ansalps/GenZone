@@ -10,10 +10,7 @@ import (
 //var Time time.Time
 
 func SendOTPEmail(email string, otp string) error {
-	// // Choose auth method and set it up
-	fmt.Println(email, otp)
-	fmt.Println("hi")
-	// auth := smtp.PlainAuth("", "john.doe@gmail.com", "extremely_secret_pass", "smtp.gmail.com")
+	
 	from := os.Getenv("EMAIL_USER")
 	password := os.Getenv("EMAIL_PASSWORD") // TODO: Replace with your email password or use a secure method to fetch it
 	to := []string{email}
@@ -29,7 +26,7 @@ func SendOTPEmail(email string, otp string) error {
 	// SMTP server configuration
 	smtpServer := "smtp.gmail.com"
 	auth := smtp.PlainAuth("", from, password, smtpServer)
-	fmt.Println("hello")
+	
 	// Send email
 	err := smtp.SendMail(smtpServer+":587", auth, from, to, []byte(msg))
 

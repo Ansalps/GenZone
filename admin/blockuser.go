@@ -13,7 +13,7 @@ import (
 
 func BlockUser(c *gin.Context) {
 	//blockID := c.Param("id")
-	//fmt.Println(blockID)
+	
 	var blockuser requestmodels.BlockUser
 	err := c.BindJSON(&blockuser)
 	if err != nil {

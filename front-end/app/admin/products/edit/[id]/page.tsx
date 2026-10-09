@@ -4,6 +4,7 @@ import axios from "axios";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import ProductForm, { FormErrors } from "@/components/product-form";
 import { useCategories } from "@/hooks/useCategories";
 import { ProductFormData } from "@/types/productFormData";
@@ -102,6 +103,9 @@ export default function EditProduct() {
     const [existingImageUrl, setExistingImageUrl] = useState<string>("");
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [errors, setErrors] = useState<FormErrors>({});
+    const [offerId, setOfferId] = useState<number | null>(null);
+    const [hasOffer, setHasOffer] = useState(false);
+    const [deletingOffer, setDeletingOffer] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -120,19 +124,19 @@ export default function EditProduct() {
                         Large: 0,
                     };
 
-                    (product.variants || []).forEach((variant: { size: string; stock: number }) => {
-                        if (variant.size && inventoryMap[variant.size] !== undefined) {
-                            inventoryMap[variant.size] = variant.stock ?? 0;
+                    (product.inventory || []).forEach((variant: { size: string; stock: number }) => {
+                        if (variant.size) {
+                            inventoryMap[variant.size] = Number(variant.stock ?? 0);
                         }
                     });
 
-                    // Format dates for HTML date/time inputs if existing
-                    const formattedStartDate = product.offer?.start_at 
-                        ? new Date(product.offer.start_at).toISOString().slice(0, 16) 
-                        : product.start_date || "";
-                    const formattedEndDate = product.offer?.end_at 
-                        ? new Date(product.offer.end_at).toISOString().slice(0, 16) 
-                        : product.end_date || "";
+                    const formattedStartDate = product.start_date || "";
+                    const formattedEndDate = product.end_date || "";
+                    const currentOfferId = Number(product.offer_id ?? 0) || null;
+                    const currentHasOffer = Boolean(product.has_offer || product.offer_id || product.discount_percentage || product.start_date || product.end_date);
+
+                    setOfferId(currentOfferId);
+                    setHasOffer(currentHasOffer);
 
                     setFormData({
                         categoryName: product.category?.category_name || product.category_name || "",
@@ -143,7 +147,7 @@ export default function EditProduct() {
                         size: product.size || "Small",
                         inventory: inventoryMap,
                         popular: product.popular || false,
-                        discountPercentage: product.offer?.discount_percentage || product.discount_percentage || 0,
+                        discountPercentage: product.discount_percentage || 0,
                         startDate: formattedStartDate,
                         endDate: formattedEndDate,
                     });
@@ -188,6 +192,30 @@ export default function EditProduct() {
     const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] ?? null;
         setImageFile(file);
+    };
+
+    const handleDeleteOffer = async () => {
+        if (!offerId) return;
+
+        setDeletingOffer(true);
+        try {
+            await axios.delete(`${API_BASE_URL}/admin/offer/${offerId}`, { withCredentials: true });
+            setHasOffer(false);
+            setOfferId(null);
+            setFormData((prev) => ({
+                ...prev,
+                discountPercentage: 0,
+                startDate: "",
+                endDate: "",
+            }));
+            toast.success("Offer deleted successfully");
+        } catch (error: any) {
+            console.error("Failed to delete offer:", error);
+            const message = error?.response?.data?.message || "Failed to delete offer";
+            toast.error(message);
+        } finally {
+            setDeletingOffer(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -308,6 +336,22 @@ export default function EditProduct() {
                     )}
 
                     <form onSubmit={handleSubmit} className="w-full">
+                        {hasOffer && (
+                            <div className="mb-6 flex items-center justify-between rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                                <div>
+                                    <p className="text-sm font-medium text-amber-200">This product currently has an active offer.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleDeleteOffer}
+                                    disabled={deletingOffer || isLoading}
+                                    className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {deletingOffer ? "Deleting..." : "Delete Offer"}
+                                </button>
+                            </div>
+                        )}
+
                         <ProductForm
                             formData={formData}
                             onChange={onChange}

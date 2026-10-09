@@ -99,21 +99,20 @@ func BestSelling(c *gin.Context) {
 	//var product []string
 	var product1 responsemodels.Product
 	var products []responsemodels.Product
-	//fmt.Println("---------", orderitems)
+	
 	for _, v := range orderitems {
 		// var a string
-		fmt.Println("product id count", v.ProductID)
-		// database.DB.Raw(`select product_name from products where id = ?`, v.ProductID).Scan(&a)
+		
 
 		database.DB.Raw("SELECT * FROM products join categories on products.category_id=categories.id WHERE products.id = ?", v.ProductID).Scan(&product1)
 
 		products = append(products, product1)
-		//product = append(product, a)
+		
 
 	}
 	var category []string
 	for _, v := range orderitems1 {
-		fmt.Println("hi---hello", v.Count)
+		
 		category = append(category, v.CategoryName)
 
 	}

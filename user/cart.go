@@ -67,7 +67,7 @@ func Cart(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	fmt.Println("print user id : ", userID)
+	
 	var cart []responsemodels.CartItems
 
 	// Join carts, cart_items, and products to resolve user_id correctly
@@ -158,7 +158,7 @@ func Cart(c *gin.Context) {
 		})
 		return
 	}
-	fmt.Println("cart_items", cart)
+	
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "successfully retrieved user informations",
@@ -477,7 +477,7 @@ func CartRemove(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	fmt.Println("print user id : ", userID)
+	
 	var req requestmodemodels.CartRemove
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "failed to bind request"})
@@ -644,7 +644,7 @@ func TotalQuantity(c *gin.Context) {
 		})
 		return
 	}
-	fmt.Println("Total Quantity: ", totalQuantity)
+	
 	c.JSON(http.StatusOK, gin.H{
 		"status":         true,
 		"message":        "successfully retrieved total quantity",

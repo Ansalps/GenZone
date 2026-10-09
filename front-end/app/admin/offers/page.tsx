@@ -27,6 +27,18 @@ type OfferRecord = {
     popular?: boolean;
     size?: string;
     discount_percentage: number;
+    start_at?: string;
+    end_at?: string;
+};
+
+const formatDateInput = (value?: string) => {
+    if (!value) return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const date = new Date(trimmed);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().slice(0, 10);
 };
 
 export default function OffersPage() {
@@ -34,6 +46,8 @@ export default function OffersPage() {
     const [products, setProducts] = useState<ProductOption[]>([]);
     const [selectedProductId, setSelectedProductId] = useState('');
     const [discountPercentage, setDiscountPercentage] = useState(0);
+    const [startAt, setStartAt] = useState('');
+    const [endAt, setEndAt] = useState('');
     const [editingId, setEditingId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -77,6 +91,8 @@ export default function OffersPage() {
         setEditingId(null);
         setSelectedProductId('');
         setDiscountPercentage(0);
+        setStartAt('');
+        setEndAt('');
     };
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -92,12 +108,24 @@ export default function OffersPage() {
             return;
         }
 
+        if (!startAt || !endAt) {
+            toast.error('Please provide both start and end dates');
+            return;
+        }
+
+        if (new Date(endAt) < new Date(startAt)) {
+            toast.error('End date must be the same as or later than the start date');
+            return;
+        }
+
         setSubmitting(true);
 
         try {
             const payload = {
                 product_id: Number(selectedProductId),
                 discount_percentage: Number(discountPercentage),
+                start_at: startAt,
+                end_at: endAt,
             };
 
             if (editingId) {
@@ -123,6 +151,8 @@ export default function OffersPage() {
         setEditingId(offer.id);
         setSelectedProductId(String(offer.product_id));
         setDiscountPercentage(Number(offer.discount_percentage || 0));
+        setStartAt(formatDateInput(offer.start_at));
+        setEndAt(formatDateInput(offer.end_at));
     };
 
     const requestDelete = (id: number, name?: string) => {
@@ -209,6 +239,30 @@ export default function OffersPage() {
                                 />
                             </div>
 
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <label htmlFor="startAt" className="text-sm font-medium text-slate-200">Start At</label>
+                                    <input
+                                        id="startAt"
+                                        type="date"
+                                        value={startAt}
+                                        onChange={(e) => setStartAt(e.target.value)}
+                                        className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label htmlFor="endAt" className="text-sm font-medium text-slate-200">End At</label>
+                                    <input
+                                        id="endAt"
+                                        type="date"
+                                        value={endAt}
+                                        onChange={(e) => setEndAt(e.target.value)}
+                                        className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none"
+                                    />
+                                </div>
+                            </div>
+
                             <button
                                 type="submit"
                                 disabled={submitting || loading}
@@ -258,6 +312,17 @@ export default function OffersPage() {
                                             <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-3 py-2">
                                                 <span className="text-slate-300">Discount</span>
                                                 <span className="text-lg font-bold text-indigo-300">{Number(offer.discount_percentage || 0)}%</span>
+                                            </div>
+
+                                            <div className="grid gap-2 rounded-xl border border-white/10 bg-slate-900/60 p-3 text-xs text-slate-300">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <span>Start</span>
+                                                    <span className="font-medium text-white">{formatDateInput(offer.start_at) || '—'}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <span>End</span>
+                                                    <span className="font-medium text-white">{formatDateInput(offer.end_at) || '—'}</span>
+                                                </div>
                                             </div>
 
                                             <div className="flex flex-wrap gap-2 text-xs text-slate-400">

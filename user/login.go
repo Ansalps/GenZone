@@ -73,7 +73,7 @@ func UserLogin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
 		return
 	}
-	fmt.Println("", token)
+	
 	c.SetCookie("jwt_user_token", token, 86400, "/", "", false, true)
 
 	var count1 int64

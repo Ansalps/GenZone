@@ -43,6 +43,9 @@ func RegisterUrls(router *gin.Engine) {
 	//coupon management
 	adminGroup.GET("coupon", middleware.AuthMiddleware("admin"), admin.CouponList)
 	adminGroup.POST("coupon", middleware.AuthMiddleware("admin"), admin.CouponAdd)
+	adminGroup.PUT("coupon/:id", middleware.AuthMiddleware("admin"), admin.CouponEdit)
+	adminGroup.PUT("coupon/:id/activate", middleware.AuthMiddleware("admin"), admin.CouponActivate)
+	adminGroup.PUT("coupon/:id/inactivate", middleware.AuthMiddleware("admin"), admin.CouponInactivate)
 	adminGroup.DELETE("coupon/:id", middleware.AuthMiddleware("admin"), admin.CouponRemove)
 
 	//productoffer management
@@ -77,8 +80,9 @@ func RegisterUrls(router *gin.Engine) {
 	router.GET("profile/picture", middleware.AuthMiddleware("user"), user.ProfilePicture)
 	router.POST("profile/picture", middleware.AuthMiddleware("user"), user.ProfilePictureUpload)
 	router.PUT("profile", middleware.AuthMiddleware("user"), user.ProfileEdit)
-	router.GET("profile/userorders", middleware.AuthMiddleware("user"), user.OrderList)
-	router.GET("profile/userorders/items/:order_id", middleware.AuthMiddleware("user"), user.OrderItemsList)
+	
+	
+	
 	router.PUT("profile/userorders/cancelorder/:order_id", middleware.AuthMiddleware("user"), user.CancelOrder)
 	router.PUT("profile/userorders/cancelsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.CancelSingleOrderItem)
 	router.PUT("profile/userorders/returnsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.ReturnSingleOrderItem)
@@ -104,10 +108,12 @@ func RegisterUrls(router *gin.Engine) {
 	router.PUT("cart/update-quantity", middleware.AuthMiddleware("user"), user.UpdateQuantity)
 	router.DELETE("cart", middleware.AuthMiddleware("user"), user.CartRemove)
 
-	router.GET("checkout", middleware.AuthMiddleware("user"), user.CheckOut)
-	//router.GET("checkout/:user_id/address", helper.AuthMiddleware("user"), user.CheckOutAddress)
-	router.PUT("checkout/address/:address_id", middleware.AuthMiddleware("user"), user.CheckOutAddressEdit)
+	router.GET("checkout/coupon", middleware.AuthMiddleware("user"), user.CouponCheckout)
+
 	router.POST("checkout/order", middleware.AuthMiddleware("user"), user.Order)
+	router.GET("orders", middleware.AuthMiddleware("user"), user.OrderList)
+	router.GET("order-items/:order_id", middleware.AuthMiddleware("user"), user.OrderItemsList)
+
 	router.POST("checkout/razorpay", middleware.AuthMiddleware("user"), user.CreateOrder)
 	router.POST("checkout/razorpay/paymentverification", middleware.AuthMiddleware("user"), user.PaymentWebhook)
 	router.POST("checkout/wallet", middleware.AuthMiddleware("user"), user.WalletOrder)

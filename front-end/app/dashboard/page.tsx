@@ -150,6 +150,18 @@ export default function DashboardPage() {
               </span>
             </div>
             <Link
+              href="/orders"
+              aria-label="Open orders"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-100 transition hover:border-violet-400/40 hover:bg-violet-500/10"
+              title="Orders"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5v9A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" />
+                <path d="M7 5V3.5A1.5 1.5 0 0 1 8.5 2h7A1.5 1.5 0 0 1 17 3.5V5" />
+                <path d="M8 12h8M8 15h6" />
+              </svg>
+            </Link>
+            <Link
               href="/cart"
               className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
             >

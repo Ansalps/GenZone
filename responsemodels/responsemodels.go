@@ -37,6 +37,8 @@ type Product struct {
 	DiscountPercentage int64                  `json:"discount_percentage"` // 0 if no offer exists
 	StartDate          string                 `json:"start_date,omitempty"`
 	EndDate            string                 `json:"end_date,omitempty"`
+	OfferID            uint                   `json:"offer_id,omitempty"`
+	HasOffer           bool                   `json:"has_offer"`
 }
 
 type CartItems struct {
@@ -98,9 +100,11 @@ type Order struct {
 	TotalAmount    float64 `json:"total_amount"`
 	PaymentMethod  string  `json:"payment_method"`
 	OrderStatus    string  `gorm:"type:varchar(10); check(status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
+	OfferDiscount  float64 `json:"offer_discount"`
+	CouponDiscount float64 `json:"coupon_discount"`
 	OfferApplied   float64 `json:"offer_applied"`
 	CouponCode     string  `json:"coupon_code"`
-	DiscountAmount float64 `json:"discount_amount"`
+	TotalDiscountAmount float64 `json:"total_discount_amount"`
 	FinalAmount    float64 `json:"final_amount"`
 }
 type OrderItems struct {
@@ -152,20 +156,23 @@ type Wishlist struct {
 }
 
 type Offer struct {
-	//gorm.Model
-	ID                   uint    `json:"id"`
-	ProductID            uint    `gorm:"not null" json:"product_id"`
-	DiscountPercentage   uint    `gorm:"not null" json:"discount_percentage"`
-	ProductName          string  `json:"product_name"`
-	CategoryName         string  `json:"category_name"`
-	Description          string  `json:"description"`
-	ImageUrl             string  `json:"image_url"`
-	Price                float64 `json:"price"`
-	Stock                uint    `json:"stock"`
-	Popular              bool    `json:"popular"`
-	Size                 string  `json:"size"`
-	HasOffer             bool    `json:"has_offer"`
-	OfferDiscountPercent uint    `json:"offer_discount_percent"`
+	ID                   uint      `json:"id"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
+	ProductID            uint      `gorm:"not null" json:"product_id"`
+	DiscountPercentage   uint      `gorm:"not null" json:"discount_percentage"`
+	ProductName          string    `json:"product_name"`
+	CategoryName         string    `json:"category_name"`
+	Description          string    `json:"description"`
+	ImageUrl             string    `json:"image_url"`
+	Price                float64   `json:"price"`
+	Stock                uint      `json:"stock"`
+	Popular              bool      `json:"popular"`
+	Size                 string    `json:"size"`
+	HasOffer             bool      `json:"has_offer"`
+	OfferDiscountPercent uint      `json:"offer_discount_percent"`
+	StartAt              time.Time `json:"start_at"`
+	EndAt                time.Time `json:"end_at"`
 }
 type BestSelling struct {
 	Count        int
@@ -173,11 +180,15 @@ type BestSelling struct {
 }
 
 type Coupon struct {
-	//gorm.Model
-	ID          uint    `json:"id"`
-	Code        string  `gorm:"not null" json:"code"`
-	Discount    float64 `gorm:"type:decimal(5,2);not null" json:"discount"`
-	MinPurchase float64 `gorm:"type:decimal(10,2)" json:"min_purchase"`
+	ID          uint      `json:"id"`
+	Code        string    `json:"code"`
+	Discount    float64   `json:"discount"`
+	MinPurchase float64   `json:"min_purchase"`
+	StartAt     time.Time `json:"start_at"`
+	EndAt       time.Time `json:"end_at"`
+	IsActive    bool      `json:"is_active"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 type SalesReportItem struct {
 	OrderID        uint      `json:"order_id"`

@@ -22,7 +22,7 @@ func Initialize() {
 	}
 	// Reads your string variable
 	dsn := os.Getenv("DATABASE_URL")
-	fmt.Println("Your DSN is:", dsn)
+	
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		fmt.Println("connection failed due to ", err)

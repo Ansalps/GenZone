@@ -1,23 +1,18 @@
 package user
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Ansalps/GeZOne/database"
-	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/Ansalps/GeZOne/requestmodels"
-	"github.com/Ansalps/GeZOne/responsemodels"
-	"github.com/Ansalps/GeZOne/utils"
 	"github.com/gin-gonic/gin"
 )
 
-func CheckOut(c *gin.Context) {
-	//userID := c.Param("user_id")
-	//var CartItem models.CartItems
+func CouponCheckout(c *gin.Context) {
 	claims, exists := c.Get("claims")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
@@ -31,153 +26,118 @@ func CheckOut(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	fmt.Println("print user id : ", userID)
-	var couponcheckout requestmodels.CouponCheckout
-	if c.Request.ContentLength > 0 {
-		if err := c.ShouldBindJSON(&couponcheckout); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status":  false,
-				"message": "failed to bind request",
-			})
-			return
-		}
-	}
-	if couponcheckout.CouponCode == "" {
-		couponcheckout.CouponCode = strings.TrimSpace(c.Query("coupon_code"))
-	}
-	var coupondiscount float64
-	if couponcheckout.CouponCode != "" {
-		var count1 int64
-		database.DB.Raw(`select count(*) from coupons where code = ? and deleted_at is null`, couponcheckout.CouponCode).Scan(&count1)
-		if count1 == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "such coupon does not exist",
-			})
-			return
-		}
 
-		//var coupondiscount float64
-		database.DB.Model(&models.Coupon{}).Where("code = ?", couponcheckout.CouponCode).Pluck("discount", &coupondiscount)
-	}
-
-	type mix struct {
-		CartItem            []responsemodels.CartItems `json:"cart_items"`
-		Totalamount         float64                    `json:"total_amount"`
-		OfferApplied        float64                    `json:"offer_applied"`
-		CouponDiscount      float64                    `json:"coupon_discount"`
-		CouponAppliedAmount float64                    `json:"coupon_applied_amount"`
-		Address             []responsemodels.Address   `json:"address"`
-	}
-	//var CartItem models.CartItems
-	var Mix mix
-	//database.DB.Where("user_id = ? AND qty != 0 AND deleted_at IS NULL", userID).Find(&Mix.CartItem)
-	database.DB.Raw(`select carts.user_id,cart_items.product_id,products.product_name,cart_items.total_amount,cart_items.qty,cart_items.price,cart_items.discount,cart_items.final_amount from cart_items join products on cart_items.product_id = products.id where cart_items.user_id = ? and cart_items.qty != 0 and cart_items.deleted_at is null`, userID).Scan(&Mix.CartItem)
-	//var totalamount float64
-	//database.DB.Model(&models.CartItems{}).Where("user_id = ?", userID).Pluck("total_amount", &totalamount)
-	var count int64
-	database.DB.Raw("SELECT COUNT(*) from carts where user_id = ? and deleted_at IS NULL", userID).Scan(&count)
-	if count != 0 {
-		err := database.DB.Raw("SELECT SUM(final_amount) from carts where user_id = ? and deleted_at IS NULL", userID).Scan(&Mix.Totalamount).Error
-		fmt.Println("-----------", Mix.Totalamount)
-		if err != nil {
-			fmt.Println("failed to execute query", err)
-		}
-		err = database.DB.Raw("SELECT SUM(discount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&Mix.OfferApplied).Error
-		if err != nil {
-			fmt.Println("failed to execute query", err)
-		}
-	}
-	var minpurchase float64
-	database.DB.Raw(`select min_purchase from coupons where code = ? and deleted_at is null`, couponcheckout.CouponCode).Scan(&minpurchase)
-	if Mix.Totalamount+Mix.OfferApplied < float64(minpurchase) {
+	var req requestmodels.CouponCheckout
+	if err := c.ShouldBindJSON(&req); err != nil && c.Request.ContentLength > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "failed to bind request",
+		})
+		return
+	}
+
+	couponCode := strings.TrimSpace(req.CouponCode)
+	if couponCode == "" {
+		couponCode = strings.TrimSpace(c.Query("coupon_code"))
+	}
+	if couponCode == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "coupon code is required",
+		})
+		return
+	}
+
+	var coupon models.Coupon
+	if err := database.DB.Where("code = ? AND deleted_at IS NULL", couponCode).First(&coupon).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "such coupon does not exist",
+		})
+		return
+	}
+
+	if !coupon.IsActive {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "this coupon is currently inactive",
+		})
+		return
+	}
+
+	now := time.Now()
+	if !coupon.StartAt.IsZero() && coupon.StartAt.After(now) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "this coupon is not active yet",
+		})
+		return
+	}
+	if !coupon.EndAt.IsZero() && coupon.EndAt.Before(now) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "this coupon has expired",
+		})
+		return
+	}
+
+	var cartTotal float64
+	query := `
+		WITH item_summary AS (
+			SELECT
+				ci.id,
+				ci.product_id,
+				ci.quantity,
+				CASE
+					WHEN COALESCE(MAX(CASE WHEN o.start_at <= now() AND (o.end_at IS NULL OR o.end_at >= now()) THEN o.discount_percentage ELSE 0 END), 0) > 0
+					THEN p.price * (1 - (COALESCE(MAX(CASE WHEN o.start_at <= now() AND (o.end_at IS NULL OR o.end_at >= now()) THEN o.discount_percentage ELSE 0 END), 0) / 100.0))
+					ELSE p.price
+				END AS offer_unit_price,
+				p.price * ci.quantity AS original_total,
+				CASE
+					WHEN COALESCE(MAX(CASE WHEN o.start_at <= now() AND (o.end_at IS NULL OR o.end_at >= now()) THEN o.discount_percentage ELSE 0 END), 0) > 0
+					THEN (p.price * ci.quantity) * (1 - (COALESCE(MAX(CASE WHEN o.start_at <= now() AND (o.end_at IS NULL OR o.end_at >= now()) THEN o.discount_percentage ELSE 0 END), 0) / 100.0))
+					ELSE p.price * ci.quantity
+				END AS final_total
+			FROM carts c
+			JOIN cart_items ci ON c.id = ci.cart_id
+			JOIN products p ON ci.product_id = p.id
+			LEFT JOIN offers o ON o.product_id = p.id
+			WHERE c.user_id = ? AND ci.quantity > 0
+			GROUP BY ci.id, ci.product_id, ci.quantity, p.price
+		)
+		SELECT COALESCE(SUM(final_total), 0)
+		FROM item_summary
+	`
+	if err := database.DB.Raw(query, userID).Scan(&cartTotal).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"message": "failed to calculate cart total",
+		})
+		return
+	}
+
+	if cartTotal < coupon.MinPurchase {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
 			"message": "coupon can be applied if you purchase with a minimum amount",
 		})
 		return
 	}
-	Mix.CouponDiscount = coupondiscount
-	Mix.CouponAppliedAmount = Mix.Totalamount - coupondiscount
-	//var Address []responsemodels.Address
-	database.DB.Where("user_id = ? and deleted_at is null", userID).Find(&Mix.Address)
 
-	finalResult := utils.Responses("Showing CheckOut Page", Mix, nil)
-	c.JSON(http.StatusOK, finalResult)
-	// c.JSON(http.StatusOK, gin.H{
-	// 	"status":  true,
-	// 	"message": "successfully retrieved total amount",
-	// 	"data": gin.H{
-	// 		"cart item":    Mix.CartItem,
-	// 		"Total Amount": Mix.totalamount,
-	// 		"Address":      Address,
-	// 	},
-	// })
-}
-
-// func CheckOutAddress(c *gin.Context) {
-// 	userID := c.Param("user_id")
-// 	var Address []models.Address
-// 	database.DB.Where("user_id = ?", userID).Find(&Address)
-// 	c.JSON(http.StatusOK, gin.H{
-// 		"status":  true,
-// 		"message": "successfully retrieved user informations",
-// 		"data": gin.H{
-// 			"Address": Address,
-// 		},
-// 	})
-// }
-
-func CheckOutAddressEdit(c *gin.Context) {
-	claims, exists := c.Get("claims")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
-		return
+	couponDiscount := coupon.Discount
+	if couponDiscount > cartTotal {
+		couponDiscount = cartTotal
 	}
 
-	customClaims, ok := claims.(*middleware.CustomClaims)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
-		return
-	}
-
-	userID := customClaims.ID
-	fmt.Println("print user id : ", userID)
-	addressID := c.Param("address_id")
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM addresses where id = ? AND user_id = ? and deleted_at IS NULL`, addressID, userID).Scan(&count)
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "no such address_id exist for this particular user",
-		})
-		return
-	}
-	var Address requestmodels.AddressAdd
-	err := c.BindJSON(&Address)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "false",
-			"message": "failed to bind request",
-		})
-	}
-	//validate the content of JSON
-	if err := helper.Validate(Address); err != nil {
-		fmt.Println("", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":     false,
-			"message":    err.Error(),
-			"error_code": http.StatusBadRequest,
-		})
-		return
-	}
-	address := models.Address{
-		//UserID:     UserID,
-		Country:    Address.Country,
-		State:      Address.State,
-		City:       Address.City,
-		StreetName: Address.StreetName,
-		PinCode:    Address.PinCode,
-		Phone:      Address.Phone,
-		Default:    Address.Default,
-	}
-	database.DB.Model(&models.Address{}).Where("id = ? and user_id = ?", addressID, userID).Updates(&address)
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Address updated successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "coupon applied successfully",
+		"data": gin.H{
+			"coupon_code":           couponCode,
+			"coupon_discount":       couponDiscount,
+			"coupon_applied_amount": cartTotal - couponDiscount,
+			"minimum_purchase":      coupon.MinPurchase,
+		},
+	})
 }

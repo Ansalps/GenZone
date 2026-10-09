@@ -7,7 +7,7 @@ import (
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
-	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
+	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -19,9 +19,10 @@ func OfferList(c *gin.Context) {
 			offers.id,
 			offers.created_at,
 			offers.updated_at,
-			offers.deleted_at,
 			offers.product_id,
 			offers.discount_percentage,
+			offers.start_at,
+			offers.end_at,
 			products.product_name,
 			categories.category_name,
 			products.description,
@@ -34,9 +35,8 @@ func OfferList(c *gin.Context) {
 		JOIN products ON offers.product_id = products.id
 		JOIN categories ON categories.id = products.category_id
 		LEFT JOIN product_variants ON product_variants.product_id = products.id
-		WHERE offers.deleted_at IS NULL
-		GROUP BY offers.id, offers.created_at, offers.updated_at, offers.deleted_at,
-			offers.product_id, offers.discount_percentage,
+		GROUP BY offers.id, offers.created_at, offers.updated_at,
+			offers.product_id, offers.discount_percentage, offers.start_at, offers.end_at,
 			products.product_name, categories.category_name, products.description,
 			products.image_url, products.price, products.popular
 	`).Scan(&offers).Error; err != nil {
@@ -57,7 +57,7 @@ func OfferList(c *gin.Context) {
 }
 
 func OfferAdd(c *gin.Context) {
-	var req requestmodemodels.Offer
+	var req requestmodels.Offer
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
@@ -83,6 +83,15 @@ func OfferAdd(c *gin.Context) {
 		return
 	}
 
+	startAt, endAt, err := parseProductOfferDates(req.StartAt, req.EndAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
+
 	var product models.Product
 	if err := database.DB.First(&product, req.ProductID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -93,7 +102,7 @@ func OfferAdd(c *gin.Context) {
 	}
 
 	var count int64
-	if err := database.DB.Model(&models.Offer{}).Where("product_id = ? AND deleted_at IS NULL", req.ProductID).Count(&count).Error; err != nil {
+	if err := database.DB.Model(&models.Offer{}).Where("product_id = ?", req.ProductID).Count(&count).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "failed to check existing offer",
@@ -111,6 +120,8 @@ func OfferAdd(c *gin.Context) {
 	offer := models.Offer{
 		ProductID:          req.ProductID,
 		DiscountPercentage: req.DiscountPercentage,
+		StartAt:            startAt,
+		EndAt:              endAt,
 	}
 	if err := database.DB.Create(&offer).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -150,7 +161,7 @@ func OfferEdit(c *gin.Context) {
 
 	oldProductID := existing.ProductID
 
-	var req requestmodemodels.Offer
+	var req requestmodels.Offer
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
@@ -176,6 +187,15 @@ func OfferEdit(c *gin.Context) {
 		return
 	}
 
+	startAt, endAt, err := parseProductOfferDates(req.StartAt, req.EndAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
+
 	productID := req.ProductID
 	if productID == 0 {
 		productID = existing.ProductID
@@ -192,7 +212,7 @@ func OfferEdit(c *gin.Context) {
 
 	if oldProductID != productID {
 		var another int64
-		if err := database.DB.Model(&models.Offer{}).Where("product_id = ? AND id != ? AND deleted_at IS NULL", productID, existing.ID).Count(&another).Error; err != nil {
+		if err := database.DB.Model(&models.Offer{}).Where("product_id = ? AND id != ?", productID, existing.ID).Count(&another).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  false,
 				"message": "failed to verify offer target product",
@@ -210,6 +230,8 @@ func OfferEdit(c *gin.Context) {
 
 	existing.ProductID = productID
 	existing.DiscountPercentage = req.DiscountPercentage
+	existing.StartAt = startAt
+	existing.EndAt = endAt
 	if err := database.DB.Save(&existing).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,

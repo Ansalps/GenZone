@@ -165,10 +165,10 @@ type Order struct {
 	TotalAmount float64
 	PaymentMethod  string  `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_method" validate:"required"`
 	OrderStatus    string  `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
-	OfferId   uint 
-	Offer Offer `gorm:"foriegnkey:OfferID;reference:ID"`
 	CouponID    uint
 	Coupon Coupon `gorm:"foriegnkey:CouponID;references:ID"`
+	OfferDiscount float64
+	CouponDiscount float64
 	TotalDiscountAmount float64 `gorm:"type:decimal(10,2);default:0.00"`
 	FinalAmount    float64 `gorm:"type:decimal(10,2);not null"`
 }
@@ -232,10 +232,16 @@ type Wishlist struct {
 }
 
 type Coupon struct {
-	gorm.Model
+	ID        uint `gorm:"primarykey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 	Code        string  `gorm:"not null" json:"code"`
 	Discount    float64 `gorm:"type:decimal(5,2);not null" json:"discount"`
 	MinPurchase float64 `gorm:"type:decimal(10,2)" json:"min_purchase"`
+	StartAt            time.Time
+	EndAt              time.Time
+	IsActive bool
+
 }
 
 type WalletTransaction struct {
