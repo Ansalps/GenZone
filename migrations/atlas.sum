@@ -1,2 +1,5 @@
-h1:xW+bdwFhFfAsg1lSUjBFb8VvVULoV4Jx7owmckfjx/Q=
+h1:PEHHr3gRzfDP6y67PAMvcZhMsrXoRK8GE8fj5n2NbwI=
 20261009180018_setup_database.sql h1:/3X155bGuzkaE6xBssmtuQCycxoVBJr2calRs5Ogc5A=
+20261012120000_add_order_items_quantity.sql h1:jbj459bmv7yfxRjD/FqMR/FdwxcU9Ta/RD12XX9TaSQ=
+20261012120001_add_coupon_code_to_orders.sql h1:cktQP8U5Ruxx9NkDckmx0b0+2HaRzEdTKtPitpkMuII=
+20261012130000_rename_order_items_price_and_add_total_amount.sql h1:g1LD5MvcpqMI8kX+qxpo9tz8JgbTz+uWNVXjy/v12VU=

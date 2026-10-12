@@ -72,6 +72,8 @@ func RegisterUrls(router *gin.Engine) {
 	publicGroup.POST("/verify-otp", public.VerifyOTPHandler)
 	publicGroup.POST("/resendotp/:email", user.ResendOtp)
 	publicGroup.POST("/login", user.UserLogin)
+
+	//Google authentication
 	publicGroup.GET("/auth/google/login", user.HandleGoogleLogin)
 	publicGroup.GET("/auth/google/callback", user.HandleGoogleCallback)
 
@@ -80,18 +82,13 @@ func RegisterUrls(router *gin.Engine) {
 	router.GET("profile/picture", middleware.AuthMiddleware("user"), user.ProfilePicture)
 	router.POST("profile/picture", middleware.AuthMiddleware("user"), user.ProfilePictureUpload)
 	router.PUT("profile", middleware.AuthMiddleware("user"), user.ProfileEdit)
-	
-	
-	
-	router.PUT("profile/userorders/cancelorder/:order_id", middleware.AuthMiddleware("user"), user.CancelOrder)
-	router.PUT("profile/userorders/cancelsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.CancelSingleOrderItem)
-	router.PUT("profile/userorders/returnsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.ReturnSingleOrderItem)
-	//wallet listing
-	router.GET("proflie/wallet", middleware.AuthMiddleware("user"), user.WalletListing)
-	router.GET("profile/wallettransaction", middleware.AuthMiddleware("user"), user.WalletTransactionListing)
+
+	//wishlist
 	router.GET("profile/wishlist", middleware.AuthMiddleware("user"), user.Wishlist)
 	router.POST("profile/wishlist", middleware.AuthMiddleware("user"), user.WishlistAdd)
 	router.DELETE("profile/wishlist", middleware.AuthMiddleware("user"), user.WishlistRemove)
+
+	//change password
 	router.PUT("profile/changepassword", middleware.AuthMiddleware("user"), user.PasswordChange)
 
 	//router.GET("address", helper.AuthMiddleware("user"), user.Address)
@@ -110,12 +107,26 @@ func RegisterUrls(router *gin.Engine) {
 
 	router.GET("checkout/coupon", middleware.AuthMiddleware("user"), user.CouponCheckout)
 
+	//wallet listing
+	router.GET("wallet", middleware.AuthMiddleware("user"), user.WalletListing)
+	router.GET("wallet/history", middleware.AuthMiddleware("user"), user.WalletTransactionListing)
+	router.POST("wallet/add-money", middleware.AuthMiddleware("user"), user.AddMoney)
+
+	//order
 	router.POST("checkout/order", middleware.AuthMiddleware("user"), user.Order)
 	router.GET("orders", middleware.AuthMiddleware("user"), user.OrderList)
 	router.GET("order-items/:order_id", middleware.AuthMiddleware("user"), user.OrderItemsList)
 
 	router.POST("checkout/razorpay", middleware.AuthMiddleware("user"), user.CreateOrder)
 	router.POST("checkout/razorpay/paymentverification", middleware.AuthMiddleware("user"), user.PaymentWebhook)
+
 	router.POST("checkout/wallet", middleware.AuthMiddleware("user"), user.WalletOrder)
+
+	//order cancel
+	router.PUT("profile/userorders/cancelorder/:order_id", middleware.AuthMiddleware("user"), user.CancelOrder)
+	router.PUT("profile/userorders/cancelsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.CancelSingleOrderItem)
+
+	//order return
+	router.PUT("profile/userorders/returnsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.ReturnSingleOrderItem)
 
 }

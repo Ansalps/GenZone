@@ -106,7 +106,7 @@ func GenerateInvoice(c *gin.Context) {
 			qty = qty + 1
 			var mrp float64
 			database.DB.Model(&models.Invoice{}).Where("product_id = ?", v.ProductID).Pluck("mrp", &mrp)
-			mrp = mrp + v.Price
+			mrp = mrp + v.UnitPrice
 			var coupondiscount float64
 			database.DB.Model(&models.Invoice{}).Where("product_id = ?", v.ProductID).Pluck("coupon_discount", &coupondiscount)
 			coupondiscount = coupondiscount + v.CouponDiscount
@@ -144,11 +144,11 @@ func GenerateInvoice(c *gin.Context) {
 			ProductID:      v.ProductID,
 			ProductName:    orderitem1.Product.ProductName,
 			Quantity:       1,
-			MRP:            v.Price,
+			MRP:            v.UnitPrice,
 			CouponDiscount: CouponDiscount1,
 			OfferDiscount:  v.OfferDiscount,
 			TotalDiscount:  v.TotalDiscount,
-			FinalPrice:     v.Price - v.TotalDiscount,
+			FinalPrice:     v.UnitPrice - v.TotalDiscount,
 		}
 		database.DB.Create(&invoice)
 	}
@@ -224,10 +224,10 @@ func GenerateInvoice(c *gin.Context) {
 	// Set data with alternating row colors
 	pdf.SetFont("Arial", "", 10)
 	fill := false
-	
+
 	for i, item := range invoiceitem {
-		
-	str := strconv.FormatUint(uint64(item.ProductID), 10)
+
+		str := strconv.FormatUint(uint64(item.ProductID), 10)
 		if fill {
 			pdf.SetFillColor(230, 230, 230) // Slightly darker grey for alternating rows
 		} else {

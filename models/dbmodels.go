@@ -166,6 +166,7 @@ type Order struct {
 	PaymentMethod       string  `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_method" validate:"required"`
 	OrderStatus         string  `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
 	CouponID            *uint   `gorm:"default:null" json:"coupon_id,omitempty"`
+	CouponCode          string  `gorm:"type:varchar(100);default:''" json:"coupon_code"`
 	Coupon              *Coupon `gorm:"foreignKey:CouponID;references:ID" json:"coupon,omitempty"`
 	OfferDiscount       float64
 	CouponDiscount      float64
@@ -175,13 +176,13 @@ type Order struct {
 
 type OrderItems struct {
 	gorm.Model
-	OrderID   uint    `validate:"required"`
-	Order     Order   `gorm:"foriegnkey:OrderID;references:ID"`
-	ProductID uint    `validate:"required,numeric"`
-	Product   Product `gorm:"foriegnkey:ProductID;references:ID"`
-	//Qty         uint
-	Price float64
-	//TotalAmount float64
+	OrderID        uint    `validate:"required"`
+	Order          Order   `gorm:"foriegnkey:OrderID;references:ID"`
+	ProductID      uint    `validate:"required,numeric"`
+	Product        Product `gorm:"foriegnkey:ProductID;references:ID"`
+	Quantity       uint    `gorm:"not null;default:1" json:"quantity"`
+	UnitPrice      float64 `gorm:"column:unit_price;default:0.00" json:"unit_price"`
+	TotalAmount    float64 `gorm:"column:total_amount;default:0.00" json:"total_amount"`
 	OrderStatus    string  `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed','return');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed return"`
 	PaymentMethod  string  `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay','Wallet')) ;default:'COD'" json:"payment_method" validate:"required"`
 	CouponDiscount float64 `gorm:"default:0.00"`

@@ -95,17 +95,17 @@ type Order struct {
 	// DeletedAt sql.NullTime `gorm:"index"`
 	UserID string `validate:"required,numeric" json:"user_id"`
 	//OrderDate   time.Time
-	AddressID      uint    `json:"address_id"`
-	Address        Address `gorm:"foriegnkey:AddressID;references:ID" json:"address"`
-	TotalAmount    float64 `json:"total_amount"`
-	PaymentMethod  string  `json:"payment_method"`
-	OrderStatus    string  `gorm:"type:varchar(10); check(status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
-	OfferDiscount  float64 `json:"offer_discount"`
-	CouponDiscount float64 `json:"coupon_discount"`
-	OfferApplied   float64 `json:"offer_applied"`
-	CouponCode     string  `json:"coupon_code"`
+	AddressID           uint    `json:"address_id"`
+	Address             Address `gorm:"foriegnkey:AddressID;references:ID" json:"address"`
+	TotalAmount         float64 `json:"total_amount"`
+	PaymentMethod       string  `json:"payment_method"`
+	OrderStatus         string  `gorm:"type:varchar(10); check(status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
+	OfferDiscount       float64 `json:"offer_discount"`
+	CouponDiscount      float64 `json:"coupon_discount"`
+	OfferApplied        float64 `json:"offer_applied"`
+	CouponCode          string  `json:"coupon_code"`
 	TotalDiscountAmount float64 `json:"total_discount_amount"`
-	FinalAmount    float64 `json:"final_amount"`
+	FinalAmount         float64 `json:"final_amount"`
 }
 type OrderItems struct {
 	//gorm.Model
@@ -114,11 +114,11 @@ type OrderItems struct {
 	//Order       Order   `gorm:"foriegnkey:OrderID;references:ID"`
 	ProductID string `validate:"required,numeric" json:"product_id"`
 	//Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
-	ProductName string `json:"product_name"`
-	//Qty         uint
-	Price       float64 `json:"price"`
-	OrderStatus string  `json:"order_staus"`
-	//TotalAmount float64
+	ProductName    string  `json:"product_name"`
+	Quantity       uint    `json:"quantity"`
+	Price          float64 `json:"price"`
+	TotalAmount    float64 `json:"total_amount"`
+	OrderStatus    string  `json:"order_status"`
 	PaymentMethod  string  `json:"payment_method"`
 	CouponDiscount float64 `json:"coupon_discount"`
 	OfferDiscount  float64 `json:"offer_discount"`
@@ -213,9 +213,10 @@ type Wallet struct {
 }
 type WalletTransaction struct {
 	//gorm.Model
-	ID              uint    `json:"id"`
-	UserID          uint    `gorm:"not null" json:"user_id"`
-	Amount          float64 `gorm:"not null" json:"amount"`
-	TransactionType string  `gorm:"size:50;not null" json:"transaction_type"`
-	Description     string  `gorm:"size:255" json:"description"`
+	ID              uint      `json:"id"`
+	UserID          uint      `gorm:"not null" json:"user_id"`
+	Amount          float64   `gorm:"not null" json:"amount"`
+	TransactionType string    `gorm:"size:50;not null" json:"transaction_type"`
+	Description     string    `gorm:"size:255" json:"description"`
+	CreatedAt       time.Time `json:"created_at"`
 }

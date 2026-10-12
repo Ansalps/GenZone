@@ -17,14 +17,19 @@ func OrderList(c *gin.Context) {
 	listorder := c.Query("list_order")
 	var orders []responsemodels.Order
 	var address responsemodels.Address
-	sql := `SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_applied,orders.coupon_code,orders.discount_amount,orders.final_amount,addresses.created_at,addresses.updated_at,addresses.deleted_at,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
+	sql := `SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount AS offer_applied,orders.coupon_code,orders.coupon_discount AS discount_amount,orders.final_amount,addresses.created_at,addresses.updated_at,addresses.deleted_at,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
 	FROM orders
 	JOIN addresses ON orders.address_id = addresses.id`
-	if listorder == "" || listorder == "ASC" {
+
+	switch listorder {
+	case "":
+		sql += ` ORDER BY orders.id DESC`
+	case "ASC":
 		sql += ` ORDER BY orders.id ASC`
-	} else if listorder == "DSC" {
+	case "DSC":
 		sql += ` ORDER BY orders.id DESC`
 	}
+
 	database.DB.Raw(sql).Scan(&orders)
 	//database.DB.Find(&Orders)
 	for i, v := range orders {
@@ -52,12 +57,16 @@ func OrderItemsList(c *gin.Context) {
 	}
 	var orderitems []responsemodels.OrderItems
 
-	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
-	if listorder == "" || listorder == "ASC" {
+	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
+	switch listorder {
+	case "":
+		sql += ` ORDER BY order_items.id DESC`
+	case "ASC":
 		sql += ` ORDER BY order_items.id ASC`
-	} else if listorder == "DSC" {
+	case "DSC":
 		sql += ` ORDER BY order_items.id DESC`
 	}
+
 	database.DB.Raw(sql, orderId).Scan(&orderitems)
 	c.JSON(http.StatusOK, gin.H{
 		"order_items": orderitems,
@@ -136,7 +145,7 @@ func ChangeOrderStatus(c *gin.Context) {
 		return
 	}
 	if Order.OrderStatus == "delivered" {
-		
+
 		now := time.Now()
 		today := now.Format("2006-01-02")
 		var paymentmethod string
@@ -146,9 +155,9 @@ func ChangeOrderStatus(c *gin.Context) {
 				PaymentDate:   today,
 				PaymentStatus: "paid",
 			}
-			
+
 			database.DB.Model(&models.Payments{}).Where("order_id = ?", orderID).Updates(&payment)
-			
+
 		}
 
 		var OrderItems []models.OrderItems
@@ -158,15 +167,14 @@ func ChangeOrderStatus(c *gin.Context) {
 			if v.OrderStatus != "cancelled" && v.OrderStatus != "return" {
 				var stock uint
 				database.DB.Raw("SELECT COALESCE(SUM(stock), 0) FROM product_variants WHERE product_id = ?", v.ProductID).Scan(&stock)
-				
+
 				stock = stock - 1
 				database.DB.Exec("UPDATE product_variants SET stock = stock - 1 WHERE product_id = ?", v.ProductID)
-				paidamount := v.Price - v.TotalDiscount
+				paidamount := v.UnitPrice - v.TotalDiscount
 				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("paid_amount", paidamount)
 				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("delivered_date", today)
 			}
 
-			
 		}
 	}
 	order := models.Order{

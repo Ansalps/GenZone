@@ -14,6 +14,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func shouldCancelEntireOrder(remainingStatuses []string) bool {
+	if len(remainingStatuses) == 0 {
+		return true
+	}
+	for _, status := range remainingStatuses {
+		if status != "cancelled" && status != "return" && status != "" {
+			return false
+		}
+	}
+	return true
+}
+
 func Order(c *gin.Context) {
 	claims, exists := c.Get("claims")
 	if !exists {
@@ -166,6 +178,7 @@ func Order(c *gin.Context) {
 		PaymentMethod:       paymentMethod,
 		OrderStatus:         "pending",
 		CouponID:            couponID,
+		CouponCode:          OrderAdd.CouponCode,
 		OfferDiscount:       offerDiscountAmount,
 		CouponDiscount:      couponDiscountAmount,
 		TotalDiscountAmount: offerDiscountAmount + couponDiscountAmount,
@@ -203,16 +216,22 @@ func Order(c *gin.Context) {
 			itemCouponDiscount = (unitPrice * float64(item.Quantity) / totalAmount) * couponDiscountAmount
 		}
 
+		fmt.Println("quantit", item.Quantity)
+
+		lineTotalAmount := unitPrice * float64(item.Quantity)
+		paidAmount := lineTotalAmount - itemOfferDiscount - itemCouponDiscount
 		orderItem := models.OrderItems{
 			OrderID:        order.ID,
 			ProductID:      item.ProductID,
-			Price:          unitPrice,
+			Quantity:       item.Quantity,
+			UnitPrice:      unitPrice,
+			TotalAmount:    lineTotalAmount,
 			OrderStatus:    "pending",
 			PaymentMethod:  paymentMethod,
 			CouponDiscount: itemCouponDiscount,
 			OfferDiscount:  itemOfferDiscount,
 			TotalDiscount:  itemOfferDiscount + itemCouponDiscount,
-			PaidAmount:     unitPrice * float64(item.Quantity) - itemOfferDiscount - itemCouponDiscount,
+			PaidAmount:     paidAmount,
 		}
 		if err := database.DB.Create(&orderItem).Error; err != nil {
 			continue
@@ -254,7 +273,7 @@ func Order(c *gin.Context) {
 	database.DB.Raw(`SELECT address_id FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, userID).Scan(&latestAddressID)
 	database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, latestAddressID).Scan(&address)
 	responseOrder.Address = address
-	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, latestOrderID).Scan(&responseOrderItems)
+	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, latestOrderID).Scan(&responseOrderItems)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":     "Order added successfully",
@@ -344,7 +363,7 @@ func OrderItemsList(c *gin.Context) {
 	}
 	var orderitems []responsemodels.OrderItems
 
-	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
+	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
 
 	switch listorder {
 	case "":
@@ -359,4 +378,350 @@ func OrderItemsList(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"order items": orderitems,
 	})
+}
+
+func CancelOrder(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+
+	orderID := c.Param("order_id")
+	var orderid uint
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("id", &orderid)
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ? AND user_id = ?`, orderID, userID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order id does not exist for this particular user",
+		})
+		return
+	}
+
+	var orderstatus string
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("order_status", &orderstatus)
+	if orderstatus == "cancelled" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order item, item is already cancelled bu user or admin",
+		})
+		return
+	}
+	if orderstatus == "shipped" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order, items are already shipped",
+		})
+		return
+	}
+	if orderstatus == "delivered" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order, items are delivered",
+		})
+		return
+	}
+	if orderstatus == "failed" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "your order is already failed due to some inventory issues",
+		})
+		return
+	}
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Update("order_status", "cancelled")
+	database.DB.Model(&models.OrderItems{}).Where("order_id = ?", orderID).Update("order_status", "cancelled")
+	var paymentmethod string
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("payment_method", &paymentmethod)
+	var totalamount float64
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("final_amount", &totalamount)
+	if paymentmethod == "RazorPay" || paymentmethod == "Wallet" {
+
+		var count int64
+		database.DB.Raw(`SELECT COUNT(*) FROM wallets WHERE user_id = ?`, userID).Scan(&count)
+		if count == 0 {
+			wallet := models.Wallet{
+				UserID:  userID,
+				Balance: totalamount,
+			}
+			database.DB.Create(&wallet)
+		} else {
+			var balance float64
+			database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Pluck("balance", &balance)
+			balance = balance + totalamount
+			wallet := models.Wallet{
+				UserID:  userID,
+				Balance: balance,
+			}
+			database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Updates(&wallet)
+		}
+		transaction := models.WalletTransaction{
+			UserID:          userID,
+			Amount:          totalamount,
+			TransactionType: "Credit",
+			Description:     "Refund for cancelling order",
+		}
+		database.DB.Create(&transaction)
+		now := time.Now()
+		today := now.Format("2006-01-02")
+		payment := models.Payments{
+			UserID:        userID,
+			OrderID:       orderid,
+			TotalAmount:   totalamount,
+			PaymentDate:   today,
+			PaymentType:   paymentmethod,
+			PaymentStatus: "refund",
+			Description:   "refund for cancelling order",
+		}
+		database.DB.Create(&payment)
+	}
+	//database.DB.Raw(`UPDATE order_items SET order_status = 'cancelled' WHERE `)
+	c.JSON(http.StatusOK, gin.H{"message": "Order cancelled successfully"})
+}
+
+func CancelSingleOrderItem(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+
+	//plucking order item id
+	ItemID := c.Param("orderitem_id")
+	var itemid uint
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", itemid).Pluck("id", &itemid)
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM order_items where id = ?`, ItemID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order item id does not exist for this particular user",
+		})
+		return
+	}
+
+	//plucking orderstatus
+	var orderstatus string
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_status", &orderstatus)
+
+	if orderstatus == "cancelled" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order item, item is already cancelled",
+		})
+		return
+	}
+	if orderstatus == "return" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order item, item is already returned",
+		})
+		return
+	}
+	if orderstatus == "shipped" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order item, item is already shipped",
+		})
+		return
+	}
+	if orderstatus == "delivered" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot cancel the order item, item is delivered",
+		})
+		return
+	}
+	if orderstatus == "failed" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "your order is already failed due to some inventory issues",
+		})
+		return
+	}
+
+	var unitPrice float64
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("unit_price", &unitPrice)
+	var orderid uint
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_id", &orderid)
+	var offerdiscount float64
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("offer_discount", &offerdiscount)
+	var itemPaidAmount float64
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("paid_amount", &itemPaidAmount)
+	if itemPaidAmount == 0 {
+		itemPaidAmount = (unitPrice - offerdiscount)
+	}
+	var remainingStatuses []string
+	database.DB.Raw(`SELECT order_status FROM order_items WHERE order_id = ? AND id != ?`, orderid, ItemID).Scan(&remainingStatuses)
+	finalizeOrderCancellation := shouldCancelEntireOrder(remainingStatuses)
+	var paymentmethod string
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("payment_method", &paymentmethod)
+	var finalamount float64
+	database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("final_amount", &finalamount)
+	if finalamount > itemPaidAmount {
+		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("final_amount", finalamount-itemPaidAmount)
+	}
+
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Update("order_status", "cancelled")
+	if finalizeOrderCancellation {
+		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Updates(map[string]interface{}{
+			"order_status":          "cancelled",
+			"final_amount":          0.0,
+			"coupon_code":           "",
+			"coupon_discount":       0.0,
+			"offer_discount":        0.0,
+			"total_discount_amount": 0.0,
+		})
+	}
+
+	if paymentmethod == "RazorPay" || paymentmethod == "Wallet" {
+		var count int64
+		database.DB.Raw(`SELECT COUNT(*) FROM wallets WHERE user_id = ?`, userID).Scan(&count)
+		if count == 0 {
+			wallet := models.Wallet{UserID: userID, Balance: itemPaidAmount}
+			database.DB.Create(&wallet)
+		} else {
+			var balance float64
+			database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Pluck("balance", &balance)
+			wallet := models.Wallet{UserID: userID, Balance: balance + itemPaidAmount}
+			database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Updates(&wallet)
+		}
+		transaction := models.WalletTransaction{
+			UserID:          userID,
+			Amount:          itemPaidAmount,
+			TransactionType: "Credit",
+			Description:     "Refund for cancelling single order item",
+		}
+		database.DB.Create(&transaction)
+		now := time.Now()
+		today := now.Format("2006-01-02")
+		payment := models.Payments{
+			UserID:        userID,
+			OrderID:       orderid,
+			OrderItemID:   itemid,
+			TotalAmount:   itemPaidAmount,
+			PaymentDate:   today,
+			PaymentType:   paymentmethod,
+			PaymentStatus: "refund",
+			Description:   "refund for cancelling single order item",
+		}
+		database.DB.Create(&payment)
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Order item cancelled successfully"})
+}
+
+func ReturnSingleOrderItem(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+
+	ItemID := c.Param("orderitem_id")
+	var itemid uint
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("id", &itemid)
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM order_items where id = ?`, ItemID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order item id does not exist for this particular user",
+		})
+		return
+	}
+	var orderstatus string
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_status", &orderstatus)
+
+	if orderstatus == "delivered" {
+
+		// var paymentmethod string
+		// database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("payment_method", paymentmethod)
+
+		var paidamount float64
+		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("paid_amount", &paidamount)
+		var orderid uint
+		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_id", &orderid)
+		var orderTotalAmount float64
+		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("total_amount", &orderTotalAmount)
+		var unitPrice float64
+		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("unit_price", &unitPrice)
+		var offerdiscount float64
+		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("offer_discount", &offerdiscount)
+		offerdiscounted := unitPrice - offerdiscount
+
+		orderTotalAmount = orderTotalAmount - offerdiscounted
+		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("total_amount", orderTotalAmount)
+		var finalamount float64
+		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("final_amount", &finalamount)
+		finalamount = finalamount - paidamount
+		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("final_amount", finalamount)
+		var coupondiscount float64
+		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("coupon_discount", &coupondiscount)
+		var totalDiscountAmount float64
+		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("total_discount_amount", &totalDiscountAmount)
+		totalDiscountAmount = totalDiscountAmount - coupondiscount
+		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("total_discount_amount", totalDiscountAmount)
+		var balance float64
+		database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Pluck("balance", &balance)
+		balance = balance + paidamount
+		database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Update("balance", balance)
+		//database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Update("paid_amount", 0.00)
+		var count1 int
+		database.DB.Raw(`SELECT COUNT(*) FROM order_items WHERE order_id = ? AND order_status != 'cancelled' AND order_status != 'return'`, orderid).Scan(&count1)
+
+		if count1 == 0 {
+			database.DB.Model(&models.Order{}).Where("id = ?", orderid).Updates(map[string]interface{}{
+				"order_status":          "cancelled",
+				"final_amount":          0.00,
+				"coupon_discount":       0.00,
+				"offer_discount":        0.00,
+				"total_discount_amount": 0.00,
+				"coupon_code":           "",
+			})
+		}
+		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Update("order_status", "return")
+		transaction := models.WalletTransaction{
+			UserID:          userID,
+			Amount:          paidamount,
+			TransactionType: "credit",
+			Description:     "Refund for return of single order item",
+		}
+		database.DB.Create(&transaction)
+		now := time.Now()
+		today := now.Format("2006-01-02")
+		var paymentmethod string
+		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("payment_method", &paymentmethod)
+		payment := models.Payments{
+			UserID:        userID,
+			OrderID:       orderid,
+			OrderItemID:   itemid,
+			TotalAmount:   paidamount,
+			PaymentDate:   today,
+			PaymentType:   paymentmethod,
+			PaymentStatus: "refund",
+			Description:   "refund for returning single order item",
+		}
+		database.DB.Create(&payment)
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "order status changed to return successfully",
+		})
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "cannot return an item until it is delivered",
+		})
+	}
 }

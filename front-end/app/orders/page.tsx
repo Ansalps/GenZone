@@ -20,8 +20,10 @@ type OrderItem = {
   id?: number;
   product_id?: number;
   product_name?: string;
+  quantity?: number;
   price?: number;
-  order_staus?: string;
+  total_amount?: number;
+  order_status?: string;
   payment_method?: string;
   coupon_discount?: number;
   offer_discount?: number;
@@ -46,20 +48,95 @@ type Order = {
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<Record<number, OrderItem[]>>({});
+  const [expandedOrders, setExpandedOrders] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [cancelingOrderId, setCancelingOrderId] = useState<number | null>(null);
+  const [cancelingItemId, setCancelingItemId] = useState<number | null>(null);
+
+  const fetchOrderItems = async (orderId: number) => {
+    try {
+      const response = await axios.get(`${API}/order-items/${orderId}`, { withCredentials: true });
+      const items = Array.isArray(response.data?.['order items']) ? response.data['order items'] : [];
+      setOrderItems((prev) => ({ ...prev, [orderId]: items }));
+      return items;
+    } catch (err) {
+      console.error(`Failed to load items for order ${orderId}`, err);
+      return [];
+    }
+  };
+
+  const toggleOrderItems = async (orderId: number) => {
+    const isExpanded = !!expandedOrders[orderId];
+    if (!isExpanded && !(orderItems[orderId]?.length)) {
+      await fetchOrderItems(orderId);
+    }
+
+    setExpandedOrders((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
+
+  const refreshOrders = async () => {
+    try {
+      const response = await axios.get(`${API}/orders`, { withCredentials: true });
+      const orderList = Array.isArray(response.data?.data?.Order) ? response.data.data.Order : [];
+      setOrders(orderList);
+
+      for (const order of orderList) {
+        await fetchOrderItems(order.id);
+      }
+    } catch (err: any) {
+      console.error('Failed to refresh orders', err);
+      setError(err.response?.data?.message || 'Unable to refresh orders right now.');
+      setOrders([]);
+    }
+  };
+
+  const cancelOrder = async (orderId: number) => {
+    if (!orderId) return;
+
+    const confirmed = window.confirm('Are you sure you want to cancel this order?');
+    if (!confirmed) return;
+
+    setCancelingOrderId(orderId);
+    try {
+      const response = await axios.put(`${API}/profile/userorders/cancelorder/${orderId}`, {}, { withCredentials: true });
+      const message = response.data?.message || 'Order cancelled successfully.';
+      setError('');
+      await refreshOrders();
+      alert(message);
+    } catch (err: any) {
+      console.error('Failed to cancel order', err);
+      alert(err.response?.data?.message || 'Unable to cancel this order right now.');
+    } finally {
+      setCancelingOrderId(null);
+    }
+  };
+
+  const cancelSingleOrderItem = async (itemId: number) => {
+    if (!itemId) return;
+
+    const confirmed = window.confirm('Are you sure you want to cancel this item?');
+    if (!confirmed) return;
+
+    setCancelingItemId(itemId);
+    try {
+      const response = await axios.put(`${API}/profile/userorders/cancelsingleorderitem/${itemId}`, {}, { withCredentials: true });
+      const message = response.data?.message || 'Item cancelled successfully.';
+      setError('');
+      await refreshOrders();
+      alert(message);
+    } catch (err: any) {
+      console.error('Failed to cancel order item', err);
+      alert(err.response?.data?.message || 'Unable to cancel this item right now.');
+    } finally {
+      setCancelingItemId(null);
+    }
+  };
 
   useEffect(() => {
-    const fetchOrderItems = async (orderId: number) => {
-      try {
-        const response = await axios.get(`${API}/order-items/${orderId}`, { withCredentials: true });
-        const items = Array.isArray(response.data?.['order items']) ? response.data['order items'] : [];
-        setOrderItems((prev) => ({ ...prev, [orderId]: items }));
-      } catch (err) {
-        console.error(`Failed to load items for order ${orderId}`, err);
-      }
-    };
-
     const fetchOrders = async () => {
       try {
         setLoading(true);
@@ -67,9 +144,9 @@ export default function OrdersPage() {
         const orderList = Array.isArray(response.data?.data?.Order) ? response.data.data.Order : [];
         setOrders(orderList);
 
-        orderList.forEach((order: Order) => {
-          fetchOrderItems(order.id);
-        });
+        for (const order of orderList) {
+          await fetchOrderItems(order.id);
+        }
       } catch (err: any) {
         console.error('Failed to load orders', err);
         setError(err.response?.data?.message || 'Unable to load orders right now.');
@@ -161,8 +238,29 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                {(orderItems[order.id]?.length ?? 0) > 0 && (
-                  <div className="mt-5 rounded-xl border border-white/10 bg-slate-950/60 p-4">
+                <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleOrderItems(order.id)}
+                    className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-500/20"
+                  >
+                    {expandedOrders[order.id] ? 'Minimize order items' : 'View order items'}
+                  </button>
+
+                  {order.order_status !== 'cancelled' && order.order_status !== 'delivered' && order.order_status !== 'shipped' && (
+                    <button
+                      type="button"
+                      onClick={() => cancelOrder(order.id)}
+                      disabled={cancelingOrderId === order.id}
+                      className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-200 transition hover:border-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {cancelingOrderId === order.id ? 'Cancelling...' : 'Cancel Order'}
+                    </button>
+                  )}
+                </div>
+
+                {(expandedOrders[order.id] ?? false) && (orderItems[order.id]?.length ?? 0) > 0 && (
+                  <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/60 p-4">
                     <div className="mb-3 flex items-center justify-between">
                       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">Order items</p>
                       <span className="text-xs text-slate-400">{orderItems[order.id].length} item(s)</span>
@@ -175,27 +273,47 @@ export default function OrdersPage() {
                             <div>
                               <p className="font-medium text-white">{item.product_name || 'Product'}</p>
                               <p className="text-xs text-slate-400">{item.payment_method || 'Payment pending'}</p>
+                              <p className="mt-1 text-xs text-cyan-300">Qty: {Number(item.quantity ?? 0)}</p>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
-                              <span>₹{Number(item.price ?? 0).toFixed(2)}</span>
+                              <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-violet-200">
+                                {item.order_status || 'pending'}
+                              </span>
+                              <span>Price: ₹{Number(item.price ?? 0).toFixed(2)}</span>
+                              <span className="text-emerald-300">Total: ₹{Number(item.total_amount ?? (item.price ?? 0) * (item.quantity ?? 1)).toFixed(2)}</span>
                               <span className="text-cyan-300">Paid: ₹{Number(item.paid_amount ?? item.price ?? 0).toFixed(2)}</span>
                             </div>
                           </div>
 
-                          <div className="mt-3 grid gap-2 text-xs text-slate-300 sm:grid-cols-3">
-                            <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5">
-                              <span className="block text-[10px] uppercase tracking-[0.2em] text-amber-300">Offer disc.</span>
-                              <span className="font-semibold text-amber-200">-₹{Number(item.offer_discount ?? 0).toFixed(2)}</span>
+                          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="grid flex-1 gap-2 text-xs text-slate-300 sm:grid-cols-3">
+                              <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5">
+                                <span className="block text-[10px] uppercase tracking-[0.2em] text-amber-300">Offer disc.</span>
+                                <span className="font-semibold text-amber-200">-₹{Number(item.offer_discount ?? 0).toFixed(2)}</span>
+                              </div>
+                              <div className="rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1.5">
+                                <span className="block text-[10px] uppercase tracking-[0.2em] text-purple-300">Coupon disc.</span>
+                                <span className="font-semibold text-purple-200">-₹{Number(item.coupon_discount ?? 0).toFixed(2)}</span>
+                              </div>
+                              <div className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5">
+                                <span className="block text-[10px] uppercase tracking-[0.2em] text-emerald-300">Total disc.</span>
+                                <span className="font-semibold text-emerald-200">-₹{Number(item.total_discount ?? 0).toFixed(2)}</span>
+                              </div>
                             </div>
-                            <div className="rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1.5">
-                              <span className="block text-[10px] uppercase tracking-[0.2em] text-purple-300">Coupon disc.</span>
-                              <span className="font-semibold text-purple-200">-₹{Number(item.coupon_discount ?? 0).toFixed(2)}</span>
-                            </div>
-                            <div className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5">
-                              <span className="block text-[10px] uppercase tracking-[0.2em] text-emerald-300">Total disc.</span>
-                              <span className="font-semibold text-emerald-200">-₹{Number(item.total_discount ?? 0).toFixed(2)}</span>
-                            </div>
+
+                            {(item.order_status || '').toLowerCase() !== 'cancelled' &&
+                              (item.order_status || '').toLowerCase() !== 'delivered' &&
+                              (item.order_status || '').toLowerCase() !== 'shipped' && (
+                                <button
+                                  type="button"
+                                  onClick={() => cancelSingleOrderItem(item.id ?? 0)}
+                                  disabled={cancelingItemId === item.id}
+                                  className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:border-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {cancelingItemId === item.id ? 'Cancelling...' : 'Cancel Item'}
+                                </button>
+                              )}
                           </div>
                         </div>
                       ))}

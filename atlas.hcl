@@ -16,10 +16,10 @@ env "gorm" {
   src = data.external_schema.gorm.url
   
   # The temporary blank database for calculations
-  dev = "postgresql://postgres:123@localhost:5432/genzone_dev?sslmode=disable" 
+  dev = "postgresql://buddiz:123@localhost:5432/genzone_dev?sslmode=disable" 
   
   # Your clean main database where the data goes
-  url = "postgresql://postgres:123@localhost:5432/genzone?sslmode=disable"
+  url = "postgresql://buddiz:123@localhost:5432/genzone?sslmode=disable"
 
   migration {
     dir = "file://migrations"      

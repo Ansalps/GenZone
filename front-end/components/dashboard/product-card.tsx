@@ -1,15 +1,31 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Product, ProductInventoryItem } from "@/types/product"
 import axios from "axios"
 
 interface Props {
     product: Product
     onAdded: (success: boolean) => void
+    onWishlistChange?: (productId: number, isWishlisted: boolean) => void
 }
 
-export default function DashboardProductCard({ product, onAdded }: Props) {
+const WISHLIST_STORAGE_KEY = "genzone_wishlist"
+
+const getStoredWishlist = (): number[] => {
+    if (typeof window === "undefined") return []
+
+    try {
+        const raw = window.localStorage.getItem(WISHLIST_STORAGE_KEY)
+        const parsed = raw ? JSON.parse(raw) : []
+        return Array.isArray(parsed) ? parsed.filter((value) => typeof value === "number") : []
+    } catch (error) {
+        console.error("Failed to read wishlist", error)
+        return []
+    }
+}
+
+export default function DashboardProductCard({ product, onAdded, onWishlistChange }: Props) {
     const inventory: ProductInventoryItem[] = product.inventory ?? []
 
     const sizes = inventory.length > 0
@@ -20,6 +36,7 @@ export default function DashboardProductCard({ product, onAdded }: Props) {
     const [selectedSize, setSelectedSize] = useState<string>(defaultSize)
     const [qty, setQty] = useState<number>(1)
     const [loading, setLoading] = useState(false)
+    const [isWishlisted, setIsWishlisted] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const discountPercentage = Number(product.discount_percentage) || 0
     const hasDiscount = discountPercentage > 0
@@ -38,6 +55,22 @@ export default function DashboardProductCard({ product, onAdded }: Props) {
     const maxStock = getStockForSize(selectedSize)
     const maxPerProduct = 5
     const maxCartTotal = 25
+
+    useEffect(() => {
+        setIsWishlisted(getStoredWishlist().includes(product.id))
+    }, [product.id])
+
+    const toggleWishlist = () => {
+        if (typeof window === "undefined") return
+
+        const current = getStoredWishlist()
+        const alreadySaved = current.includes(product.id)
+        const next = alreadySaved ? current.filter((id) => id !== product.id) : [...current, product.id]
+
+        window.localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(next))
+        setIsWishlisted(!alreadySaved)
+        onWishlistChange?.(product.id, !alreadySaved)
+    }
 
     const validateAddToCart = async () => {
         if (sizes.length > 0 && !selectedSize) {
@@ -188,6 +221,21 @@ export default function DashboardProductCard({ product, onAdded }: Props) {
                 {showDiscount && (
                     <span className={`absolute top-3 right-3 text-xs font-semibold px-2 py-1 rounded ${offerStatus==='active' ? 'bg-emerald-500 text-white' : offerStatus==='upcoming' ? 'bg-blue-500 text-white' : offerStatus==='expired' ? 'bg-gray-500 text-white' : 'bg-red-600 text-white'}`}>{discountPercentage}% OFF</span>
                 )}
+
+                <button
+                    type="button"
+                    onClick={toggleWishlist}
+                    aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                    className={`absolute right-3 top-14 flex h-10 w-10 items-center justify-center rounded-full border shadow-lg transition ${
+                        isWishlisted
+                            ? "border-red-400 bg-red-500 text-white"
+                            : "border-white/20 bg-slate-950/70 text-red-400 hover:bg-slate-900"
+                    }`}
+                >
+                    <svg viewBox="0 0 24 24" fill={isWishlisted ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                        <path d="M12 21.35 10.55 20C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 0 1 6.5 4c1.74 0 3.41.81 4.5 2.09A6.07 6.07 0 0 1 15.5 4 4.5 4.5 0 0 1 20 8.5c0 3.78-3.4 6.86-8.55 11.5L12 21.35Z" />
+                    </svg>
+                </button>
             </div>
 
             <div className="p-4">

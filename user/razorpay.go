@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Ansalps/GeZOne/database"
@@ -17,6 +18,7 @@ import (
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 	"github.com/razorpay/razorpay-go"
+	"gorm.io/gorm"
 )
 
 var RazorpayClient *razorpay.Client
@@ -25,8 +27,51 @@ type OrderID struct {
 	Orderid string
 }
 
+func getUserCartSummary(db *gorm.DB, userID uint) (count int64, totalQuantity uint, totalAmount float64, err error) {
+	if db == nil {
+		db = database.DB
+	}
+
+	if err = db.Table("cart_items").
+		Select("COUNT(*)").
+		Joins("JOIN carts ON carts.id = cart_items.cart_id").
+		Where("carts.user_id = ?", userID).
+		Scan(&count).Error; err != nil {
+		return 0, 0, 0, err
+	}
+
+	var qty struct {
+		Total uint
+	}
+	if err = db.Table("cart_items").
+		Select("COALESCE(SUM(cart_items.quantity), 0) AS total").
+		Joins("JOIN carts ON carts.id = cart_items.cart_id").
+		Where("carts.user_id = ?", userID).
+		Scan(&qty).Error; err != nil {
+		return 0, 0, 0, err
+	}
+	totalQuantity = qty.Total
+
+	var amount struct {
+		Total float64
+	}
+	if err = db.Table("cart_items").
+		Select("COALESCE(SUM(cart_items.quantity * cart_items.unit_price), 0) AS total").
+		Joins("JOIN carts ON carts.id = cart_items.cart_id").
+		Where("carts.user_id = ?", userID).
+		Scan(&amount).Error; err != nil {
+		return 0, totalQuantity, 0, err
+	}
+	totalAmount = amount.Total
+	return count, totalQuantity, totalAmount, nil
+}
+
 func CreateOrder(c *gin.Context) {
-	RazorpayClient := razorpay.NewClient("rzp_test_I0KzQyB0QDtMcB", "5nCtZw13gRp79G3ptqHut3Fl")
+	razorpayKeyId := os.Getenv("RAZORPAY_KEY_ID")
+	razorpayKeySecret := os.Getenv("RAZORPAY_KEY_SECRET")
+	fmt.Println("--------", razorpayKeyId, razorpayKeySecret)
+	RazorpayClient := razorpay.NewClient(razorpayKeyId, razorpayKeySecret)
+	fmt.Println("RazorpayClient")
 	claims, exists := c.Get("claims")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
@@ -71,8 +116,12 @@ func CreateOrder(c *gin.Context) {
 		return
 	}
 
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&count)
+	count, totalquantity, totalamount, err := getUserCartSummary(database.DB, userID)
+	if err != nil {
+		log.Println("failed to load cart summary:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate cart total"})
+		return
+	}
 
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -81,8 +130,6 @@ func CreateOrder(c *gin.Context) {
 		})
 		return
 	}
-	var totalquantity uint
-	database.DB.Raw(`SELECT SUM(qty) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&totalquantity)
 
 	if totalquantity == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -92,12 +139,9 @@ func CreateOrder(c *gin.Context) {
 		return
 	}
 
-	var totalamount float64
-	database.DB.Raw("SELECT SUM(final_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount)
-	var totalamount1 float64
-	database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount1)
 	var Finalamount float64
 	var discountamount float64
+	var totalamount1 = totalamount
 	if tempaddress.CouponCode != "" {
 		var count2 int64
 		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ? AND deleted_at IS NULL`, tempaddress.CouponCode).Scan(&count2)
@@ -140,25 +184,28 @@ func CreateOrder(c *gin.Context) {
 		return
 	}
 
-	// Convert the amount from paise to rupees
-	if order["amount"] != nil {
-		amountInPaise := order["amount"].(float64)
-		amountInRupees := amountInPaise / 100
-		order["amount"] = amountInRupees
-		order["amount_due"] = amountInRupees
-	}
-
 	tempaddress1 := models.TempAddress{
 		AddressID:  tempaddress.AddressID,
 		CouponCode: tempaddress.CouponCode,
 	}
 	database.DB.Create(&tempaddress1)
 
-	order_id := order["id"].(string)
-	c.HTML(http.StatusOK, "razorpay.html", OrderID{
-		Orderid: order_id,
+	orderID := order["id"].(string)
+	checkoutAmountInPaise := 0
+	if rawAmount, ok := order["amount"].(float64); ok {
+		checkoutAmountInPaise = int(rawAmount)
+	}
+
+	
+	c.JSON(http.StatusOK, gin.H{
+		"status":       "success",
+		"message":      "Razorpay order created successfully",
+		"amount":       checkoutAmountInPaise,
+		"currency":     "INR",
+		"order_id":     orderID,
+		"receipt":      "receipt_" + orderID,
+		"checkout_url": "/payment-option",
 	})
-	//c.JSON(http.StatusOK, order)
 }
 
 type Payload struct {
@@ -168,12 +215,14 @@ type Payload struct {
 }
 
 func verifySignature(orderID string, paymentID string, razorpaySignature string, secret string) bool {
+	fmt.Println("order ID: ", orderID, " payment ID: ", paymentID)
 	data := orderID + "|" + paymentID
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(data))
 	generatedSignature := hex.EncodeToString(h.Sum(nil))
-
-	return generatedSignature == razorpaySignature
+	fmt.Println("generatedSignature:", generatedSignature)
+	fmt.Println("razorpaySignature:", razorpaySignature)
+	return hmac.Equal([]byte(generatedSignature), []byte(razorpaySignature))
 }
 
 func PaymentWebhook(c *gin.Context) {
@@ -200,14 +249,21 @@ func PaymentWebhook(c *gin.Context) {
 	orderID := payload.OrderID
 	paymentID := payload.PaymentID
 	signature := payload.Signature
-	secret := "5nCtZw13gRp79G3ptqHut3Fl"
+	secret := os.Getenv("RAZORPAY_KEY_SECRET")
+	if secret == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Razorpay secret is not configured"})
+		return
+	}
 
 	if verifySignature(orderID, paymentID, signature, secret) {
 		// Process the payment event
-		var totalamount float64
-		database.DB.Raw("SELECT SUM(final_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount)
-		var totalamount1 float64
-		database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount1)
+		_, _, totalamount, err := getUserCartSummary(database.DB, userID)
+		if err != nil {
+			log.Println("failed to load cart summary for verification:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate cart total"})
+			return
+		}
+		var totalamount1 = totalamount
 		var addressid uint
 		database.DB.Raw(`SELECT address_id from temp_addresses`).Scan(&addressid)
 		var couponcode string
@@ -241,7 +297,6 @@ func PaymentWebhook(c *gin.Context) {
 
 		}
 		var offerapplied float64
-		database.DB.Raw(`SELECT SUM(discount) FROM cart_items WHERE deleted_at IS NULL`).Scan(&offerapplied)
 		var couponID *uint
 		if couponcode != "" {
 			var couponIDValue uint
@@ -256,12 +311,17 @@ func PaymentWebhook(c *gin.Context) {
 			PaymentMethod:       "RazorPay",
 			OrderStatus:         "pending",
 			CouponID:            couponID,
+			CouponCode:          couponcode,
 			TotalDiscountAmount: offerapplied + discountamount,
 			FinalAmount:         Finalamount,
 		}
 		database.DB.Create(&order)
 		var CartItems []models.CartItem
-		database.DB.Where("user_id = ?", userID).Find(&CartItems)
+		if err := database.DB.Joins("JOIN carts ON carts.id = cart_items.cart_id").Where("carts.user_id = ?", userID).Find(&CartItems).Error; err != nil {
+			log.Println("failed to load cart items after payment verification:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch cart items"})
+			return
+		}
 
 		var ID uint
 
@@ -274,7 +334,7 @@ func PaymentWebhook(c *gin.Context) {
 			}
 			for i := 0; i < int(v.Quantity); i++ {
 				var price float64
-				database.DB.Model(&models.CartItem{}).Where("product_id = ?", v.ProductID).Pluck("price", &price)
+				database.DB.Model(&models.CartItem{}).Where("product_id = ?", v.ProductID).Pluck("unit_price", &price)
 
 				var offerdiscount float64
 				var coupondiscount float64
@@ -287,12 +347,13 @@ func PaymentWebhook(c *gin.Context) {
 				coupondiscount = math.Round(coupondiscount*100) / 100
 				totaldiscount := offerdiscount + coupondiscount
 				paidamount := price - totaldiscount
+				lineTotalAmount := price * float64(v.Quantity)
 				orderItem := models.OrderItems{
-					OrderID:   ID,
-					ProductID: v.ProductID,
-					//Qty:         v.Qty,
-					Price: price,
-					//TotalAmount: float64(v.Qty) * price,
+					OrderID:        ID,
+					ProductID:      v.ProductID,
+					Quantity:       v.Quantity,
+					UnitPrice:      price,
+					TotalAmount:    lineTotalAmount,
 					PaymentMethod:  "RazorPay",
 					OfferDiscount:  offerdiscount,
 					CouponDiscount: coupondiscount,
@@ -316,11 +377,14 @@ func PaymentWebhook(c *gin.Context) {
 			PaymentStatus: "paid",
 		}
 		database.DB.Create(&Payment)
-		database.DB.Where("user_id = ?", userID).Delete(&models.CartItem{})
+		var currentCart models.Cart
+		if err := database.DB.Where("user_id = ?", userID).First(&currentCart).Error; err == nil {
+			database.DB.Where("cart_id = ?", currentCart.ID).Delete(&models.CartItem{})
+		}
 		var order1 responsemodels.Order
 		var address responsemodels.Address
 		var orderitems1 []responsemodels.OrderItems
-		database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_applied,orders.coupon_code,orders.discount_amount,orders.final_amount,orders.order_status,orders.payment_method FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
+		database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_discount AS offer_applied,orders.coupon_code,orders.coupon_discount AS discount_amount,orders.final_amount,orders.order_status,orders.payment_method FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
 
 		var orderid uint
 		database.DB.Raw(`SELECT id FROM orders WHERE user_id = ? ORDER BY created_at desc limit 1`, userID).Scan(&orderid)
@@ -329,7 +393,7 @@ func PaymentWebhook(c *gin.Context) {
 
 		database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, addressid).Scan(&address)
 		order1.Address = address
-		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.price,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)
+		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)
 		result = database.DB.Exec("TRUNCATE temp_addresses")
 		if result.Error != nil {
 			panic(result.Error)

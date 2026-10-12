@@ -3,11 +3,20 @@
 import axios from 'axios';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
-const API = 'http://localhost:8080';
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || '';
 
 export default function PaymentOptionPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 px-6 py-10 text-white">Loading payment options...</div>}>
+      <PaymentOptionContent />
+    </Suspense>
+  );
+}
+
+function PaymentOptionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const addressId = Number(searchParams.get('address_id') ?? '0');
@@ -63,18 +72,89 @@ export default function PaymentOptionPage() {
     setError('');
 
     try {
-      const payload = {
-        address_id: addressId,
-        coupon_code: couponCode,
-        payment_method: isCod ? 'COD' : 'RazorPay',
+      if (isCod) {
+        const payload = {
+          address_id: addressId,
+          coupon_code: couponCode,
+          payment_method: 'COD',
+        };
+
+        await axios.post(`${API}/checkout/order`, payload, { withCredentials: true });
+        router.push('/orders');
+        return;
+      }
+
+      const razorpayScript = document.createElement('script');
+      razorpayScript.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      razorpayScript.async = true;
+
+      await new Promise<void>((resolve, reject) => {
+        razorpayScript.onload = () => resolve();
+        razorpayScript.onerror = () => reject(new Error('Unable to load Razorpay checkout script.'));
+        document.body.appendChild(razorpayScript);
+      });
+
+      const response = await axios.post(
+        `${API}/checkout/razorpay`,
+        {
+          address_id: addressId,
+          coupon_code: couponCode,
+        },
+        { withCredentials: true },
+      );
+
+      const razorpayData = response.data ?? {};
+      const orderId = razorpayData.order_id;
+      const amount = Number(razorpayData.amount ?? 0);
+      const key = RAZORPAY_KEY;
+
+      if (!orderId || !key || !amount) {
+        throw new Error('Razorpay key or order details are missing.');
+      }
+
+      const options = {
+        key,
+        amount,
+        currency: razorpayData.currency || 'INR',
+        name: 'GenZone',
+        description: 'Order payment',
+        order_id: orderId,
+        handler: async function (paymentResponse: any) {
+          try {
+            await axios.post(
+              `${API}/checkout/razorpay/paymentverification`,
+              {
+                order_id: paymentResponse.razorpay_order_id,
+                payment_id: paymentResponse.razorpay_payment_id,
+                signature: paymentResponse.razorpay_signature,
+              },
+              { withCredentials: true },
+            );
+            router.push('/orders');
+          } catch (verifyErr: any) {
+            console.error('Razorpay verification failed', verifyErr);
+            setError(verifyErr.response?.data?.message || 'Payment verification failed. Please contact support.');
+          }
+        },
+        theme: {
+          color: '#7c3aed',
+        },
+        modal: {
+          ondismiss: () => {
+            setIsSubmitting(false);
+          },
+        },
       };
 
-      await axios.post(`${API}/checkout/order`, payload, { withCredentials: true });
-      router.push('/orders');
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Unable to place order right now. Please try again.');
+      console.error('Failed to process payment', err);
+      setError(err.response?.data?.message || err.message || 'Unable to place order right now. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      if (!isCod) {
+        setIsSubmitting(false);
+      }
     }
   };
 

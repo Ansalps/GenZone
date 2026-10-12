@@ -72,7 +72,7 @@ func GenerateSalesReport(c *gin.Context) {
 			ProductID:      productid,
 			ProductName:    productname,
 			Qty:            1,
-			Price:          v.Price,
+			Price:          v.UnitPrice,
 			OrderStatus:    v.OrderStatus,
 			PaymentMethod:  v.PaymentMethod,
 			CouponDiscount: CouponDiscount1,

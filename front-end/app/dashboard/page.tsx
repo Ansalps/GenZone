@@ -162,6 +162,28 @@ export default function DashboardPage() {
               </svg>
             </Link>
             <Link
+              href="/wishlist"
+              aria-label="Open wishlist"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-red-400 transition hover:border-red-400/40 hover:bg-red-500/10"
+              title="Wishlist"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                <path d="M12 21.35 10.55 20C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 0 1 6.5 4c1.74 0 3.41.81 4.5 2.09A6.07 6.07 0 0 1 15.5 4 4.5 4.5 0 0 1 20 8.5c0 3.78-3.4 6.86-8.55 11.5L12 21.35Z" />
+              </svg>
+            </Link>
+            <Link
+              href="/wallet"
+              aria-label="Open wallet"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-amber-300 transition hover:border-amber-400/40 hover:bg-amber-500/10"
+              title="Wallet"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h11A2.5 2.5 0 0 1 19 7.5v9A2.5 2.5 0 0 1 16.5 19h-11A2.5 2.5 0 0 1 3 16.5v-9Z" />
+                <path d="M15 12h6v2.5h-6" />
+                <path d="M3 9h16" />
+              </svg>
+            </Link>
+            <Link
               href="/cart"
               className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
             >
