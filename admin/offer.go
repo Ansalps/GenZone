@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/Ansalps/GeZOne/database"
@@ -131,17 +130,6 @@ func OfferAdd(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Model(&models.Product{}).Where("id = ?", req.ProductID).Updates(map[string]interface{}{
-		"has_offer":              true,
-		"offer_discount_percent": req.DiscountPercentage,
-	}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  false,
-			"message": "offer created but product discount update failed",
-		})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "offer added for the product",
@@ -240,24 +228,6 @@ func OfferEdit(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Model(&models.Product{}).Where("id = ?", productID).Updates(map[string]interface{}{
-		"has_offer":              true,
-		"offer_discount_percent": existing.DiscountPercentage,
-	}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  false,
-			"message": "offer updated but product discount status could not be refreshed",
-		})
-		return
-	}
-
-	if oldProductID != productID {
-		_ = database.DB.Model(&models.Product{}).Where("id = ?", oldProductID).Updates(map[string]interface{}{
-			"has_offer":              false,
-			"offer_discount_percent": 0,
-		})
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "offer updated successfully",
@@ -281,13 +251,6 @@ func OfferRemove(c *gin.Context) {
 			"message": "failed to delete offer",
 		})
 		return
-	}
-
-	if err := database.DB.Model(&models.Product{}).Where("id = ?", offer.ProductID).Updates(map[string]interface{}{
-		"has_offer":              false,
-		"offer_discount_percent": 0,
-	}).Error; err != nil {
-		fmt.Println("failed to clear offer state for product:", err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "offer deleted successfully"})

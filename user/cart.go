@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -67,7 +66,7 @@ func Cart(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	
+
 	var cart []responsemodels.CartItems
 
 	// Join carts, cart_items, and products to resolve user_id correctly
@@ -158,7 +157,7 @@ func Cart(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "successfully retrieved user informations",
@@ -255,16 +254,16 @@ func CartAdd(c *gin.Context) {
 
 	// 6. Check for an active offer and calculate unit price
 	unitPrice := product.Price
-	var offer models.Offer
-	now := time.Now()
+	// var offer models.Offer
+	// now := time.Now()
 
-	err = database.DB.Where("product_id = ? AND start_at <= ? AND end_at >= ?", product.ID, now, now).
-		First(&offer).Error
+	// err = database.DB.Where("product_id = ? AND start_at <= ? AND end_at >= ?", product.ID, now, now).
+	// 	First(&offer).Error
 
-	if err == nil && offer.DiscountPercentage > 0 {
-		discount := unitPrice * (offer.DiscountPercentage / 100.0)
-		unitPrice -= discount
-	}
+	// if err == nil && offer.DiscountPercentage > 0 {
+	// 	discount := unitPrice * (offer.DiscountPercentage / 100.0)
+	// 	unitPrice -= discount
+	// }
 
 	// 7. Check if the item (same product + size) is already in the user's cart
 	var cartItem models.CartItem
@@ -477,7 +476,7 @@ func CartRemove(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
-	
+
 	var req requestmodemodels.CartRemove
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "failed to bind request"})
@@ -644,7 +643,7 @@ func TotalQuantity(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":         true,
 		"message":        "successfully retrieved total quantity",

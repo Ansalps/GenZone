@@ -8,7 +8,7 @@ import (
 	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/middleware"
 	"github.com/Ansalps/GeZOne/models"
-	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
+	requestmodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -83,7 +83,7 @@ func AddressAdd(c *gin.Context) {
 
 	userID := customClaims.ID
 
-	var Address requestmodemodels.AddressAdd
+	var Address requestmodels.AddressAdd
 	err := c.BindJSON(&Address)
 	response := gin.H{
 		"status":  false,
@@ -148,7 +148,7 @@ func AddressEdit(c *gin.Context) {
 		})
 		return
 	}
-	var Address requestmodemodels.AddressAdd
+	var Address requestmodels.AddressAdd
 	err := c.BindJSON(&Address)
 	response := gin.H{
 		"status":  false,

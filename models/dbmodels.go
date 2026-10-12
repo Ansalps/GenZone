@@ -155,22 +155,22 @@ type CartItem struct {
 }
 
 type Order struct {
-	ID        uint `gorm:"primarykey"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	UserID uint `validate:"required"`
-	User User `gorm:"foriegnkey:UserID;reference:ID"`
-	AddressID   uint
-	Address     Address `gorm:"foriegnkey:AddressID;references:ID"`
-	TotalAmount float64
-	PaymentMethod  string  `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_method" validate:"required"`
-	OrderStatus    string  `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
-	CouponID    uint
-	Coupon Coupon `gorm:"foriegnkey:CouponID;references:ID"`
-	OfferDiscount float64
-	CouponDiscount float64
+	ID                  uint `gorm:"primarykey"`
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	UserID              uint `validate:"required"`
+	User                User `gorm:"foriegnkey:UserID;reference:ID"`
+	AddressID           uint
+	Address             Address `gorm:"foriegnkey:AddressID;references:ID"`
+	TotalAmount         float64
+	PaymentMethod       string  `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_method" validate:"required"`
+	OrderStatus         string  `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
+	CouponID            *uint   `gorm:"default:null" json:"coupon_id,omitempty"`
+	Coupon              *Coupon `gorm:"foreignKey:CouponID;references:ID" json:"coupon,omitempty"`
+	OfferDiscount       float64
+	CouponDiscount      float64
 	TotalDiscountAmount float64 `gorm:"type:decimal(10,2);default:0.00"`
-	FinalAmount    float64 `gorm:"type:decimal(10,2);not null"`
+	FinalAmount         float64 `gorm:"type:decimal(10,2);not null"`
 }
 
 type OrderItems struct {
@@ -232,16 +232,15 @@ type Wishlist struct {
 }
 
 type Coupon struct {
-	ID        uint `gorm:"primarykey"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uint `gorm:"primarykey"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 	Code        string  `gorm:"not null" json:"code"`
 	Discount    float64 `gorm:"type:decimal(5,2);not null" json:"discount"`
 	MinPurchase float64 `gorm:"type:decimal(10,2)" json:"min_purchase"`
-	StartAt            time.Time
-	EndAt              time.Time
-	IsActive bool
-
+	StartAt     time.Time
+	EndAt       time.Time
+	IsActive    bool
 }
 
 type WalletTransaction struct {

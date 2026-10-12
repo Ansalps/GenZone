@@ -31,7 +31,10 @@ func Initialize() {
 	
 }
 
-func AutoMigrate() error{
+func AutoSeed() error {
+	return Seed(DB)
+}
+func AutoMigrate() {
 	DB.AutoMigrate(&models.Category{})
 	DB.AutoMigrate(&models.Product{})
 	DB.AutoMigrate(&models.ProductVariant{})
@@ -55,6 +58,4 @@ func AutoMigrate() error{
 	DB.AutoMigrate(&models.WalletTransaction{})
 	DB.AutoMigrate(&models.Invoice{})
 	
-
-	return Seed(DB)
 }

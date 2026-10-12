@@ -107,8 +107,8 @@ func Order(c *gin.Context) {
 		return
 	}
 
-	discountAmount := 0.0
-	var couponID uint
+	couponDiscountAmount := 0.0
+	var couponID *uint
 	if OrderAdd.CouponCode != "" {
 		var coupon models.Coupon
 		if err := database.DB.Where("code = ? AND is_active = true AND start_at <= ? AND end_at >= ?", OrderAdd.CouponCode, time.Now(), time.Now()).First(&coupon).Error; err != nil {
@@ -123,8 +123,14 @@ func Order(c *gin.Context) {
 			})
 			return
 		}
-		discountAmount = coupon.Discount
-		couponID = coupon.ID
+		couponDiscountAmount = coupon.Discount
+		couponID = &coupon.ID
+	}
+
+	if couponID != nil {
+		if err := database.DB.Model(&models.Coupon{}).Where("id = ?", *couponID).Pluck("discount", &couponDiscountAmount).Error; err != nil {
+			couponDiscountAmount = 0
+		}
 	}
 
 	offerDiscountAmount := 0.0
@@ -148,7 +154,7 @@ func Order(c *gin.Context) {
 		paymentMethod = "COD"
 	}
 
-	finalAmount := totalAmount - discountAmount
+	finalAmount := totalAmount - offerDiscountAmount - couponDiscountAmount
 	if finalAmount < 0 {
 		finalAmount = 0
 	}
@@ -160,7 +166,9 @@ func Order(c *gin.Context) {
 		PaymentMethod:       paymentMethod,
 		OrderStatus:         "pending",
 		CouponID:            couponID,
-		TotalDiscountAmount: offerDiscountAmount + discountAmount,
+		OfferDiscount:       offerDiscountAmount,
+		CouponDiscount:      couponDiscountAmount,
+		TotalDiscountAmount: offerDiscountAmount + couponDiscountAmount,
 		FinalAmount:         finalAmount,
 	}
 	if err := database.DB.Create(&order).Error; err != nil {
@@ -191,8 +199,8 @@ func Order(c *gin.Context) {
 		}
 
 		itemCouponDiscount := 0.0
-		if discountAmount > 0 && totalAmount > 0 {
-			itemCouponDiscount = (unitPrice * float64(item.Quantity) / totalAmount) * discountAmount
+		if couponDiscountAmount > 0 && totalAmount > 0 {
+			itemCouponDiscount = (unitPrice * float64(item.Quantity) / totalAmount) * couponDiscountAmount
 		}
 
 		orderItem := models.OrderItems{
@@ -204,7 +212,7 @@ func Order(c *gin.Context) {
 			CouponDiscount: itemCouponDiscount,
 			OfferDiscount:  itemOfferDiscount,
 			TotalDiscount:  itemOfferDiscount + itemCouponDiscount,
-			PaidAmount:     unitPrice * float64(item.Quantity),
+			PaidAmount:     unitPrice * float64(item.Quantity) - itemOfferDiscount - itemCouponDiscount,
 		}
 		if err := database.DB.Create(&orderItem).Error; err != nil {
 			continue
@@ -238,7 +246,7 @@ func Order(c *gin.Context) {
 	var address responsemodels.Address
 	var responseOrderItems []responsemodels.OrderItems
 
-	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_applied,orders.coupon_code,orders.discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID).Scan(&responseOrder)
+	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID).Scan(&responseOrder)
 
 	var latestOrderID uint
 	database.DB.Raw(`SELECT id FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, userID).Scan(&latestOrderID)
@@ -288,7 +296,7 @@ func OrderList(c *gin.Context) {
 	}
 
 	database.DB.Raw(sql, userID).Scan(&orders)
-	
+
 	for i, v := range orders {
 		database.DB.Raw(`SELECT *
 	        FROM orders

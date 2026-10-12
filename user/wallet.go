@@ -107,7 +107,7 @@ func WalletOrder(c *gin.Context) {
 
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&count)
-	
+
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "false",
@@ -117,7 +117,7 @@ func WalletOrder(c *gin.Context) {
 	}
 	var totalquantity uint
 	database.DB.Raw(`SELECT SUM(qty) FROM cart_items WHERE user_id=? and deleted_at IS NULL`, userID).Scan(&totalquantity)
-	
+
 	if totalquantity == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "false",
@@ -131,9 +131,9 @@ func WalletOrder(c *gin.Context) {
 	database.DB.Raw("SELECT SUM(total_amount) from cart_items where user_id = ? and deleted_at IS NULL", userID).Scan(&totalamount1)
 	var Finalamount float64
 	var discountamount float64
-	
+
 	if OrderAdd.CouponCode != "" {
-		
+
 		var count2 int64
 		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ? AND deleted_at IS NULL`, OrderAdd.CouponCode).Scan(&count2)
 		if count2 == 0 {
@@ -157,14 +157,16 @@ func WalletOrder(c *gin.Context) {
 	}
 	var offerapplied float64
 	database.DB.Raw(`SELECT SUM(discount) FROM cart_items WHERE deleted_at IS NULL`).Scan(&offerapplied)
-	var couponID uint
+	var couponID *uint
 	if OrderAdd.CouponCode != "" {
-		database.DB.Model(&models.Coupon{}).Where("code = ?", OrderAdd.CouponCode).Select("id").Scan(&couponID)
+		var couponIDValue uint
+		database.DB.Model(&models.Coupon{}).Where("code = ?", OrderAdd.CouponCode).Select("id").Scan(&couponIDValue)
+		couponID = &couponIDValue
 	}
 	Finalamount = totalamount - discountamount
 	var balance float64
 	database.DB.Raw(`SELECT balance FROM wallets WHERE user_id = ?`, userID).Scan(&balance)
-	
+
 	if balance-Finalamount < 0.00 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "order can't be placed because not enough money in wallet",
@@ -183,7 +185,6 @@ func WalletOrder(c *gin.Context) {
 	}
 	database.DB.Create(&order)
 	balance = balance - Finalamount
-	
 
 	result := database.DB.Exec(`UPDATE wallets SET balance = ? WHERE user_id = ?`, balance, userID)
 	if result.Error != nil {
@@ -200,28 +201,22 @@ func WalletOrder(c *gin.Context) {
 	database.DB.Where("user_id = ?", userID).Find(&CartItems)
 
 	var ID uint
-	
+
 	database.DB.Raw(`SELECT id FROM orders where user_id = ? ORDER BY created_at DESC LIMIT 1`, userID).Scan(&ID)
-	
-	
+
 	for _, v := range CartItems {
-		
-		
+
 		if v.Quantity == 0 {
 			continue
 		}
 		for i := 0; i < int(v.Quantity); i++ {
 			var price float64
 			database.DB.Model(&models.CartItem{}).Where("product_id = ?", v.ProductID).Pluck("price", &price)
-			
+
 			var offerdiscount float64
 			var coupondiscount float64
-			var hasoffer bool
-			database.DB.Model(&models.Product{}).Where("id = ?", v.ProductID).Pluck("has_offer", &hasoffer)
-			if hasoffer {
-				var discountpercentage uint
-				database.DB.Model(&models.Offer{}).Where("product_id = ?", v.ProductID).Pluck("discount_percentage", &discountpercentage)
-				offerdiscount = price * float64(discountpercentage) / 100
+			if discountPercentage, hasOffer := helper.GetActiveOfferDiscount(database.DB, v.ProductID); hasOffer {
+				offerdiscount = price * discountPercentage / 100
 			}
 			var totalamount float64
 			database.DB.Model(&models.Order{}).Where("id = ?", ID).Pluck("total_amount", &totalamount)
@@ -241,13 +236,13 @@ func WalletOrder(c *gin.Context) {
 				TotalDiscount:  totaldiscount,
 				PaidAmount:     paidamount,
 			}
-			
+
 			database.DB.Create(&orderItem)
-			
+
 		}
 
 	}
-	
+
 	now := time.Now()
 	today := now.Format("2006-01-02")
 	Payment := models.Payments{
@@ -264,10 +259,10 @@ func WalletOrder(c *gin.Context) {
 	var address responsemodels.Address
 	var orderitems1 []responsemodels.OrderItems
 	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_applied,orders.payment_method,orders.order_status,orders.coupon_code,orders.discount_amount,orders.final_amount FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
-	
+
 	var orderid uint
 	database.DB.Raw(`SELECT id FROM orders WHERE user_id = ? ORDER BY created_at desc limit 1`, userID).Scan(&orderid)
-	
+
 	var addressid uint
 	database.DB.Raw(`SELECT address_id FROM orders WHERE user_id = ? ORDER BY created_at desc limit 1`, userID).Scan(&addressid)
 

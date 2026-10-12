@@ -18,7 +18,8 @@ func init() {
 		log.Println("Warning: Error loading .env file:", err)
 	}
 	database.Initialize()
-	database.AutoMigrate()
+	//database.AutoMigrate()
+	database.AutoSeed()
 }
 
 func main() {
