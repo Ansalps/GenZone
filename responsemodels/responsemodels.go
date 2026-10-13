@@ -75,7 +75,6 @@ type Address struct {
 	ID uint `json:"id"`
 	// CreatedAt time.Time    `json:"created_at"`
 	// UpdatedAt time.Time    `json:"updated_at"`
-	// DeletedAt sql.NullTime `json:"deleted_at"`
 	UserID string `validate:"required,numeric" json:"user_id"`
 	//User       User   `gorm:"foriegnkey:UserID;references:ID"`
 	Country    string `validate:"required" json:"country"`
@@ -99,7 +98,9 @@ type Order struct {
 	Address             Address `gorm:"foriegnkey:AddressID;references:ID" json:"address"`
 	TotalAmount         float64 `json:"total_amount"`
 	PaymentMethod       string  `json:"payment_method"`
+	PaymentStatus       string  `json:"payment_status"`
 	OrderStatus         string  `gorm:"type:varchar(10); check(status IN ('pending', 'delivered', 'cancelled')) ;default:'pending'" json:"order_status" validate:"required"`
+	DeliveryStatus      string  `json:"delivery_status"`
 	OfferDiscount       float64 `json:"offer_discount"`
 	CouponDiscount      float64 `json:"coupon_discount"`
 	OfferApplied        float64 `json:"offer_applied"`
@@ -112,12 +113,13 @@ type OrderItems struct {
 	ID      uint   `json:"id"`
 	OrderID string `validate:"required,numeric" json:"order_id"`
 	//Order       Order   `gorm:"foriegnkey:OrderID;references:ID"`
-	ProductID string `validate:"required,numeric" json:"product_id"`
-	//Product     Product `gorm:"foriegnkey:ProductID;references:ID"`
+	ProductID      string  `validate:"required,numeric" json:"product_id"`
+	OfferID        uint    `json:"offer_id,omitempty"`
 	ProductName    string  `json:"product_name"`
 	Quantity       uint    `json:"quantity"`
 	Price          float64 `json:"price"`
 	TotalAmount    float64 `json:"total_amount"`
+	DeliveryStatus string  `json:"delivery_status"`
 	OrderStatus    string  `json:"order_status"`
 	PaymentMethod  string  `json:"payment_method"`
 	CouponDiscount float64 `json:"coupon_discount"`

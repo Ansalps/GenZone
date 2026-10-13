@@ -28,6 +28,7 @@ func RegisterUrls(router *gin.Engine) {
 	adminGroup.GET("product/:id", middleware.AuthMiddleware("admin"), admin.ReadProductById)
 	adminGroup.POST("product", middleware.AuthMiddleware("admin"), admin.AddProduct)
 	adminGroup.PUT("product/:id", middleware.AuthMiddleware("admin"), admin.EditProduct)
+	adminGroup.PUT("product/:id/stock", middleware.AuthMiddleware("admin"), admin.UpdateProductStock)
 	adminGroup.DELETE("product/:id", middleware.AuthMiddleware("admin"), admin.ProductDelete)
 
 	//admin user management
@@ -116,11 +117,6 @@ func RegisterUrls(router *gin.Engine) {
 	router.POST("checkout/order", middleware.AuthMiddleware("user"), user.Order)
 	router.GET("orders", middleware.AuthMiddleware("user"), user.OrderList)
 	router.GET("order-items/:order_id", middleware.AuthMiddleware("user"), user.OrderItemsList)
-
-	router.POST("checkout/razorpay", middleware.AuthMiddleware("user"), user.CreateOrder)
-	router.POST("checkout/razorpay/paymentverification", middleware.AuthMiddleware("user"), user.PaymentWebhook)
-
-	router.POST("checkout/wallet", middleware.AuthMiddleware("user"), user.WalletOrder)
 
 	//order cancel
 	router.PUT("profile/userorders/cancelorder/:order_id", middleware.AuthMiddleware("user"), user.CancelOrder)

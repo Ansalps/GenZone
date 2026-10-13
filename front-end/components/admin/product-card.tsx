@@ -193,6 +193,13 @@ export default function ProductCard({
                         Edit
                     </Link>
 
+                    <Link
+                        href={`/admin/products/update-stock/${product.id}`}
+                        className="flex-1 text-center rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 text-white text-sm px-3 py-2 font-medium transition hover:opacity-95"
+                    >
+                        Update Stock
+                    </Link>
+
                     <button
                         onClick={() => onRequestDelete(product.id, product.product_name)}
                         className="flex-1 rounded-xl bg-red-600 text-white text-sm px-3 py-2 font-medium transition hover:opacity-95"

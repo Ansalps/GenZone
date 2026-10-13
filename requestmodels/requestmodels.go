@@ -47,7 +47,6 @@ type BlockUser struct {
 }
 
 type AddressAdd struct {
-	
 	Country    string `json:"country" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50,alpha"`
 	State      string `json:"state" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50,alpha"`
 	City       string `json:"city" validate:"required,no_leading_trailing_spaces,no_repeating_spaces,max=50,alpha"`
@@ -72,7 +71,7 @@ type CartRemove struct {
 type OrderAdd struct {
 	AddressID     uint   `json:"address_id" validate:"required"`
 	CouponCode    string `json:"coupon_code"`
-	PaymentMethod string `json:"payment_method" validate:"omitempty,oneof=COD RazorPay"`
+	PaymentMethod string `json:"payment_method" validate:"omitempty,oneof=COD RazorPay Wallet"`
 }
 
 type ProfileEdit struct {

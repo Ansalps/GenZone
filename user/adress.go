@@ -50,8 +50,7 @@ func AddressList(c *gin.Context) {
 
 	listorder := c.Query("list_order")
 	var Address []responsemodels.Address
-	//database.DB.Where("user_id = ? and deleted_at IS NULL", userID).Find(&Address)
-	sql := `SELECT * FROM addresses WHERE user_id = ? AND deleted_at IS NULL`
+	sql := `SELECT * FROM addresses WHERE user_id = ?`
 	if listorder == "" || listorder == "ASC" {
 		sql += ` ORDER BY addresses.id ASC`
 	} else if listorder == "DSC" {
@@ -118,7 +117,7 @@ func AddressAdd(c *gin.Context) {
 		return
 	}
 	if address.Default {
-		database.DB.Model(&models.Address{}).Where("user_id = ? AND id != ? AND deleted_at IS NULL", userID, address.ID).Update("default", false)
+		database.DB.Model(&models.Address{}).Where("user_id = ? AND id != ?", userID, address.ID).Update("default", false)
 	}
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "address added successfully"})
 }
@@ -141,7 +140,7 @@ func AddressEdit(c *gin.Context) {
 	AddressID := c.Param("address_id")
 
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? and deleted_at IS NULL`, AddressID, userID).Scan(&count)
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ?`, AddressID, userID).Scan(&count)
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "particular address id does not exist for this user",
@@ -182,7 +181,7 @@ func AddressEdit(c *gin.Context) {
 		return
 	}
 	if address.Default {
-		database.DB.Model(&models.Address{}).Where("user_id = ? AND id != ? AND deleted_at IS NULL", userID, AddressID).Update("default", false)
+		database.DB.Model(&models.Address{}).Where("user_id = ? AND id != ?", userID, AddressID).Update("default", false)
 	}
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Address updated successfully"})
 }
@@ -204,17 +203,17 @@ func AddressSetDefault(c *gin.Context) {
 	addressID := c.Param("address_id")
 
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? AND deleted_at IS NULL`, addressID, userID).Scan(&count)
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ?`, addressID, userID).Scan(&count)
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "particular address id does not exist for this user"})
 		return
 	}
 
-	if err := database.DB.Model(&models.Address{}).Where("user_id = ? AND id != ? AND deleted_at IS NULL", userID, addressID).Update("default", false).Error; err != nil {
+	if err := database.DB.Model(&models.Address{}).Where("user_id = ? AND id != ?", userID, addressID).Update("default", false).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to update default address"})
 		return
 	}
-	if err := database.DB.Model(&models.Address{}).Where("id = ? AND user_id = ? AND deleted_at IS NULL", addressID, userID).Update("default", true).Error; err != nil {
+	if err := database.DB.Model(&models.Address{}).Where("id = ? AND user_id = ?", addressID, userID).Update("default", true).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to set default address"})
 		return
 	}
@@ -241,15 +240,13 @@ func AddressDelete(c *gin.Context) {
 
 	//var Address models.Address
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? and deleted_at IS NULL`, AddressID, userID).Scan(&count)
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ?`, AddressID, userID).Scan(&count)
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "particular address id does not exist for this user",
 		})
 		return
 	}
-	//err := database.DB.Where("id =? AND deleted_at IS NULL", AddressID).First(&Address)
-	// err := database.DB.Raw(`SELECT * FROM addresses WHERE id = ? AND user_id = ? AND deleted_at IS NULL`, AddressID, userID).Scan(&Address).Error
 	// if err != nil {
 	// 	c.JSON(http.StatusBadRequest, gin.H{
 	// 		"status":  false,

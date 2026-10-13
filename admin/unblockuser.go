@@ -32,7 +32,7 @@ func UnblockUser(c *gin.Context) {
 		return
 	}
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM users WHERE id = ? AND deleted_at IS NULL AND status='Blocked'`, blockuser.UserID).Scan(&count)
+	database.DB.Raw(`SELECT COUNT(*) FROM users WHERE id = ? AND status='Blocked'`, blockuser.UserID).Scan(&count)
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "user does not exist or user is not blocked",

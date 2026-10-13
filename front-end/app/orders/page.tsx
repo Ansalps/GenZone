@@ -2,6 +2,7 @@
 
 import axios from 'axios';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 const API = 'http://localhost:8080';
@@ -24,6 +25,7 @@ type OrderItem = {
   price?: number;
   total_amount?: number;
   order_status?: string;
+  delivery_status?: string;
   payment_method?: string;
   coupon_discount?: number;
   offer_discount?: number;
@@ -40,12 +42,16 @@ type Order = {
   total_discount_amount?: number;
   final_amount?: number;
   payment_method?: string;
+  payment_status?: string;
   order_status?: string;
+  delivery_status?: string;
+  coupon_code?: string;
   address?: Address;
   items?: OrderItem[];
 };
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<Record<number, OrderItem[]>>({});
   const [expandedOrders, setExpandedOrders] = useState<Record<number, boolean>>({});
@@ -136,6 +142,19 @@ export default function OrdersPage() {
     }
   };
 
+  const retryPayment = (order: Order) => {
+    if (!order.address?.id) {
+      alert('Address is not available for this order.');
+      return;
+    }
+
+    const params = new URLSearchParams({
+      address_id: String(order.address.id),
+      coupon_code: order.coupon_code ?? '',
+    });
+    router.push(`/payment-option?${params.toString()}`);
+  };
+
   useEffect(() => {
     const fetchOrders = async () => {
       try {
@@ -201,7 +220,13 @@ export default function OrdersPage() {
                       {order.payment_method || 'COD'}
                     </span>
                     <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-violet-200">
-                      {order.order_status || 'pending'}
+                      Order: {order.order_status || 'pending'}
+                    </span>
+                    <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-amber-200">
+                      Delivery: {order.delivery_status || 'pending'}
+                    </span>
+                    <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-emerald-200">
+                      Payment: {order.payment_status || 'pending'}
                     </span>
                   </div>
                 </div>
@@ -239,6 +264,17 @@ export default function OrdersPage() {
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+                  {(order.payment_method?.toLowerCase() === 'razorpay' || order.payment_method?.toLowerCase() === 'razorpay') &&
+                    (order.payment_status?.toLowerCase() === 'pending' || order.payment_status?.toLowerCase() === 'failed' || order.order_status?.toLowerCase() === 'pending') && (
+                      <button
+                        type="button"
+                        onClick={() => retryPayment(order)}
+                        className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-200 transition hover:border-amber-300 hover:bg-amber-500/20"
+                      >
+                        Retry Payment
+                      </button>
+                    )}
+
                   <button
                     type="button"
                     onClick={() => toggleOrderItems(order.id)}
@@ -278,7 +314,10 @@ export default function OrdersPage() {
 
                             <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
                               <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-violet-200">
-                                {item.order_status || 'pending'}
+                                Order: {item.order_status || 'pending'}
+                              </span>
+                              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-200">
+                                Delivery: {item.delivery_status || 'pending'}
                               </span>
                               <span>Price: ₹{Number(item.price ?? 0).toFixed(2)}</span>
                               <span className="text-emerald-300">Total: ₹{Number(item.total_amount ?? (item.price ?? 0) * (item.quantity ?? 1)).toFixed(2)}</span>

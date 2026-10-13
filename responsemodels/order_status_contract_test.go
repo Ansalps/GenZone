@@ -7,7 +7,7 @@ import (
 )
 
 func TestOrderItemsStatusJSONKey(t *testing.T) {
-	item := OrderItems{OrderStatus: "cancelled"}
+	item := OrderItems{OrderStatus: "cancelled", DeliveryStatus: "shipped"}
 	data, err := json.Marshal(item)
 	if err != nil {
 		t.Fatalf("marshal failed: %v", err)
@@ -22,5 +22,8 @@ func TestOrderItemsStatusJSONKey(t *testing.T) {
 	}
 	if !strings.Contains(jsonText, "\"order_status\":\"cancelled\"") {
 		t.Fatalf("expected order_status field in JSON, got %s", jsonText)
+	}
+	if !strings.Contains(jsonText, "\"delivery_status\":\"shipped\"") {
+		t.Fatalf("expected delivery_status field in JSON, got %s", jsonText)
 	}
 }

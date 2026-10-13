@@ -49,7 +49,7 @@ func CouponCheckout(c *gin.Context) {
 	}
 
 	var coupon models.Coupon
-	if err := database.DB.Where("code = ? AND deleted_at IS NULL", couponCode).First(&coupon).Error; err != nil {
+	if err := database.DB.Where("code = ?", couponCode).First(&coupon).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "such coupon does not exist",

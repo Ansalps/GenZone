@@ -13,7 +13,7 @@ import (
 )
 
 func Login(c *gin.Context) {
-	
+
 	var AdminLogin requestmodels.AdminLogin
 	err := c.BindJSON(&AdminLogin)
 	response := gin.H{
@@ -36,7 +36,7 @@ func Login(c *gin.Context) {
 		return
 	}
 	var Admin models.Admin
-	tx := database.DB.Where("email =? AND deleted_at IS NULL", AdminLogin.Email).First(&Admin)
+	tx := database.DB.Where("email = ?", AdminLogin.Email).First(&Admin)
 	if tx.Error != nil {
 		fmt.Println("error", err)
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -50,7 +50,7 @@ func Login(c *gin.Context) {
 	database.DB.Model(&models.Admin{}).Where("email = ?", AdminLogin.Email).Pluck("password", &password)
 	if password != AdminLogin.Password {
 		// Return success response
-		
+
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "invalid email or password",
@@ -58,7 +58,7 @@ func Login(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	var id uint
 	database.DB.Model(&models.Admin{}).Where("email = ?", AdminLogin.Email).Pluck("id", &id)
 	token, err := middleware.CreateToken("admin", AdminLogin.Email, id)

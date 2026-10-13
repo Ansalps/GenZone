@@ -1,8 +1,12 @@
 package user
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Ansalps/GeZOne/database"
@@ -12,6 +16,7 @@ import (
 	"github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
+	"github.com/razorpay/razorpay-go"
 )
 
 func shouldCancelEntireOrder(remainingStatuses []string) bool {
@@ -19,11 +24,52 @@ func shouldCancelEntireOrder(remainingStatuses []string) bool {
 		return true
 	}
 	for _, status := range remainingStatuses {
-		if status != "cancelled" && status != "return" && status != "" {
+		if status != "cancelled" && status != "returned" && status != "" {
 			return false
 		}
 	}
 	return true
+}
+
+type orderRequest struct {
+	requestmodels.OrderAdd
+	RazorpayOrderID string `json:"razorpay_order_id"`
+	PaymentID       string `json:"payment_id"`
+	Signature       string `json:"signature"`
+	OrderID         string `json:"order_id"`
+}
+
+func verifyRazorpaySignature(orderID string, paymentID string, razorpaySignature string, secret string) bool {
+	data := orderID + "|" + paymentID
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(data))
+	generatedSignature := hex.EncodeToString(h.Sum(nil))
+	return hmac.Equal([]byte(generatedSignature), []byte(razorpaySignature))
+}
+
+func createRazorpayRemoteOrder(amount float64) (string, int, error) {
+	keyID := os.Getenv("RAZORPAY_KEY_ID")
+	keySecret := os.Getenv("RAZORPAY_KEY_SECRET")
+	if keyID == "" || keySecret == "" {
+		return "", 0, fmt.Errorf("razorpay configuration is missing")
+	}
+
+	client := razorpay.NewClient(keyID, keySecret)
+	data := map[string]interface{}{
+		"amount":   int(amount * 100),
+		"currency": "INR",
+	}
+	order, err := client.Order.Create(data, map[string]string{})
+	if err != nil {
+		return "", 0, err
+	}
+
+	remoteOrderID, _ := order["id"].(string)
+	checkoutAmountInPaise := 0
+	if rawAmount, ok := order["amount"].(float64); ok {
+		checkoutAmountInPaise = int(rawAmount)
+	}
+	return remoteOrderID, checkoutAmountInPaise, nil
 }
 
 func Order(c *gin.Context) {
@@ -41,8 +87,8 @@ func Order(c *gin.Context) {
 
 	userID := customClaims.ID
 
-	var OrderAdd requestmodels.OrderAdd
-	if err := c.BindJSON(&OrderAdd); err != nil {
+	var payload orderRequest
+	if err := c.BindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "failed to bind request",
@@ -50,8 +96,10 @@ func Order(c *gin.Context) {
 		return
 	}
 
-	if err := helper.Validate(OrderAdd); err != nil {
-		fmt.Println("", err)
+	if payload.PaymentMethod == "" {
+		payload.PaymentMethod = "COD"
+	}
+	if err := helper.Validate(payload.OrderAdd); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":     false,
 			"message":    err.Error(),
@@ -61,7 +109,7 @@ func Order(c *gin.Context) {
 	}
 
 	var count1 int64
-	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ? AND deleted_at IS NULL`, OrderAdd.AddressID, userID).Scan(&count1)
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses WHERE id = ? AND user_id = ?`, payload.AddressID, userID).Scan(&count1)
 	if count1 == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "address_id does not exist for this particular user",
@@ -69,28 +117,82 @@ func Order(c *gin.Context) {
 		return
 	}
 
+	if payload.RazorpayOrderID != "" || payload.PaymentID != "" || payload.Signature != "" || payload.OrderID != "" {
+		razorpayOrderID := payload.RazorpayOrderID
+		if razorpayOrderID == "" {
+			razorpayOrderID = payload.OrderID
+		}
+		if razorpayOrderID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "razorpay order id is required for payment verification"})
+			return
+		}
+		if payload.PaymentID == "" || payload.Signature == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "payment_id and signature are required for payment verification"})
+			return
+		}
+
+		var order models.Order
+		if err := database.DB.Where("user_id = ? AND razorpay_order_id = ?", userID, razorpayOrderID).First(&order).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "pending razorpay order not found for this user"})
+			return
+		}
+
+		secret := os.Getenv("RAZORPAY_KEY_SECRET")
+		if secret == "" {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Razorpay secret is not configured"})
+			return
+		}
+		if !verifyRazorpaySignature(razorpayOrderID, payload.PaymentID, payload.Signature, secret) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid signature"})
+			return
+		}
+
+		updates := map[string]interface{}{
+			"order_status":    "completed",
+			"delivery_status": "pending",
+		}
+		if err := database.DB.Model(&order).Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update order status"})
+			return
+		}
+		if err := database.DB.Model(&models.Payments{}).Where("order_id = ?", order.ID).Update("payment_status", "paid").Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update payment status"})
+			return
+		}
+		if err := database.DB.Model(&models.Payments{}).Where("order_id = ?", order.ID).Update("payment_date", time.Now().Format("2006-01-02")).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update payment date"})
+			return
+		}
+
+		var cart models.Cart
+		if err := database.DB.Where("user_id = ?", userID).First(&cart).Error; err == nil {
+			database.DB.Where("cart_id = ?", cart.ID).Delete(&models.CartItem{})
+		}
+
+		var responseOrder responsemodels.Order
+		var address responsemodels.Address
+		var responseOrderItems []responsemodels.OrderItems
+		database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? AND orders.id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID, order.ID).Scan(&responseOrder)
+		database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, order.AddressID).Scan(&address)
+		responseOrder.Address = address
+		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
+		c.JSON(http.StatusOK, gin.H{"message": "Payment verified successfully", "order": responseOrder, "order_items": responseOrderItems, "status": "success"})
+		return
+	}
+
 	var cart models.Cart
 	if err := database.DB.Where("user_id = ?", userID).First(&cart).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  false,
-			"message": "cart empty, order can't be placed",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "cart empty, order can't be placed"})
 		return
 	}
 
 	var cartItems []models.CartItem
 	if err := database.DB.Where("cart_id = ?", cart.ID).Find(&cartItems).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  false,
-			"message": "failed to load cart items",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to load cart items"})
 		return
 	}
 	if len(cartItems) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  false,
-			"message": "cart empty, order can't be placed",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "cart empty, order can't be placed"})
 		return
 	}
 
@@ -103,42 +205,31 @@ func Order(c *gin.Context) {
 		totalAmount += item.UnitPrice * float64(item.Quantity)
 		totalQuantity += item.Quantity
 	}
-
 	if totalQuantity == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  false,
-			"message": "cart empty, order can't be placed",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "cart empty, order can't be placed"})
 		return
 	}
 
-	if OrderAdd.PaymentMethod == "COD" && totalAmount > 100000 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "orders above Rs.1000 cannot be done through cash on delivery",
-		})
+	if payload.PaymentMethod == "COD" && totalAmount > 100000 {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "orders above Rs.1000 cannot be done through cash on delivery"})
 		return
 	}
 
 	couponDiscountAmount := 0.0
 	var couponID *uint
-	if OrderAdd.CouponCode != "" {
+	if payload.CouponCode != "" {
 		var coupon models.Coupon
-		if err := database.DB.Where("code = ? AND is_active = true AND start_at <= ? AND end_at >= ?", OrderAdd.CouponCode, time.Now(), time.Now()).First(&coupon).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "such coupon does not exists or is not active",
-			})
+		if err := database.DB.Where("code = ? AND is_active = true AND start_at <= ? AND end_at >= ?", payload.CouponCode, time.Now(), time.Now()).First(&coupon).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "such coupon does not exists or is not active"})
 			return
 		}
 		if totalAmount < coupon.MinPurchase {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "A minimum purchase amount is required to apply this coupon",
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"message": "A minimum purchase amount is required to apply this coupon"})
 			return
 		}
 		couponDiscountAmount = coupon.Discount
 		couponID = &coupon.ID
 	}
-
 	if couponID != nil {
 		if err := database.DB.Model(&models.Coupon{}).Where("id = ?", *couponID).Pluck("discount", &couponDiscountAmount).Error; err != nil {
 			couponDiscountAmount = 0
@@ -150,20 +241,10 @@ func Order(c *gin.Context) {
 		if item.Quantity == 0 {
 			continue
 		}
-		var product models.Product
-		if err := database.DB.First(&product, item.ProductID).Error; err != nil {
-			continue
-		}
-
 		var activeOffer models.Offer
 		if err := database.DB.Where("product_id = ? AND start_at <= ? AND end_at >= ?", item.ProductID, time.Now(), time.Now()).Order("created_at DESC").First(&activeOffer).Error; err == nil {
 			offerDiscountAmount += (item.UnitPrice * float64(item.Quantity)) * (activeOffer.DiscountPercentage / 100)
 		}
-	}
-
-	paymentMethod := OrderAdd.PaymentMethod
-	if paymentMethod == "" {
-		paymentMethod = "COD"
 	}
 
 	finalAmount := totalAmount - offerDiscountAmount - couponDiscountAmount
@@ -171,24 +252,56 @@ func Order(c *gin.Context) {
 		finalAmount = 0
 	}
 
+	orderStatus := "pending"
+	deliveryStatus := "pending"
+	paymentStatus := "pending"
+	paymentType := payload.PaymentMethod
+	if payload.PaymentMethod == "Wallet" {
+		var wallet models.Wallet
+		if err := database.DB.Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "wallet is not initialized for this user"})
+			return
+		}
+		if wallet.Balance < finalAmount {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "order can't be placed because not enough money in wallet"})
+			return
+		}
+		if err := database.DB.Model(&wallet).Update("balance", wallet.Balance-finalAmount).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to deduct wallet balance"})
+			return
+		}
+		paymentStatus = "paid"
+		orderStatus = "completed"
+	}
+
+	var remoteOrderID string
+	var checkoutAmountInPaise int
+	if payload.PaymentMethod == "RazorPay" {
+		var err error
+		remoteOrderID, checkoutAmountInPaise, err = createRazorpayRemoteOrder(finalAmount)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Razorpay order"})
+			return
+		}
+	}
+
 	order := models.Order{
 		UserID:              userID,
-		AddressID:           OrderAdd.AddressID,
+		AddressID:           payload.AddressID,
 		TotalAmount:         totalAmount,
-		PaymentMethod:       paymentMethod,
-		OrderStatus:         "pending",
+		PaymentMethod:       paymentType,
+		RazorpayOrderID:     remoteOrderID,
+		DeliveryStatus:      deliveryStatus,
+		OrderStatus:         orderStatus,
 		CouponID:            couponID,
-		CouponCode:          OrderAdd.CouponCode,
+		CouponCode:          payload.CouponCode,
 		OfferDiscount:       offerDiscountAmount,
 		CouponDiscount:      couponDiscountAmount,
 		TotalDiscountAmount: offerDiscountAmount + couponDiscountAmount,
 		FinalAmount:         finalAmount,
 	}
 	if err := database.DB.Create(&order).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  false,
-			"message": "failed to create order",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to create order"})
 		return
 	}
 
@@ -196,7 +309,6 @@ func Order(c *gin.Context) {
 		if item.Quantity == 0 {
 			continue
 		}
-
 		unitPrice := item.UnitPrice
 		if unitPrice == 0 {
 			var product models.Product
@@ -204,59 +316,68 @@ func Order(c *gin.Context) {
 				unitPrice = product.Price
 			}
 		}
-
 		itemOfferDiscount := 0.0
-		var activeOffer models.Offer
-		if err := database.DB.Where("product_id = ? AND start_at <= ? AND end_at >= ?", item.ProductID, time.Now(), time.Now()).Order("created_at DESC").First(&activeOffer).Error; err == nil {
+		var activeOffer *models.Offer
+		if offer, ok := helper.GetActiveOfferForProduct(database.DB, item.ProductID); ok {
+			activeOffer = offer
 			itemOfferDiscount = (unitPrice * float64(item.Quantity)) * (activeOffer.DiscountPercentage / 100)
 		}
-
 		itemCouponDiscount := 0.0
 		if couponDiscountAmount > 0 && totalAmount > 0 {
 			itemCouponDiscount = (unitPrice * float64(item.Quantity) / totalAmount) * couponDiscountAmount
 		}
-
-		fmt.Println("quantit", item.Quantity)
-
 		lineTotalAmount := unitPrice * float64(item.Quantity)
 		paidAmount := lineTotalAmount - itemOfferDiscount - itemCouponDiscount
+		var offerID *uint
+		if activeOffer != nil {
+			offerID = &activeOffer.ID
+		}
 		orderItem := models.OrderItems{
 			OrderID:        order.ID,
 			ProductID:      item.ProductID,
+			OfferID:        offerID,
 			Quantity:       item.Quantity,
 			UnitPrice:      unitPrice,
 			TotalAmount:    lineTotalAmount,
 			OrderStatus:    "pending",
-			PaymentMethod:  paymentMethod,
+			PaymentMethod:  paymentType,
 			CouponDiscount: itemCouponDiscount,
 			OfferDiscount:  itemOfferDiscount,
 			TotalDiscount:  itemOfferDiscount + itemCouponDiscount,
 			PaidAmount:     paidAmount,
 		}
-		if err := database.DB.Create(&orderItem).Error; err != nil {
-			continue
-		}
+		database.DB.Create(&orderItem)
 	}
 
 	payment := models.Payments{
 		UserID:        userID,
 		OrderID:       order.ID,
 		TotalAmount:   finalAmount,
-		PaymentType:   paymentMethod,
-		PaymentStatus: "pending",
+		PaymentType:   paymentType,
+		PaymentStatus: paymentStatus,
+		PaymentDate:   time.Now().Format("2006-01-02"),
 	}
 	if err := database.DB.Create(&payment).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  false,
-			"message": "failed to create payment record",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to create payment record"})
 		return
 	}
 
-	if err := database.DB.Where("cart_id = ?", cart.ID).Delete(&models.CartItem{}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  false,
-			"message": "failed to clear cart after placing order",
+	if payload.PaymentMethod != "RazorPay" {
+		if err := database.DB.Where("cart_id = ?", cart.ID).Delete(&models.CartItem{}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to clear cart after placing order"})
+			return
+		}
+	}
+
+	if payload.PaymentMethod == "RazorPay" {
+		c.JSON(http.StatusOK, gin.H{
+			"status":       "success",
+			"message":      "Razorpay order created successfully",
+			"amount":       checkoutAmountInPaise,
+			"currency":     "INR",
+			"order_id":     remoteOrderID,
+			"receipt":      "receipt_" + remoteOrderID,
+			"checkout_url": "/payment-option",
 		})
 		return
 	}
@@ -264,22 +385,11 @@ func Order(c *gin.Context) {
 	var responseOrder responsemodels.Order
 	var address responsemodels.Address
 	var responseOrderItems []responsemodels.OrderItems
-
-	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID).Scan(&responseOrder)
-
-	var latestOrderID uint
-	database.DB.Raw(`SELECT id FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, userID).Scan(&latestOrderID)
-	var latestAddressID uint
-	database.DB.Raw(`SELECT address_id FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, userID).Scan(&latestAddressID)
-	database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, latestAddressID).Scan(&address)
+	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? AND orders.id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID, order.ID).Scan(&responseOrder)
+	database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, order.AddressID).Scan(&address)
 	responseOrder.Address = address
-	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, latestOrderID).Scan(&responseOrderItems)
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":     "Order added successfully",
-		"order":       responseOrder,
-		"order_items": responseOrderItems,
-	})
+	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
+	c.JSON(http.StatusOK, gin.H{"message": "Order added successfully", "order": responseOrder, "order_items": responseOrderItems})
 }
 
 func OrderList(c *gin.Context) {
@@ -302,7 +412,7 @@ func OrderList(c *gin.Context) {
 	var orders []responsemodels.Order
 	var address responsemodels.Address
 
-	sql := `SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.coupon_id,orders.order_status,orders.final_amount,orders.payment_method,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.city,addresses.pin_code,addresses.phone,addresses.default
+	sql := `SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.coupon_id,orders.order_status,orders.delivery_status,orders.final_amount,orders.payment_method,COALESCE((SELECT payments.payment_status FROM payments WHERE payments.order_id = orders.id ORDER BY payments.created_at DESC LIMIT 1), 'pending') AS payment_status,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.city,addresses.pin_code,addresses.phone,addresses.default
 	FROM orders
 	JOIN addresses ON orders.address_id = addresses.id where orders.user_id = ?`
 	switch listorder {
@@ -363,7 +473,7 @@ func OrderItemsList(c *gin.Context) {
 	}
 	var orderitems []responsemodels.OrderItems
 
-	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
+	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.delivery_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
 
 	switch listorder {
 	case "":
@@ -513,7 +623,7 @@ func CancelSingleOrderItem(c *gin.Context) {
 
 	//plucking orderstatus
 	var orderstatus string
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_status", &orderstatus)
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("delivery_status", &orderstatus)
 
 	if orderstatus == "cancelled" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -521,7 +631,7 @@ func CancelSingleOrderItem(c *gin.Context) {
 		})
 		return
 	}
-	if orderstatus == "return" {
+	if orderstatus == "returned" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "cannot cancel the order item, item is already returned",
 		})
@@ -558,7 +668,7 @@ func CancelSingleOrderItem(c *gin.Context) {
 		itemPaidAmount = (unitPrice - offerdiscount)
 	}
 	var remainingStatuses []string
-	database.DB.Raw(`SELECT order_status FROM order_items WHERE order_id = ? AND id != ?`, orderid, ItemID).Scan(&remainingStatuses)
+	database.DB.Raw(`SELECT delivery_status FROM order_items WHERE order_id = ? AND id != ?`, orderid, ItemID).Scan(&remainingStatuses)
 	finalizeOrderCancellation := shouldCancelEntireOrder(remainingStatuses)
 	var paymentmethod string
 	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("payment_method", &paymentmethod)
@@ -568,7 +678,10 @@ func CancelSingleOrderItem(c *gin.Context) {
 		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("final_amount", finalamount-itemPaidAmount)
 	}
 
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Update("order_status", "cancelled")
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Updates(map[string]interface{}{
+		"order_status":    "cancelled",
+		"delivery_status": "cancelled",
+	})
 	if finalizeOrderCancellation {
 		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Updates(map[string]interface{}{
 			"order_status":          "cancelled",
@@ -643,7 +756,7 @@ func ReturnSingleOrderItem(c *gin.Context) {
 		return
 	}
 	var orderstatus string
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_status", &orderstatus)
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("delivery_status", &orderstatus)
 
 	if orderstatus == "delivered" {
 
@@ -680,7 +793,7 @@ func ReturnSingleOrderItem(c *gin.Context) {
 		database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Update("balance", balance)
 		//database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Update("paid_amount", 0.00)
 		var count1 int
-		database.DB.Raw(`SELECT COUNT(*) FROM order_items WHERE order_id = ? AND order_status != 'cancelled' AND order_status != 'return'`, orderid).Scan(&count1)
+		database.DB.Raw(`SELECT COUNT(*) FROM order_items WHERE order_id = ? AND delivery_status != 'cancelled' AND delivery_status != 'returned'`, orderid).Scan(&count1)
 
 		if count1 == 0 {
 			database.DB.Model(&models.Order{}).Where("id = ?", orderid).Updates(map[string]interface{}{
@@ -692,7 +805,10 @@ func ReturnSingleOrderItem(c *gin.Context) {
 				"coupon_code":           "",
 			})
 		}
-		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Update("order_status", "return")
+		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Updates(map[string]interface{}{
+			"order_status":    "completed",
+			"delivery_status": "returned",
+		})
 		transaction := models.WalletTransaction{
 			UserID:          userID,
 			Amount:          paidamount,

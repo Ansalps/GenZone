@@ -185,7 +185,7 @@ func WalletOrder(c *gin.Context) {
 		return
 	}
 	var count1 int64
-	database.DB.Raw(`SELECT COUNT(*) FROM addresses where id = ? AND user_id = ? AND deleted_at IS NULL`, OrderAdd.AddressID, userID).Scan(&count1)
+	database.DB.Raw(`SELECT COUNT(*) FROM addresses where id = ? AND user_id = ?`, OrderAdd.AddressID, userID).Scan(&count1)
 	if count1 == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "address_id does not exist for this particular user",
@@ -223,7 +223,7 @@ func WalletOrder(c *gin.Context) {
 	if OrderAdd.CouponCode != "" {
 
 		var count2 int64
-		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ? AND deleted_at IS NULL`, OrderAdd.CouponCode).Scan(&count2)
+		database.DB.Raw(`SELECT COUNT(*) FROM coupons where code = ?`, OrderAdd.CouponCode).Scan(&count2)
 		if count2 == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"message": "such coupon does not exists",
@@ -306,10 +306,12 @@ func WalletOrder(c *gin.Context) {
 			database.DB.Model(&models.CartItem{}).Where("product_id = ?", v.ProductID).Pluck("unit_price", &price)
 
 			var offerdiscount float64
-			var coupondiscount float64
-			if discountPercentage, hasOffer := helper.GetActiveOfferDiscount(database.DB, v.ProductID); hasOffer {
-				offerdiscount = price * discountPercentage / 100
+			var activeOffer *models.Offer
+			if offer, hasOffer := helper.GetActiveOfferForProduct(database.DB, v.ProductID); hasOffer {
+				activeOffer = offer
+				offerdiscount = price * activeOffer.DiscountPercentage / 100
 			}
+			var coupondiscount float64
 			var totalamount float64
 			database.DB.Model(&models.Order{}).Where("id = ?", ID).Pluck("total_amount", &totalamount)
 			coupondiscount = (price / totalamount1) * discountamount
@@ -317,9 +319,14 @@ func WalletOrder(c *gin.Context) {
 			totaldiscount := offerdiscount + coupondiscount
 			paidamount := price - totaldiscount
 			lineTotalAmount := price * float64(v.Quantity)
+			var offerID *uint
+			if activeOffer != nil {
+				offerID = &activeOffer.ID
+			}
 			orderItem := models.OrderItems{
 				OrderID:        ID,
 				ProductID:      v.ProductID,
+				OfferID:        offerID,
 				Quantity:       v.Quantity,
 				UnitPrice:      price,
 				TotalAmount:    lineTotalAmount,
@@ -354,7 +361,7 @@ func WalletOrder(c *gin.Context) {
 	var order1 responsemodels.Order
 	var address responsemodels.Address
 	var orderitems1 []responsemodels.OrderItems
-	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.deleted_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_discount AS offer_applied,orders.payment_method,orders.order_status,orders.coupon_code,orders.coupon_discount AS discount_amount,orders.final_amount FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
+	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.offer_discount AS offer_applied,orders.payment_method,orders.order_status,orders.coupon_code,orders.coupon_discount AS discount_amount,orders.final_amount FROM orders join addresses on orders.address_id=addresses.id WHERE orders.user_id = ? ORDER BY orders.created_at desc LIMIT 1`, userID).Scan(&order1)
 
 	var orderid uint
 	database.DB.Raw(`SELECT id FROM orders WHERE user_id = ? ORDER BY created_at desc limit 1`, userID).Scan(&orderid)
@@ -364,7 +371,7 @@ func WalletOrder(c *gin.Context) {
 
 	database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, addressid).Scan(&address)
 	order1.Address = address
-	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.deleted_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)
+	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, orderid).Scan(&orderitems1)
 	c.JSON(http.StatusOK, gin.H{"message": "Order added successfully",
 		"order":       order1,
 		"order_items": orderitems1})

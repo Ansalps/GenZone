@@ -92,7 +92,7 @@ func GenerateInvoice(c *gin.Context) {
 	// var OrderStatus string
 	// database.DB
 	var orderitems []models.OrderItems
-	database.DB.Raw(`SELECT * FROM order_items WHERE order_status!='return' AND order_status!='cancelled' AND order_id = ? order by product_id`, OrderID).Scan(&orderitems)
+	database.DB.Raw(`SELECT * FROM order_items WHERE order_status!='returned' AND order_status!='cancelled' AND order_id = ? order by product_id`, OrderID).Scan(&orderitems)
 
 	var productid uint
 	fmt.Println("highest=====")

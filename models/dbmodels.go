@@ -2,14 +2,14 @@ package models
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type Admin struct {
-	gorm.Model
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	ID        uint `gorm:"primarykey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Email     string `json:"email"`
+	Password  string `json:"password"`
 }
 
 type TempUser struct {
@@ -31,7 +31,9 @@ type UserLoginMethod struct {
 }
 
 type Address struct {
-	gorm.Model
+	ID         uint `gorm:"primarykey"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 	UserID     uint   `validate:"required"`
 	User       User   `gorm:"foriegnkey:UserID;references:ID"`
 	Country    string `validate:"required"`
@@ -43,13 +45,10 @@ type Address struct {
 	Default    bool   `gorm:"default:false" validate:"required"`
 }
 
-type TempAddress struct {
-	AddressID  uint   `json:"address_id" validate:"required"`
-	CouponCode string `json:"coupon_code"`
-}
-
 type User struct {
-	gorm.Model
+	ID             uint `gorm:"primarykey"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 	FirstName      string `validate:"required"`
 	LastName       string `validate:"required"`
 	Email          string `gorm:"unique" validate:"required"`
@@ -164,7 +163,9 @@ type Order struct {
 	Address             Address `gorm:"foriegnkey:AddressID;references:ID"`
 	TotalAmount         float64
 	PaymentMethod       string  `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_method" validate:"required"`
-	OrderStatus         string  `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed"`
+	RazorpayOrderID     string  `gorm:"type:varchar(100);default:null" json:"razorpay_order_id,omitempty"`
+	DeliveryStatus      string  `gorm:"type:varchar(20);check:delivery_status IN ('pending','shipped','delivered','cancelled','failed','returned');default:'pending'" json:"delivery_status" validate:"required,oneof=pending shipped delivered cancelled failed returned"`
+	OrderStatus         string  `gorm:"type:varchar(20);check:order_status IN ('pending','completed','cancelled');default:'pending'" json:"order_status" validate:"required,oneof=pending completed cancelled"`
 	CouponID            *uint   `gorm:"default:null" json:"coupon_id,omitempty"`
 	CouponCode          string  `gorm:"type:varchar(100);default:''" json:"coupon_code"`
 	Coupon              *Coupon `gorm:"foreignKey:CouponID;references:ID" json:"coupon,omitempty"`
@@ -175,15 +176,19 @@ type Order struct {
 }
 
 type OrderItems struct {
-	gorm.Model
+	ID             uint `gorm:"primarykey"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 	OrderID        uint    `validate:"required"`
 	Order          Order   `gorm:"foriegnkey:OrderID;references:ID"`
 	ProductID      uint    `validate:"required,numeric"`
 	Product        Product `gorm:"foriegnkey:ProductID;references:ID"`
+	OfferID        *uint   `gorm:"default:null" json:"offer_id,omitempty"`
 	Quantity       uint    `gorm:"not null;default:1" json:"quantity"`
 	UnitPrice      float64 `gorm:"column:unit_price;default:0.00" json:"unit_price"`
 	TotalAmount    float64 `gorm:"column:total_amount;default:0.00" json:"total_amount"`
-	OrderStatus    string  `gorm:"type:varchar(10);check:order_status IN ('pending','shipped', 'delivered', 'cancelled','failed','return');default:'pending'" json:"order_status" validate:"required,oneof=pending delivered shipped cancelled failed return"`
+	DeliveryStatus string  `gorm:"type:varchar(20);check:delivery_status IN ('pending','shipped','delivered','cancelled','failed','returned');default:'pending'" json:"delivery_status" validate:"required,oneof=pending shipped delivered cancelled failed returned"`
+	OrderStatus    string  `gorm:"type:varchar(20);check:order_status IN ('pending','completed','cancelled');default:'pending'" json:"order_status" validate:"required,oneof=pending completed cancelled"`
 	PaymentMethod  string  `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay','Wallet')) ;default:'COD'" json:"payment_method" validate:"required"`
 	CouponDiscount float64 `gorm:"default:0.00"`
 	OfferDiscount  float64 `gorm:"default:0.00"`
@@ -207,7 +212,9 @@ type SalesReportItem struct {
 	DeliveredDate  string
 }
 type Payments struct {
-	gorm.Model
+	ID            uint `gorm:"primarykey"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 	UserID        uint `validate:"required"`
 	OrderID       uint `validate:"required"`
 	OrderItemID   uint
@@ -215,18 +222,22 @@ type Payments struct {
 	TransactionID string
 	PaymentDate   string
 	PaymentType   string `gorm:"type:varchar(10); check(status IN ('COD', 'RazorPay')) ;default:'COD'" json:"payment_type" validate:"required"`
-	PaymentStatus string `gorm:"type:varchar(10); check(status IN ('pending', 'paid', 'refund')) ;default:'pending'" json:"payment_status" validate:"required"`
+	PaymentStatus string `gorm:"type:varchar(20); check(payment_status IN ('pending', 'paid', 'failed', 'refunded', 'expired')) ;default:'pending'" json:"payment_status" validate:"required"`
 	Description   string
 }
 
 type Wallet struct {
-	gorm.Model
-	UserID  uint    `gorm:"not null"`
-	Balance float64 `gorm:"type:decimal(10,2);default:0.00"`
+	ID        uint `gorm:"primarykey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	UserID    uint    `gorm:"not null"`
+	Balance   float64 `gorm:"type:decimal(10,2);default:0.00"`
 }
 
 type Wishlist struct {
-	gorm.Model
+	ID          uint `gorm:"primarykey"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 	UserID      uint `gorm:"not null"`
 	ProductID   uint `gorm:"not null"`
 	ProductName string
@@ -245,7 +256,9 @@ type Coupon struct {
 }
 
 type WalletTransaction struct {
-	gorm.Model
+	ID              uint `gorm:"primarykey"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 	UserID          uint    `gorm:"not null"`
 	Amount          float64 `gorm:"not null"`
 	TransactionType string  `gorm:"size:50;not null"`

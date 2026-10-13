@@ -22,13 +22,12 @@ func Initialize() {
 	}
 	// Reads your string variable
 	dsn := os.Getenv("DATABASE_URL")
-	
+
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		fmt.Println("connection failed due to ", err)
 	}
 
-	
 }
 
 func AutoSeed() error {
@@ -49,7 +48,6 @@ func AutoMigrate() {
 	DB.AutoMigrate(&models.Order{})
 	DB.AutoMigrate(&models.OrderItems{})
 	DB.AutoMigrate(&models.Payments{})
-	DB.AutoMigrate(&models.TempAddress{})
 	DB.AutoMigrate(&models.Wallet{})
 	DB.AutoMigrate(&models.Wishlist{})
 	DB.AutoMigrate(&models.Coupon{})
@@ -57,5 +55,5 @@ func AutoMigrate() {
 	DB.AutoMigrate(&models.SalesReportItem{})
 	DB.AutoMigrate(&models.WalletTransaction{})
 	DB.AutoMigrate(&models.Invoice{})
-	
+
 }

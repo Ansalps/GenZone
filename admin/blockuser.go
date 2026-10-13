@@ -13,7 +13,7 @@ import (
 
 func BlockUser(c *gin.Context) {
 	//blockID := c.Param("id")
-	
+
 	var blockuser requestmodels.BlockUser
 	err := c.BindJSON(&blockuser)
 	if err != nil {
@@ -32,7 +32,7 @@ func BlockUser(c *gin.Context) {
 		return
 	}
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM users WHERE id = ? AND deleted_at IS NULL`, blockuser.UserID).Scan(&count)
+	database.DB.Raw(`SELECT COUNT(*) FROM users WHERE id = ?`, blockuser.UserID).Scan(&count)
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "user does not exist",

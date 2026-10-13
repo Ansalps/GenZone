@@ -21,7 +21,7 @@ function PaymentOptionContent() {
   const searchParams = useSearchParams();
   const addressId = Number(searchParams.get('address_id') ?? '0');
   const couponCode = searchParams.get('coupon_code') ?? '';
-  const [selectedMethod, setSelectedMethod] = useState<'cod' | 'internet-banking'>('cod');
+  const [selectedMethod, setSelectedMethod] = useState<'cod' | 'wallet' | 'internet-banking'>('cod');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [cartTotal, setCartTotal] = useState(0);
@@ -29,6 +29,8 @@ function PaymentOptionContent() {
   const [loadingAmount, setLoadingAmount] = useState(true);
 
   const isCod = selectedMethod === 'cod';
+  const isWallet = selectedMethod === 'wallet';
+  const isRazorpay = selectedMethod === 'internet-banking';
   const amountDue = Math.max(cartTotal - couponDiscount, 0);
 
   useEffect(() => {
@@ -72,11 +74,11 @@ function PaymentOptionContent() {
     setError('');
 
     try {
-      if (isCod) {
+      if (isCod || isWallet) {
         const payload = {
           address_id: addressId,
           coupon_code: couponCode,
-          payment_method: 'COD',
+          payment_method: isCod ? 'COD' : 'Wallet',
         };
 
         await axios.post(`${API}/checkout/order`, payload, { withCredentials: true });
@@ -95,10 +97,11 @@ function PaymentOptionContent() {
       });
 
       const response = await axios.post(
-        `${API}/checkout/razorpay`,
+        `${API}/checkout/order`,
         {
           address_id: addressId,
           coupon_code: couponCode,
+          payment_method: 'RazorPay',
         },
         { withCredentials: true },
       );
@@ -122,11 +125,15 @@ function PaymentOptionContent() {
         handler: async function (paymentResponse: any) {
           try {
             await axios.post(
-              `${API}/checkout/razorpay/paymentverification`,
+              `${API}/checkout/order`,
               {
                 order_id: paymentResponse.razorpay_order_id,
+                razorpay_order_id: paymentResponse.razorpay_order_id,
                 payment_id: paymentResponse.razorpay_payment_id,
                 signature: paymentResponse.razorpay_signature,
+                address_id: addressId,
+                coupon_code: couponCode,
+                payment_method: 'RazorPay',
               },
               { withCredentials: true },
             );
@@ -152,7 +159,7 @@ function PaymentOptionContent() {
       console.error('Failed to process payment', err);
       setError(err.response?.data?.message || err.message || 'Unable to place order right now. Please try again.');
     } finally {
-      if (!isCod) {
+      if (isRazorpay) {
         setIsSubmitting(false);
       }
     }
@@ -210,9 +217,33 @@ function PaymentOptionContent() {
 
           <button
             type="button"
+            onClick={() => setSelectedMethod('wallet')}
+            className={`w-full rounded-2xl border p-5 text-left transition ${
+              isWallet
+                ? 'border-amber-400/60 bg-amber-500/10 shadow-lg shadow-amber-500/10'
+                : 'border-white/10 bg-slate-950/60 hover:border-amber-400/40'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-lg font-semibold text-white">Wallet</p>
+                <p className="mt-1 text-sm text-slate-400">Pay using your saved wallet balance.</p>
+              </div>
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                  isWallet ? 'border-amber-400 bg-amber-400' : 'border-slate-500 bg-transparent'
+                }`}
+              >
+                {isWallet && <span className="h-2.5 w-2.5 rounded-full bg-slate-950" />}
+              </span>
+            </div>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setSelectedMethod('internet-banking')}
             className={`w-full rounded-2xl border p-5 text-left transition ${
-              !isCod
+              isRazorpay
                 ? 'border-violet-400/60 bg-violet-500/10 shadow-lg shadow-violet-500/10'
                 : 'border-white/10 bg-slate-950/60 hover:border-violet-400/40'
             }`}
@@ -224,10 +255,10 @@ function PaymentOptionContent() {
               </div>
               <span
                 className={`flex h-5 w-5 items-center justify-center rounded-full border ${
-                  !isCod ? 'border-violet-400 bg-violet-400' : 'border-slate-500 bg-transparent'
+                  isRazorpay ? 'border-violet-400 bg-violet-400' : 'border-slate-500 bg-transparent'
                 }`}
               >
-                {!isCod && <span className="h-2.5 w-2.5 rounded-full bg-slate-950" />}
+                {isRazorpay && <span className="h-2.5 w-2.5 rounded-full bg-slate-950" />}
               </span>
             </div>
           </button>
@@ -254,10 +285,12 @@ function PaymentOptionContent() {
             className={`inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60 ${
               isCod
                 ? 'bg-gradient-to-r from-cyan-500 to-sky-500 hover:brightness-110'
-                : 'bg-gradient-to-r from-violet-500 to-purple-500 hover:brightness-110'
+                : isWallet
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110'
+                  : 'bg-gradient-to-r from-violet-500 to-purple-500 hover:brightness-110'
             }`}
           >
-            {isSubmitting ? 'Processing...' : isCod ? 'Place Order' : 'Buy Now'}
+            {isSubmitting ? 'Processing...' : isCod ? 'Place Order' : isWallet ? 'Pay with Wallet' : 'Buy Now'}
           </button>
         </div>
       </div>
