@@ -8,26 +8,34 @@ import (
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
 
 func Initialize() {
-
-	// Load the .env file
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+	// Load the .env file if present; some local/test environments do not have one.
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found; continuing with environment variables or local sqlite fallback")
 	}
-	// Reads your string variable
-	dsn := os.Getenv("DATABASE_URL")
 
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		log.Println("DATABASE_URL not set; using local sqlite database for development/testing")
+		var err error
+		DB, err = gorm.Open(sqlite.Open("genzone.db"), &gorm.Config{})
+		if err != nil {
+			fmt.Println("sqlite fallback connection failed due to ", err)
+		}
+		return
+	}
+
+	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		fmt.Println("connection failed due to ", err)
 	}
-
 }
 
 func AutoSeed() error {

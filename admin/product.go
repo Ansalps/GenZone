@@ -761,10 +761,13 @@ func EditProduct(c *gin.Context) {
 }
 
 func ProductDelete(c *gin.Context) {
-	ProductID := c.Param("id")
+	productID := c.Param("id")
 
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM products WHERE id = ?`, ProductID).Scan(&count)
+	if err := database.DB.Model(&models.Product{}).Where("id = ?", productID).Count(&count).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to verify product before deletion"})
+		return
+	}
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "product id does not exist",
@@ -772,7 +775,48 @@ func ProductDelete(c *gin.Context) {
 		return
 	}
 
-	database.DB.Where("product_id = ?", ProductID).Delete(&models.ProductVariant{})
-	database.DB.Where("id = ?", ProductID).Delete(&models.Product{})
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to begin product deletion transaction"})
+		return
+	}
+
+	if err := tx.Where("product_id = ?", productID).Delete(&models.Offer{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product offers"})
+		return
+	}
+	if err := tx.Where("product_id = ?", productID).Delete(&models.ProductVariant{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product variants"})
+		return
+	}
+	if err := tx.Where("product_id = ?", productID).Delete(&models.Wishlist{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product wishlist entries"})
+		return
+	}
+	if tx.Migrator().HasTable(&models.OrderItems{}) {
+		if err := tx.Where("product_id = ?", productID).Delete(&models.OrderItems{}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product order entries"})
+			return
+		}
+	}
+	if err := tx.Where("product_id = ?", productID).Delete(&models.CartItem{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product cart entries"})
+		return
+	}
+	if err := tx.Where("id = ?", productID).Delete(&models.Product{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product"})
+		return
+	}
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to commit product deletion"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "product deleted successfully"})
 }

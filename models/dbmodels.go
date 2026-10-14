@@ -102,7 +102,7 @@ type ProductVariant struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	ProductID uint    `gorm:"not null;index;uniqueIndex:idx_product_size" json:"product_id"`
+	ProductID uint    `gorm:"not null;index;uniqueIndex:idx_product_size;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"product_id"`
 	Product   Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
 
 	Size  string `gorm:"type:varchar(10);not null;uniqueIndex:idx_product_size" json:"size" validate:"required"`
@@ -113,7 +113,7 @@ type Offer struct {
 	ID                 uint `gorm:"primarykey"`
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
-	ProductID          uint    `gorm:"not null"`
+	ProductID          uint    `gorm:"not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	DiscountPercentage float64 `gorm:"not null"`
 	StartAt            time.Time
 	EndAt              time.Time
@@ -147,7 +147,9 @@ type CartItem struct {
 	ProductID uint    `gorm:"not null;index;uniqueIndex:idx_cart_product_size;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"product_id"`
 	Product   Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
 
-	Size string `gorm:"type:varchar(32);not null;uniqueIndex:idx_cart_product_size" json:"size" validate:"required"`
+	ProductVariantID uint           `gorm:"index;constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"product_variant_id"`
+	ProductVariant   ProductVariant `gorm:"foreignKey:ProductVariantID;references:ID" json:"product_variant,omitempty"`
+	Size             string         `gorm:"type:varchar(32);not null;uniqueIndex:idx_cart_product_size" json:"size" validate:"required"`
 
 	Quantity  uint    `gorm:"not null;default:1" json:"quantity" validate:"required,gt=0"`
 	UnitPrice float64 `gorm:"type:decimal(10,2);not null" json:"unit_price" validate:"required,gt=0"`
@@ -176,25 +178,28 @@ type Order struct {
 }
 
 type OrderItems struct {
-	ID             uint `gorm:"primarykey"`
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	OrderID        uint    `validate:"required"`
-	Order          Order   `gorm:"foriegnkey:OrderID;references:ID"`
-	ProductID      uint    `validate:"required,numeric"`
-	Product        Product `gorm:"foriegnkey:ProductID;references:ID"`
-	OfferID        *uint   `gorm:"default:null" json:"offer_id,omitempty"`
-	Quantity       uint    `gorm:"not null;default:1" json:"quantity"`
-	UnitPrice      float64 `gorm:"column:unit_price;default:0.00" json:"unit_price"`
-	TotalAmount    float64 `gorm:"column:total_amount;default:0.00" json:"total_amount"`
-	DeliveryStatus string  `gorm:"type:varchar(20);check:delivery_status IN ('pending','shipped','delivered','cancelled','failed','returned');default:'pending'" json:"delivery_status" validate:"required,oneof=pending shipped delivered cancelled failed returned"`
-	OrderStatus    string  `gorm:"type:varchar(20);check:order_status IN ('pending','completed','cancelled');default:'pending'" json:"order_status" validate:"required,oneof=pending completed cancelled"`
-	PaymentMethod  string  `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay','Wallet')) ;default:'COD'" json:"payment_method" validate:"required"`
-	CouponDiscount float64 `gorm:"default:0.00"`
-	OfferDiscount  float64 `gorm:"default:0.00"`
-	TotalDiscount  float64 `gorm:"default:0.00"`
-	PaidAmount     float64 `gorm:"default:0.00"`
-	DeliveredDate  string
+	ID               uint `gorm:"primarykey"`
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	OrderID          uint           `validate:"required"`
+	Order            Order          `gorm:"foriegnkey:OrderID;references:ID"`
+	ProductID        uint           `gorm:"not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" validate:"required,numeric"`
+	Product          Product        `gorm:"foriegnkey:ProductID;references:ID"`
+	ProductVariantID uint           `gorm:"index;constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"product_variant_id"`
+	ProductVariant   ProductVariant `gorm:"foreignKey:ProductVariantID;references:ID" json:"product_variant,omitempty"`
+	Size             string         `gorm:"type:varchar(32);default:''" json:"size"`
+	OfferID          *uint          `gorm:"default:null" json:"offer_id,omitempty"`
+	Quantity         uint           `gorm:"not null;default:1" json:"quantity"`
+	UnitPrice        float64        `gorm:"column:unit_price;default:0.00" json:"unit_price"`
+	TotalAmount      float64        `gorm:"column:total_amount;default:0.00" json:"total_amount"`
+	DeliveryStatus   string         `gorm:"type:varchar(20);check:delivery_status IN ('pending','shipped','delivered','cancelled','failed','returned');default:'pending'" json:"delivery_status" validate:"required,oneof=pending shipped delivered cancelled failed returned"`
+	OrderStatus      string         `gorm:"type:varchar(20);check:order_status IN ('pending','completed','cancelled');default:'pending'" json:"order_status" validate:"required,oneof=pending completed cancelled"`
+	PaymentMethod    string         `gorm:"type:varchar(10); check(order_status IN ('COD', 'RazorPay','Wallet')) ;default:'COD'" json:"payment_method" validate:"required"`
+	CouponDiscount   float64        `gorm:"default:0.00"`
+	OfferDiscount    float64        `gorm:"default:0.00"`
+	TotalDiscount    float64        `gorm:"default:0.00"`
+	PaidAmount       float64        `gorm:"default:0.00"`
+	DeliveredDate    string
 }
 type SalesReportItem struct {
 	OrderID        uint
@@ -239,7 +244,7 @@ type Wishlist struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	UserID      uint `gorm:"not null"`
-	ProductID   uint `gorm:"not null"`
+	ProductID   uint `gorm:"not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	ProductName string
 }
 

@@ -67,12 +67,14 @@ func Login(c *gin.Context) {
 		return
 	}
 	// Set admin token as a dedicated cookie.
+	// Do not set a domain for local development; otherwise the browser may keep an old/stale cookie
+	// scoped differently from the one that is being verified.
 	c.SetCookie(
 		"jwt_admin_token",
 		token,
 		86400,
 		"/",
-		"localhost",
+		"",
 		false,
 		true,
 	)

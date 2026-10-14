@@ -17,9 +17,23 @@ func OrderList(c *gin.Context) {
 	listorder := c.Query("list_order")
 	var orders []responsemodels.Order
 	var address responsemodels.Address
-	sql := `SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount AS offer_applied,orders.coupon_code,orders.coupon_discount AS discount_amount,orders.final_amount,addresses.created_at,addresses.updated_at,addresses.user_id,addresses.country,addresses.state,addresses.street_name,addresses.district,addresses.pin_code,addresses.phone,addresses.default
+	sql := `SELECT orders.id,
+		orders.created_at,
+		orders.updated_at,
+		orders.user_id,
+		orders.address_id,
+		orders.total_amount,
+		orders.payment_method,
+		payments.payment_status AS payment_status,
+		orders.order_status,
+		orders.delivery_status,
+		orders.offer_discount,
+		orders.coupon_discount,
+		orders.coupon_code,
+		orders.total_discount_amount,
+		orders.final_amount
 	FROM orders
-	JOIN addresses ON orders.address_id = addresses.id`
+	JOIN payments ON orders.id = payments.order_id`
 
 	switch listorder {
 	case "":
@@ -57,7 +71,7 @@ func OrderItemsList(c *gin.Context) {
 	}
 	var orderitems []responsemodels.OrderItems
 
-	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
+	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
 	switch listorder {
 	case "":
 		sql += ` ORDER BY order_items.id DESC`

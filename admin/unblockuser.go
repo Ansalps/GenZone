@@ -17,6 +17,7 @@ func UnblockUser(c *gin.Context) {
 	var blockuser requestmodels.BlockUser
 	err := c.BindJSON(&blockuser)
 	if err != nil {
+		fmt.Println("error",err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "request failed to bind",
 		})

@@ -10,20 +10,7 @@ interface Props {
     onWishlistChange?: (productId: number, isWishlisted: boolean) => void
 }
 
-const WISHLIST_STORAGE_KEY = "genzone_wishlist"
-
-const getStoredWishlist = (): number[] => {
-    if (typeof window === "undefined") return []
-
-    try {
-        const raw = window.localStorage.getItem(WISHLIST_STORAGE_KEY)
-        const parsed = raw ? JSON.parse(raw) : []
-        return Array.isArray(parsed) ? parsed.filter((value) => typeof value === "number") : []
-    } catch (error) {
-        console.error("Failed to read wishlist", error)
-        return []
-    }
-}
+const API = "http://localhost:8080"
 
 export default function DashboardProductCard({ product, onAdded, onWishlistChange }: Props) {
     const inventory: ProductInventoryItem[] = product.inventory ?? []
@@ -57,19 +44,37 @@ export default function DashboardProductCard({ product, onAdded, onWishlistChang
     const maxCartTotal = 25
 
     useEffect(() => {
-        setIsWishlisted(getStoredWishlist().includes(product.id))
+        const loadWishlistStatus = async () => {
+            try {
+                const response = await axios.get(`${API}/wishlist`, { withCredentials: true })
+                const items = Array.isArray(response.data?.data) ? response.data.data : []
+                const saved = items.some((item: any) => Number(item.product_id) === Number(product.id))
+                setIsWishlisted(saved)
+            } catch (error) {
+                setIsWishlisted(false)
+            }
+        }
+
+        loadWishlistStatus()
     }, [product.id])
 
-    const toggleWishlist = () => {
-        if (typeof window === "undefined") return
+    const toggleWishlist = async () => {
+        try {
+            if (isWishlisted) {
+                await axios.delete(`${API}/wishlist`, {
+                    withCredentials: true,
+                    data: { product_id: product.id },
+                })
+            } else {
+                await axios.post(`${API}/wishlist`, { product_id: product.id }, { withCredentials: true })
+            }
 
-        const current = getStoredWishlist()
-        const alreadySaved = current.includes(product.id)
-        const next = alreadySaved ? current.filter((id) => id !== product.id) : [...current, product.id]
-
-        window.localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(next))
-        setIsWishlisted(!alreadySaved)
-        onWishlistChange?.(product.id, !alreadySaved)
+            const nextValue = !isWishlisted
+            setIsWishlisted(nextValue)
+            onWishlistChange?.(product.id, nextValue)
+        } catch (error) {
+            console.error('Wishlist update failed', error)
+        }
     }
 
     const validateAddToCart = async () => {

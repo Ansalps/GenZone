@@ -1,22 +1,20 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
+	"os"
 
+	"github.com/Ansalps/GeZOne/database"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 )
 
-// CustomClaims struct
-
-// Secret key
-var Secret = []byte("your-secret-key")
+func getJWTSecret() []byte {
+	return []byte(os.Getenv("JWT_SECRET"))
+}
 
 func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-
-		// Get the token from the cookie that matches the required role.
 		cookieName := "jwt_user_token"
 		if requiredRole == "admin" {
 			cookieName = "jwt_admin_token"
@@ -24,10 +22,10 @@ func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 
 		tokenString, err := c.Cookie(cookieName)
 		if err != nil {
-			// Backward compatibility for older single-cookie sessions.
+
 			tokenString, err = c.Cookie("jwt_token")
 			if err != nil {
-				fmt.Println("error", err)
+
 				c.JSON(http.StatusUnauthorized, gin.H{"message": "Please Log In"})
 				c.Abort()
 				return
@@ -35,9 +33,8 @@ func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 		}
 
 		claims := &CustomClaims{}
-		// Parse and validate the token
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return Secret, nil
+			return getJWTSecret(), nil
 		})
 
 		if err != nil || !token.Valid {
@@ -47,14 +44,34 @@ func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 		}
 
 		if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
+
 			if claims.Role != requiredRole {
+
 				c.JSON(http.StatusForbidden, gin.H{"message": "Insufficient privileges"})
 				c.Abort()
 				return
 			}
-			// Store claims in context for further use in handlers
+
+			if requiredRole == "user" {
+				var status string
+				err := database.DB.Table("users").Select("status").Where("id = ?", claims.ID).Scan(&status).Error
+
+				if err != nil {
+					c.JSON(http.StatusUnauthorized, gin.H{"error": "User account no longer exists"})
+					c.Abort()
+					return
+				}
+
+				if status == "Blocked" {
+					c.JSON(http.StatusForbidden, gin.H{"message": "Your account has been suspended by an administrator."})
+					c.Abort()
+					return
+				}
+			}
+
 			c.Set("claims", claims)
 		} else {
+
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
 			c.Abort()
 			return

@@ -85,9 +85,9 @@ func RegisterUrls(router *gin.Engine) {
 	router.PUT("profile", middleware.AuthMiddleware("user"), user.ProfileEdit)
 
 	//wishlist
-	router.GET("profile/wishlist", middleware.AuthMiddleware("user"), user.Wishlist)
-	router.POST("profile/wishlist", middleware.AuthMiddleware("user"), user.WishlistAdd)
-	router.DELETE("profile/wishlist", middleware.AuthMiddleware("user"), user.WishlistRemove)
+	router.GET("wishlist", middleware.AuthMiddleware("user"), user.Wishlist)
+	router.POST("wishlist", middleware.AuthMiddleware("user"), user.WishlistAdd)
+	router.DELETE("wishlist", middleware.AuthMiddleware("user"), user.WishlistRemove)
 
 	//change password
 	router.PUT("profile/changepassword", middleware.AuthMiddleware("user"), user.PasswordChange)

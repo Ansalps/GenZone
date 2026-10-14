@@ -61,6 +61,194 @@ func normalizeRetryPaymentMethod(paymentMethod string) string {
 	}
 }
 
+const paymentRetryWindow = time.Minute
+
+func isRetryWindowOpen(createdAt time.Time, now time.Time) bool {
+	if createdAt.IsZero() {
+		return false
+	}
+	return now.Sub(createdAt) <= paymentRetryWindow
+}
+
+func shouldExpirePayment(createdAt time.Time, now time.Time) bool {
+	if createdAt.IsZero() {
+		return false
+	}
+	return now.Sub(createdAt) > paymentRetryWindow
+}
+
+func reduceVariantStock(productID uint, quantity uint) error {
+	if quantity == 0 {
+		return nil
+	}
+	var variants []models.ProductVariant
+	if err := database.DB.Where("product_id = ?", productID).Order("id ASC").Find(&variants).Error; err != nil {
+		return err
+	}
+	if len(variants) == 0 {
+		return nil
+	}
+	remaining := int(quantity)
+	for i := range variants {
+		if remaining <= 0 {
+			break
+		}
+		if variants[i].Stock == 0 {
+			continue
+		}
+		reduceBy := int(variants[i].Stock)
+		if reduceBy > remaining {
+			reduceBy = remaining
+		}
+		newStock := variants[i].Stock - uint(reduceBy)
+		if err := database.DB.Model(&models.ProductVariant{}).Where("id = ?", variants[i].ID).Update("stock", newStock).Error; err != nil {
+			return err
+		}
+		remaining -= reduceBy
+	}
+	if remaining > 0 {
+		return fmt.Errorf("insufficient stock available for product %d", productID)
+	}
+	return nil
+}
+
+func reduceVariantStockByVariantID(productVariantID uint, quantity uint) error {
+	if quantity == 0 || productVariantID == 0 {
+		return nil
+	}
+	var variant models.ProductVariant
+	if err := database.DB.First(&variant, productVariantID).Error; err != nil {
+		return err
+	}
+	if variant.Stock < quantity {
+		return fmt.Errorf("insufficient stock available for product variant %d", productVariantID)
+	}
+	newStock := variant.Stock - quantity
+	return database.DB.Model(&models.ProductVariant{}).Where("id = ?", productVariantID).Update("stock", newStock).Error
+}
+
+func restoreVariantStock(productID uint, quantity uint) error {
+	if quantity == 0 {
+		return nil
+	}
+	var variants []models.ProductVariant
+	if err := database.DB.Where("product_id = ?", productID).Order("id ASC").Find(&variants).Error; err != nil {
+		return err
+	}
+	if len(variants) == 0 {
+		return nil
+	}
+
+	remaining := int(quantity)
+	for i := range variants {
+		if remaining <= 0 {
+			break
+		}
+		addToVariant := remaining
+		newStock := variants[i].Stock + uint(addToVariant)
+		if err := database.DB.Model(&models.ProductVariant{}).Where("id = ?", variants[i].ID).Update("stock", newStock).Error; err != nil {
+			return err
+		}
+		remaining = 0
+	}
+
+	if remaining > 0 {
+		return fmt.Errorf("unable to restore stock for product %d", productID)
+	}
+	return nil
+}
+
+func restoreVariantStockByVariantID(productVariantID uint, quantity uint) error {
+	if quantity == 0 || productVariantID == 0 {
+		return nil
+	}
+	var variant models.ProductVariant
+	if err := database.DB.First(&variant, productVariantID).Error; err != nil {
+		return err
+	}
+	newStock := variant.Stock + quantity
+	return database.DB.Model(&models.ProductVariant{}).Where("id = ?", productVariantID).Update("stock", newStock).Error
+}
+
+func reduceStockForOrder(orderID uint) error {
+	var orderItems []models.OrderItems
+	if err := database.DB.Where("order_id = ?", orderID).Find(&orderItems).Error; err != nil {
+		return err
+	}
+	for _, item := range orderItems {
+		if item.ProductVariantID != 0 {
+			if err := reduceVariantStockByVariantID(item.ProductVariantID, item.Quantity); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := reduceVariantStock(item.ProductID, item.Quantity); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func restoreStockForOrder(orderID uint) error {
+	var orderItems []models.OrderItems
+	if err := database.DB.Where("order_id = ?", orderID).Find(&orderItems).Error; err != nil {
+		return err
+	}
+	for _, item := range orderItems {
+		if item.ProductVariantID != 0 {
+			if err := restoreVariantStockByVariantID(item.ProductVariantID, item.Quantity); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := restoreVariantStock(item.ProductID, item.Quantity); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func expirePendingPaymentOrder(order models.Order) error {
+	if order.OrderStatus != "pending" || order.PaymentMethod != "RazorPay" {
+		return nil
+	}
+	if !shouldExpirePayment(order.CreatedAt, time.Now()) {
+		return nil
+	}
+	if err := database.DB.Model(&models.Order{}).Where("id = ?", order.ID).Updates(map[string]interface{}{
+		"order_status":    "cancelled",
+		"delivery_status": "cancelled",
+	}).Error; err != nil {
+		return err
+	}
+	if err := database.DB.Model(&models.OrderItems{}).Where("order_id = ?", order.ID).Updates(map[string]interface{}{
+		"order_status":    "cancelled",
+		"delivery_status": "cancelled",
+	}).Error; err != nil {
+		return err
+	}
+	if err := database.DB.Model(&models.Payments{}).Where("order_id = ?", order.ID).Order("created_at DESC").Limit(1).Updates(map[string]interface{}{
+		"payment_status": "expired",
+		"description":    "Payment expired after 1 minute retry window",
+	}).Error; err != nil {
+		return err
+	}
+	return restoreStockForOrder(order.ID)
+}
+
+func expirePendingOrdersForUser(userID uint) error {
+	var orders []models.Order
+	if err := database.DB.Where("user_id = ? AND order_status = ? AND payment_method = ?", userID, "pending", "RazorPay").Find(&orders).Error; err != nil {
+		return err
+	}
+	for _, order := range orders {
+		if err := expirePendingPaymentOrder(order); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func buildRetryOrderUpdates(paymentMethod string, remoteOrderID string) map[string]interface{} {
 	method := normalizeRetryPaymentMethod(paymentMethod)
 	updates := map[string]interface{}{
@@ -215,7 +403,7 @@ func Order(c *gin.Context) {
 		database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? AND orders.id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID, order.ID).Scan(&responseOrder)
 		database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, order.AddressID).Scan(&address)
 		responseOrder.Address = address
-		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
+		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
 		c.JSON(http.StatusOK, gin.H{"message": "Payment verified successfully", "order": responseOrder, "order_items": responseOrderItems, "status": "success"})
 		return
 	}
@@ -372,21 +560,35 @@ func Order(c *gin.Context) {
 		if activeOffer != nil {
 			offerID = &activeOffer.ID
 		}
+		variantID := uint(0)
+		if item.Size != "" {
+			var selectedVariant models.ProductVariant
+			if err := database.DB.Where("product_id = ? AND size = ?", item.ProductID, item.Size).First(&selectedVariant).Error; err == nil {
+				variantID = selectedVariant.ID
+			}
+		}
+
 		orderItem := models.OrderItems{
-			OrderID:        order.ID,
-			ProductID:      item.ProductID,
-			OfferID:        offerID,
-			Quantity:       item.Quantity,
-			UnitPrice:      unitPrice,
-			TotalAmount:    lineTotalAmount,
-			OrderStatus:    "pending",
-			PaymentMethod:  paymentType,
-			CouponDiscount: itemCouponDiscount,
-			OfferDiscount:  itemOfferDiscount,
-			TotalDiscount:  itemOfferDiscount + itemCouponDiscount,
-			PaidAmount:     paidAmount,
+			OrderID:          order.ID,
+			ProductID:        item.ProductID,
+			ProductVariantID: variantID,
+			Size:             item.Size,
+			OfferID:          offerID,
+			Quantity:         item.Quantity,
+			UnitPrice:        unitPrice,
+			TotalAmount:      lineTotalAmount,
+			OrderStatus:      "pending",
+			PaymentMethod:    paymentType,
+			CouponDiscount:   itemCouponDiscount,
+			OfferDiscount:    itemOfferDiscount,
+			TotalDiscount:    itemOfferDiscount + itemCouponDiscount,
+			PaidAmount:       paidAmount,
 		}
 		database.DB.Create(&orderItem)
+	}
+	if err := reduceStockForOrder(order.ID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "product stock is not available for this order"})
+		return
 	}
 
 	payment := models.Payments{
@@ -426,7 +628,7 @@ func Order(c *gin.Context) {
 	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? AND orders.id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID, order.ID).Scan(&responseOrder)
 	database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, order.AddressID).Scan(&address)
 	responseOrder.Address = address
-	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
+	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
 	c.JSON(http.StatusOK, gin.H{"message": "Order added successfully", "order": responseOrder, "order_items": responseOrderItems})
 }
 
@@ -444,6 +646,10 @@ func OrderList(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
+	if err := expirePendingOrdersForUser(userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to refresh order expiry state"})
+		return
+	}
 
 	listorder := c.Query("list_order")
 	var orders []responsemodels.Order
@@ -510,7 +716,7 @@ func OrderItemsList(c *gin.Context) {
 	}
 	var orderitems []responsemodels.OrderItems
 
-	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.delivery_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
+	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.delivery_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
 
 	switch listorder {
 	case "":
@@ -541,6 +747,10 @@ func RetryOrderPayment(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
+	if err := expirePendingOrdersForUser(userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to refresh payment expiry state"})
+		return
+	}
 	orderID := c.Param("order_id")
 
 	var payload struct {
@@ -556,6 +766,29 @@ func RetryOrderPayment(c *gin.Context) {
 	var order models.Order
 	if err := database.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "order not found for this user"})
+		return
+	}
+	if order.OrderStatus == "cancelled" {
+		var latestPayment models.Payments
+		if err := database.DB.Where("order_id = ?", order.ID).Order("created_at DESC").First(&latestPayment).Error; err == nil && latestPayment.PaymentStatus == "expired" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "Payment expired. Retry window has closed."})
+			return
+		}
+	}
+	if order.OrderStatus == "completed" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "this order is already completed"})
+		return
+	}
+	if order.PaymentMethod != "RazorPay" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "retry payment is only available for Razorpay orders"})
+		return
+	}
+	if shouldExpirePayment(order.CreatedAt, time.Now()) {
+		if err := expirePendingPaymentOrder(order); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to expire payment window"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Payment expired. Retry window has closed."})
 		return
 	}
 
@@ -714,8 +947,12 @@ func CancelOrder(c *gin.Context) {
 		})
 		return
 	}
-	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Update("order_status", "cancelled")
-	database.DB.Model(&models.OrderItems{}).Where("order_id = ?", orderID).Update("order_status", "cancelled")
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{"order_status": "cancelled", "delivery_status": "cancelled"})
+	database.DB.Model(&models.OrderItems{}).Where("order_id = ?", orderID).Updates(map[string]interface{}{"order_status": "cancelled", "delivery_status": "cancelled"})
+	if err := restoreStockForOrder(orderid); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to restore stock for cancelled order"})
+		return
+	}
 	var paymentmethod string
 	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("payment_method", &paymentmethod)
 	var totalamount float64
@@ -843,6 +1080,10 @@ func CancelSingleOrderItem(c *gin.Context) {
 	finalizeOrderCancellation := shouldCancelEntireOrder(remainingStatuses)
 	var paymentmethod string
 	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("payment_method", &paymentmethod)
+	var productID uint
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("product_id", &productID)
+	var quantity uint
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("quantity", &quantity)
 	var finalamount float64
 	database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("final_amount", &finalamount)
 	if finalamount > itemPaidAmount {
@@ -856,12 +1097,22 @@ func CancelSingleOrderItem(c *gin.Context) {
 	if finalizeOrderCancellation {
 		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Updates(map[string]interface{}{
 			"order_status":          "cancelled",
+			"delivery_status":       "cancelled",
 			"final_amount":          0.0,
 			"coupon_code":           "",
 			"coupon_discount":       0.0,
 			"offer_discount":        0.0,
 			"total_discount_amount": 0.0,
 		})
+		if err := restoreStockForOrder(orderid); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to restore stock for cancelled order"})
+			return
+		}
+	} else {
+		if err := restoreVariantStock(productID, quantity); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to restore stock for cancelled item"})
+			return
+		}
 	}
 
 	if paymentmethod == "RazorPay" || paymentmethod == "Wallet" {

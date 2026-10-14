@@ -4,6 +4,9 @@
         "go": true,
         "npm run build": true,
         "gofmt": true,
-        "psql": true
+        "psql": true,
+        "printf": true,
+        "pnpm": true,
+        "atlas": true
     }
 }

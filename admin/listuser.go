@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Ansalps/GeZOne/database"
+	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
@@ -13,16 +14,16 @@ func ListUsers(c *gin.Context) {
 	var users []responsemodels.User
 	//tx := database.DB.Find(&users)
 	sql := `SELECT * FROM users`
-	
-	switch listorder{
-		case "":
-			sql += ` ORDER BY users.id ASC`
-		case "ASC":
-			sql += ` ORDER BY users.id ASC`
-		case "DSC":
-			sql += ` ORDER BY users.id DESC`
+
+	switch listorder {
+	case "":
+		sql += ` ORDER BY users.id ASC`
+	case "ASC":
+		sql += ` ORDER BY users.id ASC`
+	case "DSC":
+		sql += ` ORDER BY users.id DESC`
 	}
-	
+
 	tx := database.DB.Raw(sql).Scan(&users)
 	if tx.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -31,6 +32,15 @@ func ListUsers(c *gin.Context) {
 		})
 		return
 	}
+
+	for i := range users {
+		if users[i].ProfilePicture != "" {
+			if resolvedURL, err := helper.ResolveObjectURL(c.Request.Context(), "PRIVATE_S3_BUCKET_NAME", users[i].ProfilePicture); err == nil {
+				users[i].ProfilePicture = resolvedURL
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "successfully retrieved user informations",

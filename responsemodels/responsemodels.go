@@ -46,6 +46,7 @@ type CartItems struct {
 	CartID             uint                   `json:"cart_id"`
 	UserID             string                 `json:"user_id"`
 	ProductID          string                 `json:"product_id"`
+	ProductVariantID   uint                   `json:"product_variant_id"`
 	ProductName        string                 `json:"product_name"`
 	CategoryName       string                 `json:"category_name"`
 	ProductDescription string                 `json:"product_description"`
@@ -89,8 +90,8 @@ type Address struct {
 type Order struct {
 	//gorm.Model
 	ID uint `json:"id"`
-	// CreatedAt time.Time
-	// UpdatedAt time.Time
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time	`json:"updated_at"`
 	// DeletedAt sql.NullTime `gorm:"index"`
 	UserID string `validate:"required,numeric" json:"user_id"`
 	//OrderDate   time.Time
@@ -113,19 +114,21 @@ type OrderItems struct {
 	ID      uint   `json:"id"`
 	OrderID string `validate:"required,numeric" json:"order_id"`
 	//Order       Order   `gorm:"foriegnkey:OrderID;references:ID"`
-	ProductID      string  `validate:"required,numeric" json:"product_id"`
-	OfferID        uint    `json:"offer_id,omitempty"`
-	ProductName    string  `json:"product_name"`
-	Quantity       uint    `json:"quantity"`
-	Price          float64 `json:"price"`
-	TotalAmount    float64 `json:"total_amount"`
-	DeliveryStatus string  `json:"delivery_status"`
-	OrderStatus    string  `json:"order_status"`
-	PaymentMethod  string  `json:"payment_method"`
-	CouponDiscount float64 `json:"coupon_discount"`
-	OfferDiscount  float64 `json:"offer_discount"`
-	TotalDiscount  float64 `json:"total_discount"`
-	PaidAmount     float64 `json:"paid_amount"`
+	ProductID        string  `validate:"required,numeric" json:"product_id"`
+	ProductVariantID uint    `json:"product_variant_id"`
+	OfferID          uint    `json:"offer_id,omitempty"`
+	ProductName      string  `json:"product_name"`
+	Size             string  `json:"size"`
+	Quantity         uint    `json:"quantity"`
+	Price            float64 `json:"price"`
+	TotalAmount      float64 `json:"total_amount"`
+	DeliveryStatus   string  `json:"delivery_status"`
+	OrderStatus      string  `json:"order_status"`
+	PaymentMethod    string  `json:"payment_method"`
+	CouponDiscount   float64 `json:"coupon_discount"`
+	OfferDiscount    float64 `json:"offer_discount"`
+	TotalDiscount    float64 `json:"total_discount"`
+	PaidAmount       float64 `json:"paid_amount"`
 }
 
 type User struct {
@@ -147,14 +150,19 @@ type Wishlist struct {
 	ProductID            uint    `gorm:"not null" json:"product_id"`
 	ProductName          string  `json:"product_name"`
 	CategoryName         string  `json:"category_name"`
-	Description          string  `json:"desciption"`
+	ProductDescription   string  `json:"product_description"`
+	Description          string  `json:"description"`
 	ImageUrl             string  `json:"image_url"`
+	ProductImageUrl      string  `json:"product_image_url"`
 	Price                float64 `json:"price"`
 	Stock                uint    `json:"stock"`
 	Popular              bool    `json:"popular"`
 	Size                 string  `json:"size"`
 	HasOffer             bool    `json:"has_offer"`
 	OfferDiscountPercent uint    `json:"offer_discount_amount"`
+	DiscountPercentage   int64   `json:"discount_percentage"`
+	StartDate            string  `json:"start_date,omitempty"`
+	EndDate              string  `json:"end_date,omitempty"`
 }
 
 type Offer struct {

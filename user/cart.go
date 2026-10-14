@@ -339,12 +339,24 @@ func CartAdd(c *gin.Context) {
 	}
 
 	// 8. Item does not exist -> Insert new record with requested quantity and size
+	var selectedVariant models.ProductVariant
+	if req.Size != "" {
+		if err := database.DB.Where("product_id = ? AND size = ?", product.ID, req.Size).First(&selectedVariant).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "selected size is not available for this product",
+			})
+			return
+		}
+	}
+
 	newCartItem := models.CartItem{
-		CartID:    cart.ID,
-		ProductID: product.ID,
-		Quantity:  reqQty,
-		UnitPrice: unitPrice,
-		Size:      req.Size,
+		CartID:           cart.ID,
+		ProductID:        product.ID,
+		ProductVariantID: selectedVariant.ID,
+		Quantity:         reqQty,
+		UnitPrice:        unitPrice,
+		Size:             req.Size,
 	}
 
 	if err := database.DB.Create(&newCartItem).Error; err != nil {

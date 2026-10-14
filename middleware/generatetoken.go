@@ -1,15 +1,16 @@
 package middleware
 
 import (
+	"os"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 )
 
 type CustomClaims struct {
-	Email string
+	Email string `json:"email"`
 	Role  string `json:"role"`
-	ID    uint
+	ID    uint   `json:"id"`
 	jwt.StandardClaims
 }
 
@@ -26,5 +27,5 @@ func CreateToken(role string, email string, id uint) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(Secret)
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 }

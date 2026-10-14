@@ -7,20 +7,40 @@ import DashboardProductCard from '@/components/dashboard/product-card';
 import type { Product } from '@/types/product';
 
 const API = 'http://localhost:8080';
-const WISHLIST_STORAGE_KEY = 'genzone_wishlist';
 
-const getStoredWishlist = (): number[] => {
-  if (typeof window === 'undefined') return [];
-
-  try {
-    const raw = window.localStorage.getItem(WISHLIST_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((value) => typeof value === 'number') : [];
-  } catch (error) {
-    console.error('Failed to read wishlist', error);
-    return [];
-  }
+type WishlistItem = {
+  product_id: number;
+  product_name: string;
+  category_name: string;
+  product_description?: string;
+  description?: string;
+  image_url?: string;
+  product_image_url?: string;
+  price: number;
+  stock: number;
+  popular: boolean;
+  size: string;
+  discount_percentage?: number;
+  start_date?: string;
+  end_date?: string;
 };
+
+const mapWishlistItem = (item: WishlistItem): Product => ({
+  id: item.product_id,
+  created_at: new Date().toISOString(),
+  category_id: 0,
+  category_name: item.category_name,
+  product_name: item.product_name,
+  product_description: item.product_description || item.description || '',
+  product_image_url: item.product_image_url || item.image_url || '',
+  price: Number(item.price || 0),
+  stock: Number(item.stock || 0),
+  popular: Boolean(item.popular),
+  size: item.size || '',
+  discount_percentage: Number(item.discount_percentage || 0),
+  start_date: item.start_date || '',
+  end_date: item.end_date || '',
+});
 
 export default function WishlistPage() {
   const [wishlistProducts, setWishlistProducts] = useState<Product[]>([]);
@@ -28,19 +48,9 @@ export default function WishlistPage() {
 
   const syncProducts = async () => {
     try {
-      const savedIds = getStoredWishlist();
-      if (savedIds.length === 0) {
-        setWishlistProducts([]);
-        return;
-      }
-
-      const response = await axios.get(`${API}/public/product`, { withCredentials: true });
-      const products = response.data?.status && Array.isArray(response.data?.data?.products)
-        ? response.data.data.products
-        : [];
-
-      const filtered = products.filter((product: Product) => savedIds.includes(product.id));
-      setWishlistProducts(filtered);
+      const response = await axios.get(`${API}/wishlist`, { withCredentials: true });
+      const items = Array.isArray(response.data?.data) ? response.data.data : [];
+      setWishlistProducts(items.map(mapWishlistItem));
     } catch (error) {
       console.error('Unable to load wishlist products', error);
       setWishlistProducts([]);
@@ -53,13 +63,17 @@ export default function WishlistPage() {
     syncProducts();
   }, []);
 
-  const removeFromWishlist = (productId: number) => {
-    if (typeof window === 'undefined') return;
+  const removeFromWishlist = async (productId: number) => {
+    try {
+      await axios.delete(`${API}/wishlist`, {
+        withCredentials: true,
+        data: { product_id: productId },
+      });
 
-    const current = getStoredWishlist();
-    const next = current.filter((id) => id !== productId);
-    window.localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(next));
-    setWishlistProducts((currentProducts) => currentProducts.filter((product) => product.id !== productId));
+      setWishlistProducts((currentProducts) => currentProducts.filter((product) => product.id !== productId));
+    } catch (error) {
+      console.error('Failed to remove product from wishlist', error);
+    }
   };
 
   return (
