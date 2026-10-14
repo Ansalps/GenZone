@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Ansalps/GeZOne/database"
@@ -45,6 +46,45 @@ func verifyRazorpaySignature(orderID string, paymentID string, razorpaySignature
 	h.Write([]byte(data))
 	generatedSignature := hex.EncodeToString(h.Sum(nil))
 	return hmac.Equal([]byte(generatedSignature), []byte(razorpaySignature))
+}
+
+func normalizeRetryPaymentMethod(paymentMethod string) string {
+	switch strings.ToLower(strings.TrimSpace(paymentMethod)) {
+	case "razorpay", "internet-banking", "internet banking", "netbanking":
+		return "RazorPay"
+	case "wallet":
+		return "Wallet"
+	case "cod", "cash on delivery", "cashondelivery":
+		return "COD"
+	default:
+		return "RazorPay"
+	}
+}
+
+func buildRetryOrderUpdates(paymentMethod string, remoteOrderID string) map[string]interface{} {
+	method := normalizeRetryPaymentMethod(paymentMethod)
+	updates := map[string]interface{}{
+		"payment_method":  method,
+		"order_status":    "pending",
+		"delivery_status": "pending",
+	}
+	if method == "RazorPay" {
+		updates["razorpay_order_id"] = remoteOrderID
+	} else {
+		updates["razorpay_order_id"] = ""
+	}
+	return updates
+}
+
+func clearCartForUser(userID uint) error {
+	var cart models.Cart
+	if err := database.DB.Where("user_id = ?", userID).First(&cart).Error; err != nil {
+		if strings.Contains(err.Error(), "record not found") {
+			return nil
+		}
+		return err
+	}
+	return database.DB.Where("cart_id = ?", cart.ID).Delete(&models.CartItem{}).Error
 }
 
 func createRazorpayRemoteOrder(amount float64) (string, int, error) {
@@ -164,9 +204,9 @@ func Order(c *gin.Context) {
 			return
 		}
 
-		var cart models.Cart
-		if err := database.DB.Where("user_id = ?", userID).First(&cart).Error; err == nil {
-			database.DB.Where("cart_id = ?", cart.ID).Delete(&models.CartItem{})
+		if err := clearCartForUser(userID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to clear cart after payment verification"})
+			return
 		}
 
 		var responseOrder responsemodels.Order
@@ -362,11 +402,9 @@ func Order(c *gin.Context) {
 		return
 	}
 
-	if payload.PaymentMethod != "RazorPay" {
-		if err := database.DB.Where("cart_id = ?", cart.ID).Delete(&models.CartItem{}).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to clear cart after placing order"})
-			return
-		}
+	if err := clearCartForUser(userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to clear cart after placing order"})
+		return
 	}
 
 	if payload.PaymentMethod == "RazorPay" {
@@ -393,7 +431,6 @@ func Order(c *gin.Context) {
 }
 
 func OrderList(c *gin.Context) {
-	//userID := c.Param("user_id")
 	claims, exists := c.Get("claims")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
@@ -488,6 +525,140 @@ func OrderItemsList(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"order items": orderitems,
 	})
+}
+
+func RetryOrderPayment(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
+	}
+
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	orderID := c.Param("order_id")
+
+	var payload struct {
+		AddressID     uint   `json:"address_id"`
+		CouponCode    string `json:"coupon_code"`
+		PaymentMethod string `json:"payment_method"`
+	}
+	if err := c.BindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "failed to bind retry request"})
+		return
+	}
+
+	var order models.Order
+	if err := database.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "order not found for this user"})
+		return
+	}
+
+	if payload.AddressID != 0 {
+		order.AddressID = payload.AddressID
+	}
+	if payload.CouponCode != "" {
+		order.CouponCode = payload.CouponCode
+	}
+
+	method := normalizeRetryPaymentMethod(payload.PaymentMethod)
+	updates := buildRetryOrderUpdates(method, "")
+	if payload.AddressID != 0 {
+		updates["address_id"] = payload.AddressID
+	}
+	if payload.CouponCode != "" {
+		updates["coupon_code"] = payload.CouponCode
+	}
+
+	if method == "RazorPay" {
+		remoteOrderID, checkoutAmountInPaise, err := createRazorpayRemoteOrder(order.FinalAmount)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create Razorpay retry order"})
+			return
+		}
+		updates = buildRetryOrderUpdates(method, remoteOrderID)
+		if payload.AddressID != 0 {
+			updates["address_id"] = payload.AddressID
+		}
+		if payload.CouponCode != "" {
+			updates["coupon_code"] = payload.CouponCode
+		}
+		if err := database.DB.Model(&order).Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update order for retry"})
+			return
+		}
+		if err := database.DB.Model(&models.Payments{}).Where("order_id = ?", order.ID).Updates(map[string]interface{}{
+			"payment_type":   "RazorPay",
+			"payment_status": "pending",
+			"transaction_id": remoteOrderID,
+			"description":    "Razorpay retry initiated",
+		}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update payment retry status"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":            "success",
+			"message":           "Retry payment initialized",
+			"order_id":          order.ID,
+			"razorpay_order_id": remoteOrderID,
+			"amount":            checkoutAmountInPaise,
+			"currency":          "INR",
+		})
+		return
+	}
+
+	if method == "Wallet" {
+		var wallet models.Wallet
+		if err := database.DB.Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "wallet is not initialized for this user"})
+			return
+		}
+		if wallet.Balance < order.FinalAmount {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "wallet balance is insufficient for this order retry"})
+			return
+		}
+
+		if err := database.DB.Model(&wallet).Update("balance", wallet.Balance-order.FinalAmount).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to deduct wallet balance for retry"})
+			return
+		}
+		updates["payment_method"] = "Wallet"
+		updates["order_status"] = "completed"
+		updates["delivery_status"] = "pending"
+	}
+
+	if method == "COD" {
+		updates["payment_method"] = "COD"
+		updates["order_status"] = "pending"
+		updates["delivery_status"] = "pending"
+	}
+
+	if err := database.DB.Model(&order).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update order for retry"})
+		return
+	}
+	paymentStatus := "pending"
+	if method == "Wallet" {
+		paymentStatus = "paid"
+	}
+	if err := database.DB.Model(&models.Payments{}).Where("order_id = ?", order.ID).Updates(map[string]interface{}{
+		"payment_type":   method,
+		"payment_status": paymentStatus,
+		"description":    "Retry updated to selected payment method",
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update payment retry method"})
+		return
+	}
+	if err := clearCartForUser(userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to clear cart after retry"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Retry payment updated", "order_id": order.ID, "payment_method": method})
 }
 
 func CancelOrder(c *gin.Context) {

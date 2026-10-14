@@ -21,6 +21,8 @@ function PaymentOptionContent() {
   const searchParams = useSearchParams();
   const addressId = Number(searchParams.get('address_id') ?? '0');
   const couponCode = searchParams.get('coupon_code') ?? '';
+  const retryOrderId = Number(searchParams.get('retry_order_id') ?? '0');
+  const retryAmount = Number(searchParams.get('retry_amount') ?? '0');
   const [selectedMethod, setSelectedMethod] = useState<'cod' | 'wallet' | 'internet-banking'>('cod');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -37,6 +39,14 @@ function PaymentOptionContent() {
     const loadAmount = async () => {
       try {
         setLoadingAmount(true);
+
+        if (retryOrderId > 0 && retryAmount > 0) {
+          setCartTotal(retryAmount);
+          setCouponDiscount(0);
+          setLoadingAmount(false);
+          return;
+        }
+
         const summaryResponse = await axios.get(`${API}/cart/summary`, { withCredentials: true });
         const summary = summaryResponse.data?.data ?? {};
         const baseTotal = Number(summary.final_total ?? summary.original_total ?? 0);
@@ -62,7 +72,7 @@ function PaymentOptionContent() {
     };
 
     void loadAmount();
-  }, [couponCode]);
+  }, [couponCode, retryAmount, retryOrderId]);
 
   const handlePlaceOrder = async () => {
     if (!addressId) {
@@ -74,14 +84,19 @@ function PaymentOptionContent() {
     setError('');
 
     try {
+      const endpoint = retryOrderId > 0 ? `${API}/orders/${retryOrderId}/retry` : `${API}/order`;
+      const payloadBase = {
+        address_id: addressId,
+        coupon_code: couponCode,
+      };
+
       if (isCod || isWallet) {
         const payload = {
-          address_id: addressId,
-          coupon_code: couponCode,
+          ...payloadBase,
           payment_method: isCod ? 'COD' : 'Wallet',
         };
 
-        await axios.post(`${API}/checkout/order`, payload, { withCredentials: true });
+        await axios.post(endpoint, payload, { withCredentials: true });
         router.push('/orders');
         return;
       }
@@ -97,17 +112,16 @@ function PaymentOptionContent() {
       });
 
       const response = await axios.post(
-        `${API}/checkout/order`,
+        endpoint,
         {
-          address_id: addressId,
-          coupon_code: couponCode,
+          ...payloadBase,
           payment_method: 'RazorPay',
         },
         { withCredentials: true },
       );
 
       const razorpayData = response.data ?? {};
-      const orderId = razorpayData.order_id;
+      const orderId = retryOrderId > 0 ? razorpayData.razorpay_order_id || razorpayData.order_id : razorpayData.order_id;
       const amount = Number(razorpayData.amount ?? 0);
       const key = RAZORPAY_KEY;
 
@@ -120,23 +134,39 @@ function PaymentOptionContent() {
         amount,
         currency: razorpayData.currency || 'INR',
         name: 'GenZone',
-        description: 'Order payment',
+        description: retryOrderId > 0 ? 'Retry order payment' : 'Order payment',
         order_id: orderId,
         handler: async function (paymentResponse: any) {
           try {
-            await axios.post(
-              `${API}/checkout/order`,
-              {
-                order_id: paymentResponse.razorpay_order_id,
-                razorpay_order_id: paymentResponse.razorpay_order_id,
-                payment_id: paymentResponse.razorpay_payment_id,
-                signature: paymentResponse.razorpay_signature,
-                address_id: addressId,
-                coupon_code: couponCode,
-                payment_method: 'RazorPay',
-              },
-              { withCredentials: true },
-            );
+            if (retryOrderId > 0) {
+              await axios.post(
+                `${API}/order`,
+                {
+                  order_id: paymentResponse.razorpay_order_id,
+                  razorpay_order_id: paymentResponse.razorpay_order_id,
+                  payment_id: paymentResponse.razorpay_payment_id,
+                  signature: paymentResponse.razorpay_signature,
+                  address_id: addressId,
+                  coupon_code: couponCode,
+                  payment_method: 'RazorPay',
+                },
+                { withCredentials: true },
+              );
+            } else {
+              await axios.post(
+                `${API}/order`,
+                {
+                  order_id: paymentResponse.razorpay_order_id,
+                  razorpay_order_id: paymentResponse.razorpay_order_id,
+                  payment_id: paymentResponse.razorpay_payment_id,
+                  signature: paymentResponse.razorpay_signature,
+                  address_id: addressId,
+                  coupon_code: couponCode,
+                  payment_method: 'RazorPay',
+                },
+                { withCredentials: true },
+              );
+            }
             router.push('/orders');
           } catch (verifyErr: any) {
             console.error('Razorpay verification failed', verifyErr);

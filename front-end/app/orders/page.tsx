@@ -2,7 +2,6 @@
 
 import axios from 'axios';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 const API = 'http://localhost:8080';
@@ -51,12 +50,12 @@ type Order = {
 };
 
 export default function OrdersPage() {
-  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<Record<number, OrderItem[]>>({});
   const [expandedOrders, setExpandedOrders] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sortOrder, setSortOrder] = useState<'DSC' | 'ASC'>('DSC');
   const [cancelingOrderId, setCancelingOrderId] = useState<number | null>(null);
   const [cancelingItemId, setCancelingItemId] = useState<number | null>(null);
 
@@ -84,9 +83,12 @@ export default function OrdersPage() {
     }));
   };
 
-  const refreshOrders = async () => {
+  const refreshOrders = async (selectedOrder: 'DSC' | 'ASC' = sortOrder) => {
     try {
-      const response = await axios.get(`${API}/orders`, { withCredentials: true });
+      const response = await axios.get(`${API}/orders`, {
+        withCredentials: true,
+        params: { list_order: selectedOrder },
+      });
       const orderList = Array.isArray(response.data?.data?.Order) ? response.data.data.Order : [];
       setOrders(orderList);
 
@@ -108,7 +110,7 @@ export default function OrdersPage() {
 
     setCancelingOrderId(orderId);
     try {
-      const response = await axios.put(`${API}/profile/userorders/cancelorder/${orderId}`, {}, { withCredentials: true });
+      const response = await axios.put(`${API}/orders/${orderId}/cancel`, {}, { withCredentials: true });
       const message = response.data?.message || 'Order cancelled successfully.';
       setError('');
       await refreshOrders();
@@ -129,7 +131,7 @@ export default function OrdersPage() {
 
     setCancelingItemId(itemId);
     try {
-      const response = await axios.put(`${API}/profile/userorders/cancelsingleorderitem/${itemId}`, {}, { withCredentials: true });
+      const response = await axios.put(`${API}/orders/item/${itemId}/cancel`, {}, { withCredentials: true });
       const message = response.data?.message || 'Item cancelled successfully.';
       setError('');
       await refreshOrders();
@@ -151,15 +153,21 @@ export default function OrdersPage() {
     const params = new URLSearchParams({
       address_id: String(order.address.id),
       coupon_code: order.coupon_code ?? '',
+      retry_order_id: String(order.id),
+      retry_amount: String(Number(order.final_amount ?? order.total_amount ?? 0)),
     });
-    router.push(`/payment-option?${params.toString()}`);
+
+    window.location.href = `/payment-option?${params.toString()}`;
   };
 
   useEffect(() => {
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`${API}/orders`, { withCredentials: true });
+        const response = await axios.get(`${API}/orders`, {
+          withCredentials: true,
+          params: { list_order: sortOrder },
+        });
         const orderList = Array.isArray(response.data?.data?.Order) ? response.data.data.Order : [];
         setOrders(orderList);
 
@@ -176,22 +184,35 @@ export default function OrdersPage() {
     };
 
     fetchOrders();
-  }, []);
+  }, [sortOrder]);
 
   return (
     <div className="min-h-screen bg-slate-950 px-6 py-10 text-white">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Your orders</p>
             <h1 className="mt-2 text-3xl font-bold text-white">Order history</h1>
           </div>
-          <Link
-            href="/dashboard"
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
-          >
-            Back to dashboard
-          </Link>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-slate-200">
+              <span>Sort</span>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as 'DSC' | 'ASC')}
+                className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1.5 text-sm text-white outline-none"
+              >
+                <option value="DSC">Newest</option>
+                <option value="ASC">Oldest</option>
+              </select>
+            </label>
+            <Link
+              href="/dashboard"
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
+            >
+              Back to dashboard
+            </Link>
+          </div>
         </div>
 
         {error && (

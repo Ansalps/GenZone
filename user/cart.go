@@ -12,6 +12,7 @@ import (
 	requestmodemodels "github.com/Ansalps/GeZOne/requestmodels"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const (
@@ -50,6 +51,25 @@ func getUserCartTotalQuantity(userID uint) (uint, error) {
 		return 0, err
 	}
 	return uint(total), nil
+}
+
+func getUserCartSummary(db *gorm.DB, userID uint) (int, uint, float64, error) {
+	if db == nil {
+		db = database.DB
+	}
+	var result struct {
+		Count       int64   `gorm:"column:count"`
+		TotalQty    uint    `gorm:"column:total_qty"`
+		TotalAmount float64 `gorm:"column:total_amount"`
+	}
+	query := db.Table("carts AS c").
+		Joins("JOIN cart_items AS ci ON ci.cart_id = c.id").
+		Where("c.user_id = ?", userID).
+		Select("COUNT(ci.id) AS count, COALESCE(SUM(ci.quantity), 0) AS total_qty, COALESCE(SUM(ci.unit_price * ci.quantity), 0) AS total_amount")
+	if err := query.Scan(&result).Error; err != nil {
+		return 0, 0, 0, err
+	}
+	return int(result.Count), result.TotalQty, result.TotalAmount, nil
 }
 
 func Cart(c *gin.Context) {

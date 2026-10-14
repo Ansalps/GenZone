@@ -114,13 +114,14 @@ func RegisterUrls(router *gin.Engine) {
 	router.POST("wallet/add-money", middleware.AuthMiddleware("user"), user.AddMoney)
 
 	//order
-	router.POST("checkout/order", middleware.AuthMiddleware("user"), user.Order)
+	router.POST("order", middleware.AuthMiddleware("user"), user.Order)
 	router.GET("orders", middleware.AuthMiddleware("user"), user.OrderList)
 	router.GET("order-items/:order_id", middleware.AuthMiddleware("user"), user.OrderItemsList)
+	router.POST("orders/:order_id/retry", middleware.AuthMiddleware("user"), user.RetryOrderPayment)
 
 	//order cancel
-	router.PUT("profile/userorders/cancelorder/:order_id", middleware.AuthMiddleware("user"), user.CancelOrder)
-	router.PUT("profile/userorders/cancelsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.CancelSingleOrderItem)
+	router.PUT("orders/:order_id/cancel", middleware.AuthMiddleware("user"), user.CancelOrder)
+	router.PUT("orders/item/:orderitem_id/cancel", middleware.AuthMiddleware("user"), user.CancelSingleOrderItem)
 
 	//order return
 	router.PUT("profile/userorders/returnsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.ReturnSingleOrderItem)
