@@ -1,48 +1,167 @@
-# Genzone Backend API
+# GeZOne
 
-Genzone is a robust backend API for an e-commerce platform, developed using Go, the Gin framework, and PostgreSQL as the database. This project implements essential features for both admins and users, providing seamless management and interaction capabilities.
+GeZOne is a full-stack e-commerce platform with a Go/Gin backend API and a Next.js admin storefront frontend. The project includes product and order management, user authentication, payment flows, reporting, and admin dashboards.
+
+## Overview
+
+This repository contains:
+
+- Go backend API in the root project
+- Next.js frontend in `front-end/`
+- PostgreSQL support with SQLite fallback for local development
+- AWS S3 asset handling
+- Razorpay payment integration
+- JWT-based authentication and Google OAuth support
+- Admin tools for sales reporting, products, users, coupons, and offers
+
+## Tech Stack
+
+- Backend: Go, Gin, GORM, PostgreSQL
+- Frontend: Next.js 16, React 19, TypeScript, Tailwind CSS
+- Auth: JWT + Google OAuth
+- Payments: Razorpay
+- Storage: AWS S3
+- Mail: SMTP email OTP delivery
+
+## Project Structure
+
+```bash
+.
+├── admin/             # Admin handlers and endpoints
+├── database/         # DB initialization and seeding
+├── front-end/        # Next.js admin/front-end app
+├── helper/           # Email, S3, validation utilities
+├── middleware/       # JWT middleware helpers
+├── migrations/       # SQL migrations
+├── models/           # Database models
+├── public/           # Public endpoints and product/user APIs
+├── requestmodels/    # Request validation models
+├── responsemodels/   # API response payloads
+├── route/            # Route registration
+├── templates/        # HTML templates
+├── user/             # User flows: carts, orders, checkout, wallet, auth
+├── utils/            # Shared helper logic
+├── main.go           # Gin server bootstrap
+├── go.mod            # Go dependencies
+├── atlas.hcl         # Atlas schema configuration
+├── README.md         # Project documentation
+└── .env.example      # Optional example environment file
+```
 
 ## Features
 
 ### Admin Features
-- **Product Management**: Create, edit, and delete products.
-- **User Management**: Block or unblock users.
-- **Order Management**: List and change the status of orders.
-- **Sales Reports**: View sales reports (daily, monthly, yearly).
-- **Best-Selling Products**: View the top products and categories by delivered order-item count, with month or year filters.
+- Product catalog management
+- Product offer and stock updates
+- User management, blocking, and listing
+- Sales reports by date, month, and year
+- Best-selling products and category analytics
+- Coupon, order, and invoice administration
 
 ### User Features
-- **Product Browsing**: View available products.
-- **Cart and Wishlist**: Add products to cart or wishlist.
-- **Order Management**: Place or cancel orders using:
-  - Cash on Delivery (COD)
-  - Online Payments (integrated with Razorpay)
-  - Wallet
-- **Invoice Generation**: Generate invoices for orders.
+- User signup and login
+- OTP-based email verification
+- Google authentication
+- Product browsing and category search
+- Cart and wishlist support
+- Checkout flow with COD, wallet, and Razorpay
+- Order cancellation and retry logic
+- Invoice generation
 
-## Best-Selling Products
+## Prerequisites
 
-The admin endpoint `GET /admin/bestselling` returns the ten highest-ranked products and category rankings, based on delivered order items. It accepts these optional query parameters:
+- Go 1.25+
+- Node.js 20 LTS or newer
+- pnpm (recommended for the frontend)
+- PostgreSQL (optional for local dev; SQLite works as a fallback when `DATABASE_URL` is not set)
 
-| Parameter | Behavior |
-| --- | --- |
-| `month` | Month number from `1` to `12`, covering that month in the current calendar year. |
-| `year` | Calendar year from `1900` through the current year, covering January 1 through December 31. |
-| `day` | A date in `YYYY-MM-DD` format, retained for compatibility; filters to that day. |
+## Environment Variables
 
-For example, `/admin/bestselling?month=3` filters sales to March of the current year, while `/admin/bestselling?year=2025` filters sales to all of 2025. The endpoint does not use a `period` filter.
+Create a `.env` file in the project root with values similar to:
 
-The response shape is:
-
-```json
-{
-  "best_selling_product": [],
-  "best_selling_category": [],
-  "message": "retrieved best selling products"
-}
+```env
+DATABASE_URL=postgres://username:password@localhost:5432/genzone
+JWT_SECRET=your_jwt_secret
+EMAIL_USER=your_email@example.com
+EMAIL_PASSWORD=your_email_app_password
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+RAZORPAY_KEY_ID=your_razorpay_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+AWS_REGION=ap-south-1
+S3_BUCKET_NAME=your-s3-bucket-name
 ```
 
-## Technical Highlights
-- **Authentication/Authorization**: Implemented using JWT (JSON Web Tokens).
-- **Database**: PostgreSQL for reliable data storage and management.
-- **Deployment**: Deployed on AWS EC2. Created a Dockerfile and pushed the image on DockerHub.
+Notes:
+- If `DATABASE_URL` is missing, the app falls back to a local SQLite database file named `genzone.db`.
+- The backend loads `.env` automatically via `godotenv`.
+- AWS, email, Google, and payment values are required for the features that use those integrations.
+
+## Running the Backend
+
+From the project root:
+
+```bash
+go mod download
+go run .
+```
+
+The API server runs on:
+
+- http://localhost:8080
+
+The backend also registers HTML templates from `templates/` and sets CORS for `http://localhost:3000`.
+
+## Running the Frontend
+
+From the `front-end` directory:
+
+```bash
+cd front-end
+pnpm install
+pnpm dev
+```
+
+The frontend runs on:
+
+- http://localhost:3000
+
+## Admin and API Notes
+
+The project contains multiple admin endpoints such as:
+
+- product and category management
+- user listing and moderation
+- sales reports and filters
+- best-selling analytics
+- order status updates
+
+A representative endpoint is:
+
+```http
+GET /admin/bestselling?month=3
+```
+
+This returns a best-selling product/category summary for the specified sales period.
+
+## Database Setup
+
+The app is built around GORM models and includes SQL migrations in `migrations/`.
+
+For local development:
+
+- Set `DATABASE_URL` to a PostgreSQL database, or
+- Let the app create and use a local SQLite database automatically
+
+## Deployment
+
+The project is structured for deployment as a backend service plus a frontend application. The backend uses AWS services for media storage and the frontend is configured as a standard Next.js app.
+
+## License
+
+This project is currently distributed without a formal license declaration in the repository. If needed, add a license file before open-sourcing or sharing it externally.
+
+## Contributing
+
+Contributions are welcome. For local changes, test the backend and frontend separately before merging, especially around auth, checkout, and reports.
+
