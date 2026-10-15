@@ -397,22 +397,51 @@ export default function AdminOrdersPage() {
                                   </p>
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
-                                  <span>Price: {formatMoney(Number(item.price ?? 0))}</span>
-                                  <span>Total: {formatMoney(Number(item.total_amount ?? 0))}</span>
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                                  <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2.5 py-1 text-sky-200">
+                                    Order: {item.order_status || 'pending'}
+                                  </span>
+                                  <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-amber-200">
+                                    Delivery: {item.delivery_status || '—'}
+                                  </span>
+                                  <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-200">
+                                    Payment: {item.payment_method || '—'}
+                                  </span>
                                 </div>
                               </div>
 
-                              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
-                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                                  Status: {item.order_status || 'pending'}
-                                </span>
-                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                                  Delivery: {item.delivery_status || '—'}
-                                </span>
-                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                                  Payment: {item.payment_method || '—'}
-                                </span>
+                              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+                                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Unit price</p>
+                                  <p className="mt-2 text-sm font-medium text-slate-100">{formatMoney(Number(item.price ?? 0))}</p>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+                                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Item total</p>
+                                  <p className="mt-2 text-sm font-medium text-slate-100">{formatMoney(Number(item.total_amount ?? 0))}</p>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+                                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Offer discount</p>
+                                  <p className="mt-2 text-sm font-medium text-amber-300">-{formatMoney(Number(item.offer_discount ?? 0))}</p>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+                                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Coupon discount</p>
+                                  <p className="mt-2 text-sm font-medium text-purple-300">-{formatMoney(Number(item.coupon_discount ?? 0))}</p>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+                                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Total discount</p>
+                                  <p className="mt-2 text-sm font-medium text-emerald-300">-{formatMoney(Number(item.total_discount ?? 0))}</p>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+                                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Final amount</p>
+                                  <p className="mt-2 text-sm font-semibold text-emerald-300">{formatMoney(Number(item.final_amount ?? item.paid_amount ?? item.total_amount ?? 0))}</p>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+                                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Paid amount</p>
+                                  <p className="mt-2 text-sm font-medium text-cyan-300">{formatMoney(Number(item.paid_amount ?? item.final_amount ?? item.total_amount ?? 0))}</p>
+                                </div>
                               </div>
                             </div>
                           ))}
