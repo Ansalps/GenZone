@@ -30,9 +30,9 @@ func BestSelling(c *gin.Context) {
 
 	var orderitems []models.OrderItems
 	var orderitems1 []responsemodels.BestSelling
-	sql := `select product_id,count(*) AS count from order_items where order_status='delivered'`
+	sql := `select product_id,count(*) AS count from order_items where delivery_status='delivered'`
 	sqla := ` group by product_id order by count DESC limit 10`
-	sql1 := `select count(*),categories.category_name from order_items join products on products.id = order_items.product_id join categories on categories.id = products.category_id where order_items.order_status='delivered'`
+	sql1 := `select count(*),categories.category_name from order_items join products on products.id = order_items.product_id join categories on categories.id = products.category_id where order_items.delivery_status='delivered'`
 	sql1a := ` group by categories.category_name order by count desc`
 
 	dateFilter, dateArgs, err := buildReportDateFilter("order_items.created_at", "", day, month, dateYear, time.Now())
@@ -56,7 +56,47 @@ func BestSelling(c *gin.Context) {
 	var product1 responsemodels.Product
 	var products []responsemodels.Product
 	for _, v := range orderitems {
-		database.DB.Raw("SELECT * FROM products join categories on products.category_id=categories.id WHERE products.id = ?", v.ProductID).Scan(&product1)
+		var detailSQL string
+		if database.DB.Dialector.Name() == "sqlite" {
+			detailSQL = `
+				SELECT
+					p.id,
+					p.category_id,
+					c.category_name,
+					p.product_name,
+					CASE WHEN p.deleted_at IS NOT NULL THEN 'discontinued' ELSE 'active' END AS product_status,
+					p.description AS product_description,
+					p.image_url AS product_image_url,
+					p.price,
+					COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id AND deleted_at IS NULL), 0) AS stock,
+					p.popular,
+					COALESCE((SELECT GROUP_CONCAT(DISTINCT pv.size) FROM product_variants pv WHERE pv.product_id = p.id AND pv.deleted_at IS NULL), '') AS size,
+					COALESCE((SELECT MAX(CASE WHEN o.start_at <= datetime('now') AND (o.end_at IS NULL OR o.end_at >= datetime('now')) THEN o.discount_percentage ELSE 0 END) FROM offers o WHERE o.product_id = p.id AND o.deleted_at IS NULL), 0) AS discount_percentage
+				FROM products p
+				JOIN categories c ON c.id = p.category_id
+				WHERE p.id = ?
+			`
+		} else {
+			detailSQL = `
+				SELECT
+					p.id,
+					p.category_id,
+					c.category_name,
+					p.product_name,
+					CASE WHEN p.deleted_at IS NOT NULL THEN 'discontinued' ELSE 'active' END AS product_status,
+					p.description AS product_description,
+					p.image_url AS product_image_url,
+					p.price,
+					COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id AND deleted_at IS NULL), 0) AS stock,
+					p.popular,
+					COALESCE((SELECT string_agg(DISTINCT pv.size, ',' ORDER BY pv.size) FROM product_variants pv WHERE pv.product_id = p.id AND pv.deleted_at IS NULL), '') AS size,
+					COALESCE((SELECT MAX(CASE WHEN o.start_at <= now() AND (o.end_at IS NULL OR o.end_at >= now()) THEN o.discount_percentage ELSE 0 END) FROM offers o WHERE o.product_id = p.id AND o.deleted_at IS NULL), 0) AS discount_percentage
+				FROM products p
+				JOIN categories c ON c.id = p.category_id
+				WHERE p.id = ?
+			`
+		}
+		database.DB.Raw(detailSQL, v.ProductID).Scan(&product1)
 		products = append(products, product1)
 	}
 	var category []string

@@ -1,9 +1,11 @@
 package user
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -51,6 +53,22 @@ func getUserCartTotalQuantity(userID uint) (uint, error) {
 		return 0, err
 	}
 	return uint(total), nil
+}
+
+func resolveCartProductImageURL(ctx context.Context, imageURL string) string {
+	imageURL = strings.TrimSpace(imageURL)
+	if imageURL == "" {
+		return ""
+	}
+	if strings.HasPrefix(imageURL, "http://") || strings.HasPrefix(imageURL, "https://") {
+		return imageURL
+	}
+
+	if resolvedURL, err := helper.ResolveObjectURL(ctx, "S3_BUCKET_NAME", imageURL); err == nil {
+		return resolvedURL
+	}
+
+	return imageURL
 }
 
 func getUserCartSummary(db *gorm.DB, userID uint) (int, uint, float64, error) {
@@ -195,6 +213,10 @@ func Cart(c *gin.Context) {
 			"message": "failed to retrieve cart data from the database, or the data doesn't exists",
 		})
 		return
+	}
+
+	for i := range cart {
+		cart[i].ProductImageUrl = resolveCartProductImageURL(c.Request.Context(), cart[i].ProductImageUrl)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -2,6 +2,7 @@
 
 import axios from 'axios';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import DashboardProductCard from '@/components/dashboard/product-card'
 import type { Product } from '@/types/product'
@@ -16,6 +17,7 @@ interface Category {
 const API = 'http://localhost:8080';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categorySearch, setCategorySearch] = useState('');
@@ -134,6 +136,18 @@ export default function DashboardPage() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await axios.post(`${API}/logout`, {}, { withCredentials: true });
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    } finally {
+      document.cookie = 'jwt_user_token=; Max-Age=0; path=/;';
+      document.cookie = 'jwt_token=; Max-Age=0; path=/;';
+      router.push('/login');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <header className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
@@ -203,6 +217,13 @@ export default function DashboardPage() {
                 </svg>
               )}
             </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-500/20"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </header>

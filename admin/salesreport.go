@@ -23,6 +23,7 @@ func GenerateSalesReport(c *gin.Context) {
 	database.DB.Raw(`SELECT * FROM order_items WHERE delivery_status='delivered' order by product_id,order_id`).Scan(&OrderItems)
 	var orderid uint
 	var productid uint
+	fmt.Println("------",len(OrderItems))
 	for _, v := range OrderItems {
 		fmt.Println("helloooo")
 		fmt.Println("first orderid ", orderid)

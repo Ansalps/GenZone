@@ -1,15 +1,33 @@
 package public
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
 
 	"github.com/Ansalps/GeZOne/database"
+	"github.com/Ansalps/GeZOne/helper"
 	"github.com/Ansalps/GeZOne/models"
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 )
+
+func resolveProductImageURL(ctx context.Context, imageURL string) string {
+	imageURL = strings.TrimSpace(imageURL)
+	if imageURL == "" {
+		return ""
+	}
+	if strings.HasPrefix(imageURL, "http://") || strings.HasPrefix(imageURL, "https://") {
+		return imageURL
+	}
+
+	if resolvedURL, err := helper.ResolveObjectURL(ctx, "S3_BUCKET_NAME", imageURL); err == nil {
+		return resolvedURL
+	}
+
+	return imageURL
+}
 
 func GetProduct(c *gin.Context) {
 	search := c.Query("search")
@@ -200,6 +218,10 @@ func GetProduct(c *gin.Context) {
 				continue
 			}
 		}
+	}
+
+	for i := range products {
+		products[i].ProductImageUrl = resolveProductImageURL(c.Request.Context(), products[i].ProductImageUrl)
 	}
 
 	// Batch fetch variants and attach inventory per product

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+func resolveProductImageURL(ctx context.Context, imageURL string) string {
+	imageURL = strings.TrimSpace(imageURL)
+	if imageURL == "" {
+		return ""
+	}
+	if strings.HasPrefix(imageURL, "http://") || strings.HasPrefix(imageURL, "https://") {
+		return imageURL
+	}
+
+	if resolvedURL, err := helper.ResolveObjectURL(ctx, "S3_BUCKET_NAME", imageURL); err == nil {
+		return resolvedURL
+	}
+
+	return imageURL
+}
 
 func ReadProducts(c *gin.Context) {
 	listOrder := c.Query("list_order")
@@ -139,6 +156,9 @@ func ReadProducts(c *gin.Context) {
 	}
 
 	// If product has offer dates returned as strings from SQL, they're already set in product.StartDate / EndDate.
+	for i := range products {
+		products[i].ProductImageUrl = resolveProductImageURL(c.Request.Context(), products[i].ProductImageUrl)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
@@ -187,6 +207,8 @@ func ReadProductById(c *gin.Context) {
 		})
 		return
 	}
+
+	product.ImageURL = resolveProductImageURL(c.Request.Context(), product.ImageURL)
 
 	var totalStock uint
 	var sizes []string

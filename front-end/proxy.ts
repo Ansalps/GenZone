@@ -1,32 +1,47 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const protectedUserRoutes = [
+  '/dashboard',
+  '/cart',
+  '/checkout',
+  '/orders',
+  '/profile',
+  '/wallet',
+  '/wishlist',
+  '/payment-option',
+];
+
 export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
-    const isLoginPage = pathname === '/admin/login';
-    const isAdminRoute = pathname.startsWith('/admin');
+    const isAdminRoute = pathname.startsWith('/admin') && pathname !== '/admin/login';
+    const isUserProtectedRoute = protectedUserRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
-    // Read the cookie for the route type, while keeping legacy fallback support.
-    const token = isAdminRoute
-        ? request.cookies.get('jwt_admin_token')?.value || request.cookies.get('jwt_token')?.value
-        : request.cookies.get('jwt_user_token')?.value || request.cookies.get('jwt_token')?.value;
+    const adminToken = request.cookies.get('jwt_admin_token')?.value || request.cookies.get('jwt_token')?.value;
+    const userToken = request.cookies.get('jwt_user_token')?.value || request.cookies.get('jwt_token')?.value;
 
-    // Case 1: Unauthenticated user trying to access ANY admin route (except /admin/login)
-    if (isAdminRoute && !isLoginPage && !token) {
-        const loginUrl = new URL('/admin/login', request.url);
-        return NextResponse.redirect(loginUrl);
+    if (isAdminRoute) {
+        if (!adminToken) {
+            return NextResponse.redirect(new URL('/admin/login', request.url));
+        }
+        return NextResponse.next();
     }
 
-    // Case 2: Already authenticated user trying to access /admin/login
-    if (isLoginPage && token) {
-        const dashboardUrl = new URL('/admin', request.url);
-        return NextResponse.redirect(dashboardUrl);
+    if (pathname === '/admin/login' && adminToken) {
+        return NextResponse.redirect(new URL('/admin', request.url));
+    }
+
+    if (isUserProtectedRoute && !userToken) {
+        return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    if ((pathname === '/login' || pathname === '/signup' || pathname === '/verify-otp') && userToken) {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
     return NextResponse.next();
 }
 
-// Ensure matcher catches /admin, /admin/login, and all sub-routes
 export const config = {
-    matcher: ['/admin', '/admin/:path*'],
+    matcher: ['/admin/:path*', '/dashboard/:path*', '/cart/:path*', '/checkout/:path*', '/orders/:path*', '/profile/:path*', '/wallet/:path*', '/wishlist/:path*', '/payment-option/:path*', '/login', '/signup', '/verify-otp'],
 };

@@ -156,7 +156,7 @@ export default function BestSellingPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-emerald-300">{money(Number(product.price ?? 0))}</p>
-                      <p className="text-xs text-slate-400">Stock: {product.stock ?? 0}</p>
+                      <p className="text-xs text-slate-400">Stock: {Number(product.stock ?? 0)}</p>
                     </div>
                   </div>
                 ))}

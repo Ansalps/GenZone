@@ -81,6 +81,7 @@ func RegisterUrls(router *gin.Engine) {
 	publicGroup.GET("/auth/google/callback", user.HandleGoogleCallback)
 
 	//user
+	router.POST("logout", middleware.AuthMiddleware("user"), user.Logout)
 	router.GET("profile", middleware.AuthMiddleware("user"), user.Profile)
 	router.GET("profile/picture", middleware.AuthMiddleware("user"), user.ProfilePicture)
 	router.POST("profile/picture", middleware.AuthMiddleware("user"), user.ProfilePictureUpload)
