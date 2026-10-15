@@ -6,6 +6,8 @@ export interface ProductInventoryItem {
 export interface Product {
     id: number;
     created_at: string;
+    deleted_at?: string | null;
+    product_status?: string;
 
     category_id: number;
     category_name: string;

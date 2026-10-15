@@ -92,6 +92,22 @@ type CancelOrder struct {
 	OrderStatus string `json:"order_status" validate:"required"`
 }
 
+type CancelSingleOrderItem struct {
+	Quantity uint `json:"quantity" validate:"omitempty,min=1"`
+}
+
+type ReturnSingleOrderItem struct {
+	Quantity uint `json:"quantity" validate:"omitempty,min=1"`
+}
+
+type ChangeDeliveryStatus struct {
+	DeliveryStatus string `json:"delivery_status" validate:"required"`
+}
+
+type ChangePaymentStatus struct {
+	PaymentStatus string `json:"payment_status" validate:"required"`
+}
+
 //	type RazorPayOrder struct {
 //		UserID    uint `validate:"required"`
 //		AddressID uint `json:"address_id" validate:"required"`

@@ -13,37 +13,71 @@ import (
 func ReadProducts(c *gin.Context) {
 
 	var products []responsemodels.Product
+	var sql string
 
-	sql := `
+	if database.DB.Dialector.Name() == "sqlite" {
+		sql = `
 		SELECT
 			p.id,
 			p.created_at,
 			p.updated_at,
+			p.deleted_at,
 			p.category_id,
 			c.category_name,
 			p.product_name,
+			CASE WHEN p.deleted_at IS NOT NULL THEN 'discontinued' ELSE 'active' END AS product_status,
+			p.description AS product_description,
+			p.image_url AS product_image_url,
+			p.price,
+			COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id), 0) AS stock,
+			p.popular,
+			COALESCE(GROUP_CONCAT(DISTINCT pv.size), '') AS size,
+			COALESCE(MAX(CASE WHEN o.start_at <= datetime('now') AND (o.end_at IS NULL OR o.end_at >= datetime('now')) THEN o.discount_percentage ELSE 0 END), 0) AS discount_percentage,
+			COALESCE(MAX(strftime('%Y-%m-%d', o.start_at)), '') AS start_date,
+			COALESCE(MAX(strftime('%Y-%m-%d', o.end_at)), '') AS end_date
+		FROM products p
+		JOIN categories c
+			ON c.id = p.category_id AND c.deleted_at IS NULL
+		LEFT JOIN product_variants pv
+			ON pv.product_id = p.id AND pv.deleted_at IS NULL
+		LEFT JOIN offers o
+			ON o.product_id = p.id AND o.deleted_at IS NULL
+		GROUP BY p.id, p.created_at, p.updated_at, p.category_id, c.category_name,
+			p.product_name, p.deleted_at, p.description, p.image_url, p.price, p.popular
+		ORDER BY p.id DESC
+	`
+	} else {
+		sql = `
+		SELECT
+			p.id,
+			p.created_at,
+			p.updated_at,
+			p.deleted_at,
+			p.category_id,
+			c.category_name,
+			p.product_name,
+			CASE WHEN p.deleted_at IS NOT NULL THEN 'discontinued' ELSE 'active' END AS product_status,
 			p.description AS product_description,
 			p.image_url AS product_image_url,
 			p.price,
 			COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id), 0) AS stock,
 			p.popular,
 			COALESCE(string_agg(DISTINCT pv.size, ',' ORDER BY pv.size), '') AS size,
-			-- inventory as JSON array of {size, stock}
-			COALESCE(json_agg(DISTINCT jsonb_build_object('size', pv.size, 'stock', pv.stock)) FILTER (WHERE pv.id IS NOT NULL), '[]') AS inventory,
 			COALESCE(MAX(CASE WHEN o.start_at <= now() AND (o.end_at IS NULL OR o.end_at >= now()) THEN o.discount_percentage ELSE 0 END), 0) AS discount_percentage,
 			COALESCE(MAX(to_char(o.start_at, 'YYYY-MM-DD')), '') AS start_date,
 			COALESCE(MAX(to_char(o.end_at, 'YYYY-MM-DD')), '') AS end_date
 		FROM products p
 		JOIN categories c
-			ON c.id = p.category_id
+			ON c.id = p.category_id AND c.deleted_at IS NULL
 		LEFT JOIN product_variants pv
-			ON pv.product_id = p.id
+			ON pv.product_id = p.id AND pv.deleted_at IS NULL
 		LEFT JOIN offers o
-			ON o.product_id = p.id
+			ON o.product_id = p.id AND o.deleted_at IS NULL
 		GROUP BY p.id, p.created_at, p.updated_at, p.category_id, c.category_name,
-			p.product_name, p.description, p.image_url, p.price, p.popular
+			p.product_name, p.deleted_at, p.description, p.image_url, p.price, p.popular
 		ORDER BY p.id DESC
 	`
+	}
 
 	if err := database.DB.Raw(sql).Scan(&products).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -78,6 +112,12 @@ func ReadProducts(c *gin.Context) {
 
 		var rowsInv []invRow
 		rawSql := `SELECT product_id, json_agg(jsonb_build_object('size', size, 'stock', stock) ORDER BY size) AS inv FROM product_variants WHERE product_id IN ? GROUP BY product_id`
+		if database.DB.Dialector.Name() == "sqlite" {
+			rawSql = `SELECT product_id, json_group_array(json_object('size', size, 'stock', stock)) AS inv FROM product_variants WHERE product_id IN ? GROUP BY product_id`
+		} else {
+			rawSql = `SELECT product_id, json_agg(jsonb_build_object('size', size, 'stock', stock) ORDER BY size) AS inv FROM product_variants WHERE product_id IN ? GROUP BY product_id`
+		}
+
 		if err := database.DB.Raw(rawSql, ids).Scan(&rowsInv).Error; err == nil {
 			invMap := make(map[uint]json.RawMessage)
 			for _, r := range rowsInv {
@@ -112,9 +152,11 @@ func ReadProducts(c *gin.Context) {
 			"id":                  p.ID,
 			"created_at":          p.CreatedAt,
 			"updated_at":          p.UpdatedAt,
+			"deleted_at":          p.DeletedAt,
 			"category_id":         p.CategoryID,
 			"category_name":       p.CategoryName,
 			"product_name":        p.ProductName,
+			"product_status":      p.ProductStatus,
 			"product_description": p.ProductDescription,
 			"product_image_url":   productImageURL,
 			"price":               p.Price,

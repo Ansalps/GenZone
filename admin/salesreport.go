@@ -17,13 +17,14 @@ import (
 
 func GenerateSalesReport(c *gin.Context) {
 	database.DB.Exec(`TRUNCATE sales_report_items`)
+	fmt.Println("hiiiiiiiiiii")
 	var OrderItems []models.OrderItems
 	//database.DB.Find(&OrderItems)
-	database.DB.Raw(`SELECT * FROM order_items WHERE order_status='delivered' order by product_id,order_id`).Scan(&OrderItems)
+	database.DB.Raw(`SELECT * FROM order_items WHERE delivery_status='delivered' order by product_id,order_id`).Scan(&OrderItems)
 	var orderid uint
 	var productid uint
 	for _, v := range OrderItems {
-
+		fmt.Println("helloooo")
 		fmt.Println("first orderid ", orderid)
 		fmt.Println("first productid ", productid)
 		if orderid == v.OrderID && productid == v.ProductID {
@@ -96,53 +97,11 @@ func FilterSalesReport(c *gin.Context) {
 	day := c.Query("day")
 	month := c.Query("month")
 	year := c.Query("year")
+	period := c.Query("period")
 
-	// Attempt to parse the date string
-	if day != "" {
-		_, err := time.Parse("2006-01-02", day)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "Invalid Date Format",
-			}) // The date is invalid
-			return
-		}
-	}
-
-	if month != "" {
-		int1, err := strconv.Atoi(month)
-		if err != nil {
-			fmt.Println("Error converting string to int:", err)
-		}
-
-		if int1 >= 1 && int1 <= 12 {
-			fmt.Println("ok")
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "invalid month format",
-			})
-			return
-		}
-	}
-
-	if year != "" {
-		// Parse the year string to an integer
-		yearint, err := strconv.Atoi(year)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "invalid year format",
-			})
-			return
-		}
-
-		// Get the current year
-		currentYear := time.Now().Year()
-
-		if yearint < 1900 || yearint > currentYear {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "year out of range, must be between 1900 and current year",
-			})
-			return
-		}
+	if _, _, err := resolveReportDateRange(period, day, month, year, time.Now()); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
 	}
 
 	var salesreportitem []responsemodels.SalesReportItem
@@ -152,30 +111,23 @@ func FilterSalesReport(c *gin.Context) {
 		TotalDiscount   float64 `json:"total_discount"`
 	}
 	var summary SalesReportSummary
-	//database.DB.Find(&salesreportitem)
-	sql := `SELECT * FROM sales_report_items `
-	sql1 := `SELECT SUM(qty)AS total_quantity, SUM(paid_amount) AS total_paid_amount, SUM(total_discount) AS total_discount FROM sales_report_items `
-	if day != "" {
-		sql = sql + `WHERE DATE(order_date) ='` + day + `'`
-		database.DB.Raw(sql).Scan(&salesreportitem)
-		sql1 = sql1 + `WHERE DATE(order_date) ='` + day + `'`
-		database.DB.Raw(sql1).Scan(&summary)
-	} else if month != "" {
-		sql = sql + `WHERE EXTRACT(MONTH FROM order_date) = '` + month + `'`
-		database.DB.Raw(sql).Scan(&salesreportitem)
-		sql1 = sql1 + `WHERE EXTRACT(MONTH FROM order_date) = '` + month + `'`
-		database.DB.Raw(sql1).Scan(&summary)
-	} else if year != "" {
-		sql = sql + `WHERE EXTRACT(YEAR FROM order_date) = '` + year + `'`
-		database.DB.Raw(sql).Scan(&salesreportitem)
-		sql1 = sql1 + `WHERE EXTRACT(YEAR FROM order_date) = '` + year + `'`
-		database.DB.Raw(sql1).Scan(&summary)
+
+	sql := `SELECT * FROM sales_report_items`
+	sql1 := `SELECT SUM(qty) AS total_quantity, SUM(paid_amount) AS total_paid_amount, SUM(total_discount) AS total_discount FROM sales_report_items`
+	dateFilter, dateArgs, err := buildReportDateFilter("order_date", period, day, month, year, time.Now())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	if dateFilter != "" {
+		sql += dateFilter
+		sql1 += dateFilter
+		database.DB.Raw(sql, dateArgs...).Scan(&salesreportitem)
+		database.DB.Raw(sql1, dateArgs...).Scan(&summary)
 	} else {
 		database.DB.Raw(sql).Scan(&salesreportitem)
 		database.DB.Raw(sql1).Scan(&summary)
 	}
-	fmt.Println("ooo", summary)
-	fmt.Println("---", summary.TotalQuantity)
 
 	c.JSON(http.StatusOK, gin.H{
 		"sales_report":         salesreportitem,
@@ -196,26 +148,27 @@ func FilterSalesReportPdfExcel(c *gin.Context) {
 	day := c.Query("day")
 	month := c.Query("month")
 	year := c.Query("year")
+	period := c.Query("period")
 
 	var salesreportitem []models.SalesReportItem
-
 	var summary SalesReportSummary
 
-	sql := `SELECT * FROM sales_report_items `
-	sql1 := `SELECT SUM(qty)AS total_quantity, SUM(paid_amount) AS total_paid_amount, SUM(total_discount) AS total_discount FROM sales_report_items `
-	if day != "" {
-		sql += `WHERE DATE(order_date) ='` + day + `'`
-		sql1 += `WHERE DATE(order_date) ='` + day + `'`
-	} else if month != "" {
-		sql += `WHERE EXTRACT(MONTH FROM order_date) = '` + month + `'`
-		sql1 += `WHERE EXTRACT(MONTH FROM order_date) = '` + month + `'`
-	} else if year != "" {
-		sql += `WHERE EXTRACT(YEAR FROM order_date) = '` + year + `'`
-		sql1 += `WHERE EXTRACT(YEAR FROM order_date) = '` + year + `'`
+	sql := `SELECT * FROM sales_report_items`
+	sql1 := `SELECT SUM(qty) AS total_quantity, SUM(paid_amount) AS total_paid_amount, SUM(total_discount) AS total_discount FROM sales_report_items`
+	dateFilter, dateArgs, err := buildReportDateFilter("order_date", period, day, month, year, time.Now())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
 	}
-
-	database.DB.Raw(sql).Scan(&salesreportitem)
-	database.DB.Raw(sql1).Scan(&summary)
+	if dateFilter != "" {
+		sql += dateFilter
+		sql1 += dateFilter
+		database.DB.Raw(sql, dateArgs...).Scan(&salesreportitem)
+		database.DB.Raw(sql1, dateArgs...).Scan(&summary)
+	} else {
+		database.DB.Raw(sql).Scan(&salesreportitem)
+		database.DB.Raw(sql1).Scan(&summary)
+	}
 
 	format := c.Query("format")
 	fileName := "sales_report." + format

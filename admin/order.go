@@ -3,7 +3,7 @@ package admin
 import (
 	"fmt"
 	"net/http"
-	"time"
+	"strings"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -88,7 +88,45 @@ func OrderItemsList(c *gin.Context) {
 
 }
 
-func ChangeOrderStatus(c *gin.Context) {
+func canUpdateDeliveryStatus(currentStatus, nextStatus string) bool {
+	current := strings.ToLower(strings.TrimSpace(currentStatus))
+	next := strings.ToLower(strings.TrimSpace(nextStatus))
+
+	if current == "" || next == "" || current == next {
+		return false
+	}
+
+	switch current {
+	case "pending":
+		return next == "shipped" || next == "failed"
+	case "shipped":
+		return next == "delivered" || next == "failed"
+	default:
+		return false
+	}
+}
+
+func canUpdatePaymentStatus(currentStatus, nextStatus string) bool {
+	current := strings.ToLower(strings.TrimSpace(currentStatus))
+	next := strings.ToLower(strings.TrimSpace(nextStatus))
+
+	if current == "" || next == "" || current == next {
+		return false
+	}
+
+	switch current {
+	case "pending":
+		return next == "paid" || next == "failed"
+	default:
+		return false
+	}
+}
+
+func shouldCompleteOrderOnDelivery(paymentMethod string) bool {
+	return !strings.EqualFold(strings.TrimSpace(paymentMethod), "COD")
+}
+
+func ChangeDeliveryStatus(c *gin.Context) {
 	orderID := c.Param("id")
 	var count int64
 	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ?`, orderID).Scan(&count)
@@ -99,15 +137,15 @@ func ChangeOrderStatus(c *gin.Context) {
 		return
 	}
 
-	var Order requestmodels.CancelOrder
-	err := c.BindJSON(&Order)
-	if err != nil {
+	var payload requestmodels.ChangeDeliveryStatus
+	if err := c.BindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "false",
+			"status":  false,
 			"message": "failed to bind request",
 		})
+		return
 	}
-	if err := helper.Validate(Order); err != nil {
+	if err := helper.Validate(payload); err != nil {
 		fmt.Println("", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":     false,
@@ -117,86 +155,124 @@ func ChangeOrderStatus(c *gin.Context) {
 		return
 	}
 
-	p := Order.OrderStatus
-	if p != "delivered" && p != "cancelled" && p != "pending" && p != "shipped" && p != "failed" {
+	nextStatus := strings.ToLower(strings.TrimSpace(payload.DeliveryStatus))
+	if nextStatus != "pending" && nextStatus != "shipped" && nextStatus != "delivered" && nextStatus != "failed" && nextStatus != "returned" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "invalid order status",
+			"message": "invalid delivery status",
 		})
 		return
 	}
-	var orderstatus string
-	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("order_status", &orderstatus)
-	if orderstatus == "shipped" {
-		if Order.OrderStatus == "pending" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "Cannot change the order status back to pending, since items are already shipped",
-			})
-			return
-		}
-		if Order.OrderStatus == "cancelled" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "Cannot cancel the order, since items are already shipped",
-			})
-			return
-		}
-	}
-	if orderstatus == "cancelled" {
+
+	var currentStatus string
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("delivery_status", &currentStatus)
+	currentStatus = strings.ToLower(strings.TrimSpace(currentStatus))
+
+	if currentStatus == "delivered" || currentStatus == "failed" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Order has already been cancelled by user or Admin",
+			"message": "delivery status cannot be updated from the current state",
 		})
 		return
 	}
-	if orderstatus == "delivered" {
+
+	if !canUpdateDeliveryStatus(currentStatus, nextStatus) {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Order has already been delivered",
+			"message": "invalid delivery status transition",
 		})
 		return
 	}
-	if orderstatus == "failed" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Order has already failed",
-		})
-		return
-	}
-	if Order.OrderStatus == "delivered" {
 
-		now := time.Now()
-		today := now.Format("2006-01-02")
-		var paymentmethod string
-		database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("payment_method", &paymentmethod)
-		if paymentmethod == "COD" {
-			payment := models.Payments{
-				PaymentDate:   today,
-				PaymentStatus: "paid",
-			}
+	orderUpdate := models.Order{DeliveryStatus: nextStatus}
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Updates(&orderUpdate)
+	database.DB.Model(&models.OrderItems{}).Where("order_id = ?", orderID).Update("delivery_status", nextStatus)
 
-			database.DB.Model(&models.Payments{}).Where("order_id = ?", orderID).Updates(&payment)
-
-		}
-
-		var OrderItems []models.OrderItems
-		database.DB.Where("order_id = ?", orderID).Find(&OrderItems)
-
-		for _, v := range OrderItems {
-			if v.OrderStatus != "cancelled" && v.OrderStatus != "returned" {
-				var stock uint
-				database.DB.Raw("SELECT COALESCE(SUM(stock), 0) FROM product_variants WHERE product_id = ?", v.ProductID).Scan(&stock)
-
-				stock = stock - 1
-				database.DB.Exec("UPDATE product_variants SET stock = stock - 1 WHERE product_id = ?", v.ProductID)
-				paidamount := v.UnitPrice - v.TotalDiscount
-				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("final_amount", paidamount)
-				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("delivered_date", today)
-			}
-
+	if nextStatus == "delivered" {
+		var paymentMethod string
+		database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("payment_method", &paymentMethod)
+		if shouldCompleteOrderOnDelivery(paymentMethod) {
+			database.DB.Model(&models.Order{}).Where("id = ?", orderID).Update("order_status", "completed")
+			database.DB.Model(&models.OrderItems{}).Where("order_id = ?", orderID).Update("order_status", "completed")
 		}
 	}
-	order := models.Order{
-		OrderStatus: Order.OrderStatus,
-	}
-	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Updates(&order)
-	database.DB.Model(&models.OrderItems{}).Where("order_id = ? and order_status != 'cancelled'", orderID).Update("order_status", Order.OrderStatus)
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "order status changed successfully",
+		"message": "delivery status changed successfully",
 	})
+}
+
+func ChangePaymentStatus(c *gin.Context) {
+	orderID := c.Param("id")
+	var count int64
+	database.DB.Raw(`SELECT COUNT(*) FROM orders where id = ?`, orderID).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "order id does not exist",
+		})
+		return
+	}
+
+	var payload requestmodels.ChangePaymentStatus
+	if err := c.BindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  false,
+			"message": "failed to bind request",
+		})
+		return
+	}
+	if err := helper.Validate(payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":     false,
+			"message":    err.Error(),
+			"error_code": http.StatusBadRequest,
+		})
+		return
+	}
+
+	nextStatus := strings.ToLower(strings.TrimSpace(payload.PaymentStatus))
+	if nextStatus != "pending" && nextStatus != "paid" && nextStatus != "failed" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid payment status",
+		})
+		return
+	}
+
+	var paymentMethod string
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("payment_method", &paymentMethod)
+	if !strings.EqualFold(paymentMethod, "COD") {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "payment status update is only allowed for COD orders",
+		})
+		return
+	}
+
+	var currentStatus string
+	database.DB.Model(&models.Payments{}).Where("order_id = ?", orderID).Order("created_at DESC").Limit(1).Pluck("payment_status", &currentStatus)
+	currentStatus = strings.ToLower(strings.TrimSpace(currentStatus))
+
+	if currentStatus == "paid" || currentStatus == "failed" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "payment status cannot be updated from the current state",
+		})
+		return
+	}
+
+	if !canUpdatePaymentStatus(currentStatus, nextStatus) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid payment status transition",
+		})
+		return
+	}
+
+	database.DB.Model(&models.Payments{}).Where("order_id = ?", orderID).Order("created_at DESC").Limit(1).Update("payment_status", nextStatus)
+	if nextStatus == "paid" {
+		database.DB.Model(&models.Order{}).Where("id = ?", orderID).Update("order_status", "completed")
+		database.DB.Model(&models.OrderItems{}).Where("order_id = ?", orderID).Update("order_status", "completed")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "payment status changed successfully",
+	})
+}
+
+func ChangeOrderStatus(c *gin.Context) {
+	ChangeDeliveryStatus(c)
 }

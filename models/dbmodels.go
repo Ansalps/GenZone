@@ -2,14 +2,17 @@ package models
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Admin struct {
 	ID        uint `gorm:"primarykey"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	Email     string `json:"email"`
-	Password  string `json:"password"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+	Email     string         `json:"email"`
+	Password  string         `json:"password"`
 }
 
 type TempUser struct {
@@ -34,35 +37,38 @@ type Address struct {
 	ID         uint `gorm:"primarykey"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-	UserID     uint   `validate:"required"`
-	User       User   `gorm:"foriegnkey:UserID;references:ID"`
-	Country    string `validate:"required"`
-	State      string `validate:"required"`
-	City       string `validate:"required"`
-	StreetName string `validate:"required"`
-	PinCode    string `validate:"required,numeric"`
-	Phone      string `validate:"required,numeric,len=10"`
-	Default    bool   `gorm:"default:false" validate:"required"`
+	DeletedAt  gorm.DeletedAt `gorm:"index"`
+	UserID     uint           `validate:"required"`
+	User       User           `gorm:"foriegnkey:UserID;references:ID"`
+	Country    string         `validate:"required"`
+	State      string         `validate:"required"`
+	City       string         `validate:"required"`
+	StreetName string         `validate:"required"`
+	PinCode    string         `validate:"required,numeric"`
+	Phone      string         `validate:"required,numeric,len=10"`
+	Default    bool           `gorm:"default:false" validate:"required"`
 }
 
 type User struct {
 	ID             uint `gorm:"primarykey"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
-	FirstName      string `validate:"required"`
-	LastName       string `validate:"required"`
-	Email          string `gorm:"unique" validate:"required"`
-	Password       string `validate:"required"`
-	Phone          string `json:"phone" validate:"required,numeric,len=10"`
-	ProfilePicture string `gorm:"default:null" json:"profile_picture"`
-	Status         string `gorm:"type:varchar(10); check(status IN ('Active', 'Blocked', 'Deleted')) ;default:'Active'" json:"status" validate:"required"`
+	DeletedAt      gorm.DeletedAt `gorm:"index"`
+	FirstName      string         `validate:"required"`
+	LastName       string         `validate:"required"`
+	Email          string         `gorm:"unique" validate:"required"`
+	Password       string         `validate:"required"`
+	Phone          string         `json:"phone" validate:"required,numeric,len=10"`
+	ProfilePicture string         `gorm:"default:null" json:"profile_picture"`
+	Status         string         `gorm:"type:varchar(10); check(status IN ('Active', 'Blocked', 'Deleted')) ;default:'Active'" json:"status" validate:"required"`
 }
 
 type Category struct {
 	ID uint `gorm:"primaryKey" json:"id"`
 
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 
 	CategoryName string `gorm:"not null;unique" json:"category_name" validate:"required"`
 	Description  string `gorm:"not null" json:"category_description" validate:"required"`
@@ -79,8 +85,9 @@ type Category struct {
 type Product struct {
 	ID uint `gorm:"primaryKey" json:"id"`
 
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 
 	CategoryID uint     `gorm:"not null;index" json:"category_id"`
 	Category   Category `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
@@ -99,8 +106,9 @@ type Product struct {
 type ProductVariant struct {
 	ID uint `gorm:"primaryKey" json:"id"`
 
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 
 	ProductID uint    `gorm:"not null;index;uniqueIndex:idx_product_size;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"product_id"`
 	Product   Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
@@ -113,8 +121,9 @@ type Offer struct {
 	ID                 uint `gorm:"primarykey"`
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
-	ProductID          uint    `gorm:"not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	DiscountPercentage float64 `gorm:"not null"`
+	DeletedAt          gorm.DeletedAt `gorm:"index"`
+	ProductID          uint           `gorm:"not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	DiscountPercentage float64        `gorm:"not null"`
 	StartAt            time.Time
 	EndAt              time.Time
 }
@@ -252,9 +261,10 @@ type Coupon struct {
 	ID          uint `gorm:"primarykey"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-	Code        string  `gorm:"not null" json:"code"`
-	Discount    float64 `gorm:"type:decimal(5,2);not null" json:"discount"`
-	MinPurchase float64 `gorm:"type:decimal(10,2)" json:"min_purchase"`
+	DeletedAt   gorm.DeletedAt `gorm:"index"`
+	Code        string         `gorm:"not null" json:"code"`
+	Discount    float64        `gorm:"type:decimal(5,2);not null" json:"discount"`
+	MinPurchase float64        `gorm:"type:decimal(10,2)" json:"min_purchase"`
 	StartAt     time.Time
 	EndAt       time.Time
 	IsActive    bool

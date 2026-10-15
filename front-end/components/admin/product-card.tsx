@@ -11,6 +11,8 @@ export default function ProductCard({
     product,
     onRequestDelete,
 }: ProductCardProps) {
+    const hasDeletedTimestamp = Boolean(product.deleted_at && product.deleted_at !== '0001-01-01T00:00:00Z' && product.deleted_at !== '0001-01-01T00:00:00.000Z');
+    const isDiscontinued = ((product.product_status || '').toLowerCase() === 'discontinued') || hasDeletedTimestamp;
     const discountPercent = product.discount_percentage || 0;
     const hasOffer = discountPercent > 0;
 
@@ -71,10 +73,10 @@ export default function ProductCard({
         daysUntilStart = null
     }
 
-    const showDiscount = hasOffer && offerStatus === 'active'
+    const showDiscount = hasOffer && offerStatus === 'active' && !isDiscontinued
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-slate-900/80 shadow-lg overflow-hidden hover:shadow-2xl transition">
+        <div className={`rounded-2xl border overflow-hidden shadow-lg transition ${isDiscontinued ? 'border-slate-700 bg-slate-800/90 opacity-80 grayscale-[0.2]' : 'border-white/10 bg-slate-900/80 hover:shadow-2xl'}`}>
 
             {/* Product Image */}
             <div className="relative w-full h-52 bg-gray-800">
@@ -82,7 +84,7 @@ export default function ProductCard({
                     <img
                         src={product.product_image_url}
                         alt={product.product_name}
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full object-cover ${isDiscontinued ? 'grayscale' : ''}`}
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -94,6 +96,12 @@ export default function ProductCard({
                 {product.popular && (
                     <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-semibold px-2 py-1 rounded">
                         Popular
+                    </span>
+                )}
+
+                {isDiscontinued && (
+                    <span className="absolute top-3 right-3 bg-red-500/90 text-white text-xs font-semibold px-2 py-1 rounded">
+                        Discontinued
                     </span>
                 )}
 
@@ -114,18 +122,18 @@ export default function ProductCard({
                 </p>
 
                 {/* Name */}
-                <h2 className="text-lg font-semibold mt-1 truncate text-white">
+                <h2 className={`text-lg font-semibold mt-1 truncate ${isDiscontinued ? 'text-slate-300' : 'text-white'}`}>
                     {product.product_name}
                 </h2>
 
                 {/* Description */}
-                <p className="text-sm text-slate-300 mt-2 line-clamp-2" title={product.product_description}>
+                <p className={`text-sm mt-2 line-clamp-2 ${isDiscontinued ? 'text-slate-400' : 'text-slate-300'}`} title={product.product_description}>
                     {product.product_description}
                 </p>
 
                 {/* Price */}
                 <div className="mt-4">
-                    {hasOffer ? (
+                    {hasOffer && !isDiscontinued ? (
                         <div className="flex items-center gap-2">
                             <span className="text-xl font-bold text-emerald-300">
                                 ₹{finalPrice.toFixed(2)}
@@ -136,7 +144,7 @@ export default function ProductCard({
                             </span>
                         </div>
                     ) : (
-                        <span className="text-xl font-bold text-white">₹{product.price.toFixed(2)}</span>
+                        <span className={`text-xl font-bold ${isDiscontinued ? 'text-slate-400' : 'text-white'}`}>₹{product.price.toFixed(2)}</span>
                     )}
                 </div>
 
@@ -188,23 +196,34 @@ export default function ProductCard({
                 <div className="flex gap-2 mt-5">
                     <Link
                         href={`/admin/products/edit/${product.id}`}
-                        className="flex-1 text-center rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm px-3 py-2 font-medium transition hover:opacity-95"
+                        className={`flex-1 text-center rounded-xl ${isDiscontinued ? 'bg-slate-700 text-slate-300 cursor-not-allowed opacity-70' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-95'} text-sm px-3 py-2 font-medium transition`}
+                        onClick={(event) => {
+                            if (isDiscontinued) {
+                                event.preventDefault();
+                            }
+                        }}
                     >
                         Edit
                     </Link>
 
                     <Link
                         href={`/admin/products/update-stock/${product.id}`}
-                        className="flex-1 text-center rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 text-white text-sm px-3 py-2 font-medium transition hover:opacity-95"
+                        className={`flex-1 text-center rounded-xl ${isDiscontinued ? 'bg-slate-700 text-slate-300 cursor-not-allowed opacity-70' : 'bg-gradient-to-r from-violet-500 to-purple-500 text-white hover:opacity-95'} text-sm px-3 py-2 font-medium transition`}
+                        onClick={(event) => {
+                            if (isDiscontinued) {
+                                event.preventDefault();
+                            }
+                        }}
                     >
                         Update Stock
                     </Link>
 
                     <button
                         onClick={() => onRequestDelete(product.id, product.product_name)}
-                        className="flex-1 rounded-xl bg-red-600 text-white text-sm px-3 py-2 font-medium transition hover:opacity-95"
+                        className={`flex-1 rounded-xl ${isDiscontinued ? 'bg-slate-700 text-slate-300 cursor-not-allowed opacity-70' : 'bg-red-600 text-white hover:opacity-95'} text-sm px-3 py-2 font-medium transition`}
+                        disabled={isDiscontinued}
                     >
-                        Delete
+                        {isDiscontinued ? 'Discontinued' : 'Delete'}
                     </button>
                 </div>
 

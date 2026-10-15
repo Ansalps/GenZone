@@ -86,43 +86,43 @@ func TestProductDeleteRemovesRelatedDatabaseRecords(t *testing.T) {
 		t.Fatalf("expected 200 status on delete, got %d and body %s", w.Code, w.Body.String())
 	}
 
-	var productCount int64
-	if err := db.Model(&models.Product{}).Where("id = ?", product.ID).Count(&productCount).Error; err != nil {
-		t.Fatalf("failed to query product after delete: %v", err)
+	var softDeletedProductCount int64
+	if err := db.Unscoped().Model(&models.Product{}).Where("id = ? AND deleted_at IS NOT NULL", product.ID).Count(&softDeletedProductCount).Error; err != nil {
+		t.Fatalf("failed to query soft-deleted product: %v", err)
 	}
-	if productCount != 0 {
-		t.Fatalf("expected product row to be deleted, found %d rows", productCount)
-	}
-
-	var variantCount int64
-	if err := db.Model(&models.ProductVariant{}).Where("product_id = ?", product.ID).Count(&variantCount).Error; err != nil {
-		t.Fatalf("failed to query variants after delete: %v", err)
-	}
-	if variantCount != 0 {
-		t.Fatalf("expected product variants to be deleted, found %d rows", variantCount)
+	if softDeletedProductCount != 1 {
+		t.Fatalf("expected product to be soft-deleted, found %d soft-deleted rows", softDeletedProductCount)
 	}
 
-	var offerCount int64
-	if err := db.Model(&models.Offer{}).Where("product_id = ?", product.ID).Count(&offerCount).Error; err != nil {
-		t.Fatalf("failed to query offers after delete: %v", err)
+	var activeVariantCount int64
+	if err := db.Model(&models.ProductVariant{}).Where("product_id = ?", product.ID).Count(&activeVariantCount).Error; err != nil {
+		t.Fatalf("failed to query active variants after delete: %v", err)
 	}
-	if offerCount != 0 {
-		t.Fatalf("expected product offers to be deleted, found %d rows", offerCount)
+	if activeVariantCount != 0 {
+		t.Fatalf("expected product variants to be soft-deleted, found %d active rows", activeVariantCount)
+	}
+
+	var activeOfferCount int64
+	if err := db.Model(&models.Offer{}).Where("product_id = ?", product.ID).Count(&activeOfferCount).Error; err != nil {
+		t.Fatalf("failed to query active offers after delete: %v", err)
+	}
+	if activeOfferCount != 0 {
+		t.Fatalf("expected product offers to be soft-deleted, found %d active rows", activeOfferCount)
 	}
 
 	var cartItemCount int64
 	if err := db.Model(&models.CartItem{}).Where("product_id = ?", product.ID).Count(&cartItemCount).Error; err != nil {
 		t.Fatalf("failed to query cart items after delete: %v", err)
 	}
-	if cartItemCount != 0 {
-		t.Fatalf("expected cart items to be removed, found %d rows", cartItemCount)
+	if cartItemCount != 1 {
+		t.Fatalf("expected cart item to remain for discontinued display, found %d rows", cartItemCount)
 	}
 
 	var wishlistCount int64
 	if err := db.Model(&models.Wishlist{}).Where("product_id = ?", product.ID).Count(&wishlistCount).Error; err != nil {
 		t.Fatalf("failed to query wishlist after delete: %v", err)
 	}
-	if wishlistCount != 0 {
-		t.Fatalf("expected wishlist rows to be removed, found %d rows", wishlistCount)
+	if wishlistCount != 1 {
+		t.Fatalf("expected wishlist row to remain for discontinued display, found %d rows", wishlistCount)
 	}
 }

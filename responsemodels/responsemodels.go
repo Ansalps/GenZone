@@ -23,9 +23,11 @@ type Product struct {
 	ID                 uint                   `json:"id"`
 	CreatedAt          time.Time              `json:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
+	DeletedAt          *time.Time             `json:"deleted_at"`
 	CategoryID         uint                   `json:"category_id"`
 	CategoryName       string                 `json:"category_name"`
 	ProductName        string                 `json:"product_name"`
+	ProductStatus      string                 `json:"product_status"`
 	ProductDescription string                 `json:"product_description"`
 	ProductImageUrl    string                 `json:"product_image_url"`
 	Price              float64                `json:"price"`
@@ -47,6 +49,7 @@ type CartItems struct {
 	UserID             string                 `json:"user_id"`
 	ProductID          string                 `json:"product_id"`
 	ProductVariantID   uint                   `json:"product_variant_id"`
+	ProductStatus      string                 `json:"product_status"`
 	ProductName        string                 `json:"product_name"`
 	CategoryName       string                 `json:"category_name"`
 	ProductDescription string                 `json:"product_description"`
@@ -89,9 +92,9 @@ type Address struct {
 
 type Order struct {
 	//gorm.Model
-	ID uint `json:"id"`
+	ID        uint      `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time	`json:"updated_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 	// DeletedAt sql.NullTime `gorm:"index"`
 	UserID string `validate:"required,numeric" json:"user_id"`
 	//OrderDate   time.Time

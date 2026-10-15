@@ -14,7 +14,7 @@ import (
 
 func CouponList(c *gin.Context) {
 	var coupons []responsemodels.Coupon
-	if err := database.DB.Order("created_at DESC").Find(&coupons).Error; err != nil {
+	if err := database.DB.Where("deleted_at IS NULL").Order("created_at DESC").Find(&coupons).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "failed to fetch coupons",

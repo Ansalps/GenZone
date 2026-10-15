@@ -2,6 +2,7 @@ package admin
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -31,9 +32,10 @@ func OfferList(c *gin.Context) {
 			products.popular,
 			COALESCE(string_agg(DISTINCT product_variants.size, ',' ORDER BY product_variants.size), '') AS size
 		FROM offers
-		JOIN products ON offers.product_id = products.id
-		JOIN categories ON categories.id = products.category_id
-		LEFT JOIN product_variants ON product_variants.product_id = products.id
+		JOIN products ON offers.product_id = products.id AND products.deleted_at IS NULL
+		JOIN categories ON categories.id = products.category_id AND categories.deleted_at IS NULL
+		LEFT JOIN product_variants ON product_variants.product_id = products.id AND product_variants.deleted_at IS NULL
+		WHERE offers.deleted_at IS NULL
 		GROUP BY offers.id, offers.created_at, offers.updated_at,
 			offers.product_id, offers.discount_percentage, offers.start_at, offers.end_at,
 			products.product_name, categories.category_name, products.description,
@@ -92,7 +94,7 @@ func OfferAdd(c *gin.Context) {
 	}
 
 	var product models.Product
-	if err := database.DB.First(&product, req.ProductID).Error; err != nil {
+	if err := database.DB.Where("deleted_at IS NULL").First(&product, req.ProductID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "product does not exist",
@@ -101,7 +103,7 @@ func OfferAdd(c *gin.Context) {
 	}
 
 	var count int64
-	if err := database.DB.Model(&models.Offer{}).Where("product_id = ?", req.ProductID).Count(&count).Error; err != nil {
+	if err := database.DB.Model(&models.Offer{}).Where("product_id = ? AND deleted_at IS NULL", req.ProductID).Count(&count).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "failed to check existing offer",
@@ -139,7 +141,7 @@ func OfferAdd(c *gin.Context) {
 func OfferEdit(c *gin.Context) {
 	offerID := c.Param("id")
 	var existing models.Offer
-	if err := database.DB.First(&existing, offerID).Error; err != nil {
+	if err := database.DB.Where("deleted_at IS NULL").First(&existing, offerID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,
 			"message": "offer id does not exist",
@@ -190,7 +192,7 @@ func OfferEdit(c *gin.Context) {
 	}
 
 	var product models.Product
-	if err := database.DB.First(&product, productID).Error; err != nil {
+	if err := database.DB.Where("deleted_at IS NULL").First(&product, productID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "product does not exist",
@@ -200,7 +202,7 @@ func OfferEdit(c *gin.Context) {
 
 	if oldProductID != productID {
 		var another int64
-		if err := database.DB.Model(&models.Offer{}).Where("product_id = ? AND id != ?", productID, existing.ID).Count(&another).Error; err != nil {
+		if err := database.DB.Model(&models.Offer{}).Where("product_id = ? AND id != ? AND deleted_at IS NULL", productID, existing.ID).Count(&another).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  false,
 				"message": "failed to verify offer target product",
@@ -237,7 +239,7 @@ func OfferEdit(c *gin.Context) {
 func OfferRemove(c *gin.Context) {
 	offerID := c.Param("id")
 	var offer models.Offer
-	if err := database.DB.First(&offer, offerID).Error; err != nil {
+	if err := database.DB.Where("deleted_at IS NULL").First(&offer, offerID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "offer id does not exist",
@@ -245,7 +247,7 @@ func OfferRemove(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Delete(&offer).Error; err != nil {
+	if err := database.DB.Model(&models.Offer{}).Where("id = ? AND deleted_at IS NULL", offerID).Update("deleted_at", time.Now()).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  false,
 			"message": "failed to delete offer",

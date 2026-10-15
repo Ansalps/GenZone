@@ -25,6 +25,8 @@ export default function DashboardProductCard({ product, onAdded, onWishlistChang
     const [loading, setLoading] = useState(false)
     const [isWishlisted, setIsWishlisted] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
+    const hasDeletedTimestamp = Boolean(product.deleted_at && product.deleted_at !== '0001-01-01T00:00:00Z' && product.deleted_at !== '0001-01-01T00:00:00.000Z')
+    const isDiscontinued = ((product.product_status || '').toLowerCase() === 'discontinued') || hasDeletedTimestamp
     const discountPercentage = Number(product.discount_percentage) || 0
     const hasDiscount = discountPercentage > 0
     const discountAmount = hasDiscount ? product.price * (discountPercentage / 100) : 0
@@ -78,6 +80,11 @@ export default function DashboardProductCard({ product, onAdded, onWishlistChang
     }
 
     const validateAddToCart = async () => {
+        if (isDiscontinued) {
+            setErrorMessage("This product has been discontinued and cannot be added to cart.")
+            return false
+        }
+
         if (sizes.length > 0 && !selectedSize) {
             setErrorMessage("Please select a size before adding to cart.")
             return false
@@ -210,11 +217,11 @@ export default function DashboardProductCard({ product, onAdded, onWishlistChang
     const showDiscount = hasDiscount && offerStatus === 'active'
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-slate-900/80 shadow-lg overflow-hidden hover:shadow-2xl transition">
+        <div className={`rounded-2xl border overflow-hidden shadow-lg transition ${isDiscontinued ? 'border-slate-700 bg-slate-800/90 opacity-80 grayscale-[0.2]' : 'border-white/10 bg-slate-900/80 hover:shadow-2xl'}`}>
 
             <div className="relative w-full h-52 bg-gray-800">
                 {product.product_image_url ? (
-                    <img src={product.product_image_url} alt={product.product_name} className="w-full h-full object-cover" />
+                    <img src={product.product_image_url} alt={product.product_name} className={`w-full h-full object-cover ${isDiscontinued ? 'grayscale' : ''}`} />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>
                 )}
@@ -223,7 +230,11 @@ export default function DashboardProductCard({ product, onAdded, onWishlistChang
                     <span className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-semibold px-2 py-1 rounded">Popular</span>
                 )}
 
-                {showDiscount && (
+                {isDiscontinued && (
+                    <span className="absolute top-3 right-3 bg-red-500/90 text-white text-xs font-semibold px-2 py-1 rounded">Discontinued</span>
+                )}
+
+                {showDiscount && !isDiscontinued && (
                     <span className={`absolute top-3 right-3 text-xs font-semibold px-2 py-1 rounded ${offerStatus==='active' ? 'bg-emerald-500 text-white' : offerStatus==='upcoming' ? 'bg-blue-500 text-white' : offerStatus==='expired' ? 'bg-gray-500 text-white' : 'bg-red-600 text-white'}`}>{discountPercentage}% OFF</span>
                 )}
 
@@ -245,22 +256,22 @@ export default function DashboardProductCard({ product, onAdded, onWishlistChang
 
             <div className="p-4">
                 <p className="text-xs text-slate-400 uppercase tracking-wide">{product.category_name}</p>
-                <h4 className="mt-2 text-lg font-semibold truncate text-white">{product.product_name}</h4>
-                <p className="mt-2 line-clamp-3 text-sm text-slate-300" title={product.product_description}>{product.product_description}</p>
+                <h4 className={`mt-2 text-lg font-semibold truncate ${isDiscontinued ? 'text-slate-300' : 'text-white'}`}>{product.product_name}</h4>
+                <p className={`mt-2 line-clamp-3 text-sm ${isDiscontinued ? 'text-slate-400' : 'text-slate-300'}`} title={product.product_description}>{product.product_description}</p>
 
                 <div className="mt-4">
                     {showDiscount ? (
                         <div className="flex items-center gap-2">
-                            <span className="text-xl font-bold text-emerald-300">₹{finalPrice.toFixed(2)}</span>
+                            <span className={`text-xl font-bold ${isDiscontinued ? 'text-slate-400' : 'text-emerald-300'}`}>₹{finalPrice.toFixed(2)}</span>
                             <span className="text-sm text-slate-400 line-through">₹{product.price.toFixed(2)}</span>
                         </div>
                     ) : (
-                        <span className="text-xl font-bold text-white">₹{product.price.toFixed(2)}</span>
+                        <span className={`text-xl font-bold ${isDiscontinued ? 'text-slate-400' : 'text-white'}`}>₹{product.price.toFixed(2)}</span>
                     )}
                 </div>
 
                 {showDiscount && (
-                    <p className="text-xs text-emerald-300 mt-1">You save ₹{(product.price - finalPrice).toFixed(2)}</p>
+                    <p className={`text-xs mt-1 ${isDiscontinued ? 'text-slate-500' : 'text-emerald-300'}`}>You save ₹{(product.price - finalPrice).toFixed(2)}</p>
                 )}
 
                 {showDiscount && offerStatus === 'active' && daysLeft !== null && (
@@ -309,8 +320,8 @@ export default function DashboardProductCard({ product, onAdded, onWishlistChang
                     </div>
 
                     <div>
-                        <button onClick={handleAdd} disabled={loading || maxStock <= 0} className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm px-3 py-2 font-medium transition hover:opacity-95 disabled:opacity-60">
-                            {loading ? 'Adding...' : 'Add to cart'}
+                        <button onClick={handleAdd} disabled={loading || maxStock <= 0 || isDiscontinued} className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm px-3 py-2 font-medium transition hover:opacity-95 disabled:opacity-60">
+                            {isDiscontinued ? 'Discontinued' : loading ? 'Adding...' : 'Add to cart'}
                         </button>
                         {errorMessage && (
                             <p className="mt-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-xs text-rose-200">

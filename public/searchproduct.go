@@ -21,35 +21,65 @@ func GetProduct(c *gin.Context) {
 	var products []responsemodels.Product
 
 	// Added WHERE 1=1 to ensure valid SQL syntax for subsequent AND filters
-	sql := `
+	var sql string
+	if database.DB.Dialector.Name() == "sqlite" {
+		sql = `
         SELECT
             p.id,
             p.created_at,
             p.updated_at,
             p.category_id,
+			p.deleted_at,
             c.category_name,
             p.product_name,
+            CASE WHEN p.deleted_at IS NOT NULL THEN 'discontinued' ELSE 'active' END AS product_status,
+            p.description AS product_description,
+            p.image_url AS product_image_url,
+			p.price,
+			COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id), 0) AS stock,
+            p.popular,
+				COALESCE(GROUP_CONCAT(DISTINCT pv.size), '') AS size,
+				COALESCE(MAX(CASE WHEN o.start_at <= datetime('now') AND (o.end_at IS NULL OR o.end_at >= datetime('now')) THEN o.discount_percentage ELSE 0 END), 0) AS discount_percentage,
+				COALESCE(MAX(strftime('%Y-%m-%d', o.start_at)), '') AS start_date,
+				COALESCE(MAX(strftime('%Y-%m-%d', o.end_at)), '') AS end_date
+        FROM products p
+        JOIN categories c
+            ON p.category_id = c.id AND c.deleted_at IS NULL
+        LEFT JOIN product_variants pv
+            ON pv.product_id = p.id AND pv.deleted_at IS NULL
+        LEFT JOIN offers o
+            ON p.id = o.product_id AND o.deleted_at IS NULL
+    `
+	} else {
+		sql = `
+        SELECT
+            p.id,
+            p.created_at,
+            p.updated_at,
+            p.category_id,
+			p.deleted_at,
+            c.category_name,
+            p.product_name,
+            CASE WHEN p.deleted_at IS NOT NULL THEN 'discontinued' ELSE 'active' END AS product_status,
             p.description AS product_description,
             p.image_url AS product_image_url,
 			p.price,
 			COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id), 0) AS stock,
             p.popular,
 				COALESCE(string_agg(DISTINCT pv.size, ',' ORDER BY pv.size), '') AS size,
-				-- inventory as JSON array of {size, stock}
 				COALESCE(json_agg(DISTINCT jsonb_build_object('size', pv.size, 'stock', pv.stock)) FILTER (WHERE pv.id IS NOT NULL), '[]') AS inventory,
-				-- Only expose discount_percentage when the offer is currently active
 				COALESCE(MAX(CASE WHEN o.start_at <= now() AND (o.end_at IS NULL OR o.end_at >= now()) THEN o.discount_percentage ELSE 0 END), 0) AS discount_percentage,
 				COALESCE(MAX(to_char(o.start_at, 'YYYY-MM-DD')), '') AS start_date,
 				COALESCE(MAX(to_char(o.end_at, 'YYYY-MM-DD')), '') AS end_date
         FROM products p
         JOIN categories c
-            ON p.category_id = c.id
+            ON p.category_id = c.id AND c.deleted_at IS NULL
         LEFT JOIN product_variants pv
-            ON pv.product_id = p.id
+            ON pv.product_id = p.id AND pv.deleted_at IS NULL
         LEFT JOIN offers o
-            ON p.id = o.product_id
-        WHERE 1=1
+            ON p.id = o.product_id AND o.deleted_at IS NULL
     `
+	}
 
 	var args []interface{}
 
@@ -67,7 +97,7 @@ func GetProduct(c *gin.Context) {
 	if category != "" {
 		var count int64
 		err := database.DB.
-			Raw(`SELECT COUNT(*) FROM categories WHERE category_name = ?`, category).
+			Raw(`SELECT COUNT(*) FROM categories WHERE category_name = ? AND deleted_at IS NULL`, category).
 			Scan(&count).Error
 
 		if err != nil {
@@ -93,8 +123,15 @@ func GetProduct(c *gin.Context) {
 	// --------------------------------
 	// Group By
 	// --------------------------------
-	sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.category_id, c.category_name,
-		p.product_name, p.description, p.image_url, p.price, p.popular, o.discount_percentage, to_char(o.start_at, 'YYYY-MM-DD'), to_char(o.end_at, 'YYYY-MM-DD') `
+	if database.DB.Dialector.Name() == "sqlite" {
+		sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.category_id, p.deleted_at, c.category_name,
+		p.product_name, p.description, p.image_url, p.price, p.popular, o.discount_percentage,
+		strftime('%Y-%m-%d', o.start_at), strftime('%Y-%m-%d', o.end_at) `
+	} else {
+		sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.category_id, p.deleted_at, c.category_name,
+		p.product_name, p.description, p.image_url, p.price, p.popular, o.discount_percentage,
+		to_char(o.start_at, 'YYYY-MM-DD'), to_char(o.end_at, 'YYYY-MM-DD') `
+	}
 
 	// --------------------------------
 	// Sorting

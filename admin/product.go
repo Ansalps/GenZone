@@ -22,32 +22,64 @@ func ReadProducts(c *gin.Context) {
 	listOrder := c.Query("list_order")
 	category := c.Query("category")
 
-	sql := `
-		SELECT 
+	var sql string
+	if database.DB.Dialector.Name() == "sqlite" {
+		sql = `
+		SELECT
 			p.id,
 			p.created_at,
 			p.updated_at,
+			p.deleted_at,
 			p.category_id,
 			c.category_name,
 			p.product_name,
+			CASE WHEN p.deleted_at IS NOT NULL THEN 'discontinued' ELSE 'active' END AS product_status,
 			p.description AS product_description,
 			p.image_url AS product_image_url,
 			p.price,
-			COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id), 0) AS stock,
+			COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id AND deleted_at IS NULL), 0) AS stock,
+			p.popular,
+			COALESCE(GROUP_CONCAT(DISTINCT pv.size), '') AS size,
+			COALESCE(MAX(CASE WHEN o.start_at <= datetime('now') AND (o.end_at IS NULL OR o.end_at >= datetime('now')) THEN o.discount_percentage ELSE 0 END), 0) AS discount_percentage,
+			COALESCE(MAX(strftime('%Y-%m-%d', o.start_at)), '') AS start_date,
+			COALESCE(MAX(strftime('%Y-%m-%d', o.end_at)), '') AS end_date
+		FROM products p
+		JOIN categories c
+			ON c.id = p.category_id
+		LEFT JOIN product_variants pv
+			ON pv.product_id = p.id AND pv.deleted_at IS NULL
+		LEFT JOIN offers o
+			ON p.id = o.product_id AND o.deleted_at IS NULL
+		`
+	} else {
+		sql = `
+		SELECT
+			p.id,
+			p.created_at,
+			p.updated_at,
+			p.deleted_at,
+			p.category_id,
+			c.category_name,
+			p.product_name,
+			CASE WHEN p.deleted_at IS NOT NULL THEN 'discontinued' ELSE 'active' END AS product_status,
+			p.description AS product_description,
+			p.image_url AS product_image_url,
+			p.price,
+			COALESCE((SELECT COALESCE(SUM(stock),0) FROM product_variants WHERE product_id = p.id AND deleted_at IS NULL), 0) AS stock,
 			p.popular,
 			COALESCE(string_agg(DISTINCT pv.size, ',' ORDER BY pv.size), '') AS size,
-			-- Only expose discount_percentage when the offer is currently active
 			COALESCE(MAX(CASE WHEN o.start_at <= now() AND (o.end_at IS NULL OR o.end_at >= now()) THEN o.discount_percentage ELSE 0 END), 0) AS discount_percentage,
 			COALESCE(MAX(to_char(o.start_at, 'YYYY-MM-DD')), '') AS start_date,
 			COALESCE(MAX(to_char(o.end_at, 'YYYY-MM-DD')), '') AS end_date
 		FROM products p
-		JOIN categories c 
+		JOIN categories c
 			ON c.id = p.category_id
 		LEFT JOIN product_variants pv
-			ON pv.product_id = p.id
-		LEFT JOIN offers o 
-			ON p.id = o.product_id
-	`
+			ON pv.product_id = p.id AND pv.deleted_at IS NULL
+		LEFT JOIN offers o
+			ON p.id = o.product_id AND o.deleted_at IS NULL
+		`
+	}
 
 	// Parameters for the SQL query
 	var args []interface{}
@@ -59,7 +91,7 @@ func ReadProducts(c *gin.Context) {
 	}
 
 	// Sorting
-	sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.category_id, c.category_name,
+	sql += ` GROUP BY p.id, p.created_at, p.updated_at, p.deleted_at, p.category_id, c.category_name,
 		p.product_name, p.description, p.image_url, p.price, p.popular `
 
 	switch listOrder {
@@ -89,7 +121,7 @@ func ReadProducts(c *gin.Context) {
 		}
 
 		var allVariants []models.ProductVariant
-		if err := database.DB.Where("product_id IN ?", ids).Order("product_id ASC, size ASC").Find(&allVariants).Error; err == nil {
+		if err := database.DB.Where("product_id IN ? AND deleted_at IS NULL", ids).Order("product_id ASC, size ASC").Find(&allVariants).Error; err == nil {
 			// map productID -> []ProductInventoryItem
 			variantMap := make(map[uint][]responsemodels.ProductInventoryItem)
 			for _, v := range allVariants {
@@ -120,7 +152,7 @@ func ReadProductById(c *gin.Context) {
 	ProductID := c.Param("id")
 	var product models.Product
 
-	err := database.DB.Preload("Variants").First(&product, "id = ?", ProductID).Error
+	err := database.DB.Preload("Variants").Where("deleted_at IS NULL").First(&product, "id = ?", ProductID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -597,7 +629,7 @@ func EditProduct(c *gin.Context) {
 
 	// 5. Check if product exists
 	var product models.Product
-	if err := database.DB.Where("id = ?", productID).First(&product).Error; err != nil {
+	if err := database.DB.Where("id = ? AND deleted_at IS NULL", productID).First(&product).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"status": false, "message": "Product not found"})
 			return
@@ -783,34 +815,17 @@ func ProductDelete(c *gin.Context) {
 
 	if err := tx.Where("product_id = ?", productID).Delete(&models.Offer{}).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product offers"})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to soft-delete product offers"})
 		return
 	}
 	if err := tx.Where("product_id = ?", productID).Delete(&models.ProductVariant{}).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product variants"})
-		return
-	}
-	if err := tx.Where("product_id = ?", productID).Delete(&models.Wishlist{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product wishlist entries"})
-		return
-	}
-	if tx.Migrator().HasTable(&models.OrderItems{}) {
-		if err := tx.Where("product_id = ?", productID).Delete(&models.OrderItems{}).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product order entries"})
-			return
-		}
-	}
-	if err := tx.Where("product_id = ?", productID).Delete(&models.CartItem{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product cart entries"})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to soft-delete product variants"})
 		return
 	}
 	if err := tx.Where("id = ?", productID).Delete(&models.Product{}).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to delete product"})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "failed to soft-delete product"})
 		return
 	}
 	if err := tx.Commit().Error; err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/Ansalps/GeZOne/database"
 	"github.com/Ansalps/GeZOne/helper"
@@ -20,7 +21,7 @@ func ReadCategory(c *gin.Context) {
 	listorder := c.Query("list_order")
 	var category []responsemodels.Category
 	//tx := database.DB.Find(&category)
-	sql := `SELECT * FROM categories`
+	sql := `SELECT * FROM categories WHERE deleted_at IS NULL`
 
 	switch listorder {
 	case "":
@@ -52,7 +53,7 @@ func ReadCategoryById(c *gin.Context) {
 	var category models.Category
 
 	// Pass the pointer &category as the target for First()
-	err := database.DB.First(&category, "id = ?", categoryID).Error
+	err := database.DB.Where("deleted_at IS NULL").First(&category, "id = ?", categoryID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -84,7 +85,7 @@ func AddCategory(c *gin.Context) {
 	// 1. Get textual form fields instead of c.BindJSON
 	categoryName := c.PostForm("category_name")
 	description := c.PostForm("description")
-	
+
 	categoryReq := requestmodels.Category{
 		CategoryName: categoryName,
 		Description:  description,
@@ -103,14 +104,14 @@ func AddCategory(c *gin.Context) {
 
 	// 3. Check for existing category name
 	var count int64
-	err := database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE category_name = ?`, categoryName).Scan(&count).Error
+	err := database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE category_name = ? AND deleted_at IS NULL`, categoryName).Scan(&count).Error
 	if err != nil {
 		fmt.Println("err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{})
 		return
 	}
 	if count != 0 {
-		
+
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  false,
 			"message": "category name already exists",
@@ -170,7 +171,7 @@ func EditCategory(c *gin.Context) {
 	var category models.Category
 
 	if err := database.DB.
-		Where("id = ?", categoryID).
+		Where("id = ? AND deleted_at IS NULL", categoryID).
 		First(&category).Error; err != nil {
 
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -208,6 +209,7 @@ func EditCategory(c *gin.Context) {
         FROM categories
         WHERE category_name = ?
         AND id != ?
+        AND deleted_at IS NULL
     `, categoryName, categoryID).Scan(&count).Error
 
 	if err != nil {
@@ -277,11 +279,11 @@ func EditCategory(c *gin.Context) {
 }
 
 func CategoryDelete(c *gin.Context) {
-	
+
 	CategoryID := c.Param("id")
-	
+
 	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE id = ?`, CategoryID).Scan(&count)
+	database.DB.Raw(`SELECT COUNT(*) FROM categories WHERE id = ? AND deleted_at IS NULL`, CategoryID).Scan(&count)
 	if count == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "category id does not exist",
@@ -298,7 +300,10 @@ func CategoryDelete(c *gin.Context) {
 	// 	c.JSON(http.StatusBadRequest, response)
 	// 	return
 	// }
-	database.DB.Where("id = ?", CategoryID).Delete(&models.Category{})
-	database.DB.Where("category_id = ?", CategoryID).Delete(&models.Product{})
+	now := time.Now()
+	database.DB.Model(&models.Category{}).Where("id = ? AND deleted_at IS NULL", CategoryID).Update("deleted_at", now)
+	database.DB.Model(&models.Product{}).Where("category_id = ? AND deleted_at IS NULL", CategoryID).Update("deleted_at", now)
+	database.DB.Model(&models.ProductVariant{}).Where("product_id IN (SELECT id FROM products WHERE category_id = ? AND deleted_at IS NULL)", CategoryID).Update("deleted_at", now)
+	database.DB.Model(&models.Offer{}).Where("product_id IN (SELECT id FROM products WHERE category_id = ? AND deleted_at IS NULL)", CategoryID).Update("deleted_at", now)
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "category deleted succesfully"})
 }

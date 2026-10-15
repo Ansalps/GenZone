@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/Ansalps/GeZOne/responsemodels"
 	"github.com/gin-gonic/gin"
 	"github.com/razorpay/razorpay-go"
+	"gorm.io/gorm"
 )
 
 func shouldCancelEntireOrder(remainingStatuses []string) bool {
@@ -30,6 +32,101 @@ func shouldCancelEntireOrder(remainingStatuses []string) bool {
 		}
 	}
 	return true
+}
+
+func validateCancelQuantity(itemQuantity, requestedQuantity uint) (uint, error) {
+	if itemQuantity == 0 {
+		return 0, fmt.Errorf("item quantity is invalid")
+	}
+	if requestedQuantity == 0 {
+		return itemQuantity, nil
+	}
+	if requestedQuantity > itemQuantity {
+		return 0, fmt.Errorf("requested quantity %d exceeds available quantity %d", requestedQuantity, itemQuantity)
+	}
+	return requestedQuantity, nil
+}
+
+func validateReturnQuantity(itemQuantity, requestedQuantity uint) (uint, error) {
+	if itemQuantity == 0 {
+		return 0, fmt.Errorf("item quantity is invalid")
+	}
+	if requestedQuantity == 0 {
+		return itemQuantity, nil
+	}
+	if requestedQuantity > itemQuantity {
+		return 0, fmt.Errorf("requested quantity %d exceeds available quantity %d", requestedQuantity, itemQuantity)
+	}
+	return requestedQuantity, nil
+}
+
+func canCancelByDeliveryStatus(deliveryStatus string) bool {
+	return strings.EqualFold(strings.TrimSpace(deliveryStatus), "pending")
+}
+
+func canReturnByDeliveryStatus(deliveryStatus string) bool {
+	return strings.EqualFold(strings.TrimSpace(deliveryStatus), "delivered")
+}
+
+func roundCurrency(value float64) float64 {
+	return math.Round(value*100) / 100
+}
+
+func proportionalAmount(value float64, quantity uint, totalQuantity uint) float64 {
+	if quantity == 0 || totalQuantity == 0 {
+		return 0
+	}
+	return roundCurrency(value * float64(quantity) / float64(totalQuantity))
+}
+
+func restoreStockForItem(tx *gorm.DB, item models.OrderItems, quantity uint) error {
+	if quantity == 0 {
+		return nil
+	}
+	if item.ProductVariantID != 0 {
+		return restoreVariantStockByVariantIDInTx(tx, item.ProductVariantID, quantity)
+	}
+	return restoreVariantStockInTx(tx, item.ProductID, quantity)
+}
+
+func restoreVariantStockInTx(tx *gorm.DB, productID uint, quantity uint) error {
+	if quantity == 0 {
+		return nil
+	}
+	var variants []models.ProductVariant
+	if err := tx.Where("product_id = ?", productID).Order("id ASC").Find(&variants).Error; err != nil {
+		return err
+	}
+	if len(variants) == 0 {
+		return nil
+	}
+	remaining := int(quantity)
+	for i := range variants {
+		if remaining <= 0 {
+			break
+		}
+		newStock := variants[i].Stock + uint(remaining)
+		if err := tx.Model(&models.ProductVariant{}).Where("id = ?", variants[i].ID).Update("stock", newStock).Error; err != nil {
+			return err
+		}
+		remaining = 0
+	}
+	if remaining > 0 {
+		return fmt.Errorf("unable to restore stock for product %d", productID)
+	}
+	return nil
+}
+
+func restoreVariantStockByVariantIDInTx(tx *gorm.DB, productVariantID uint, quantity uint) error {
+	if quantity == 0 || productVariantID == 0 {
+		return nil
+	}
+	var variant models.ProductVariant
+	if err := tx.First(&variant, productVariantID).Error; err != nil {
+		return err
+	}
+	newStock := variant.Stock + quantity
+	return tx.Model(&models.ProductVariant{}).Where("id = ?", productVariantID).Update("stock", newStock).Error
 }
 
 type orderRequest struct {
@@ -202,6 +299,25 @@ func restoreStockForOrder(orderID uint) error {
 			continue
 		}
 		if err := restoreVariantStock(item.ProductID, item.Quantity); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func restoreStockForOrderTx(tx *gorm.DB, orderID uint) error {
+	var orderItems []models.OrderItems
+	if err := tx.Where("order_id = ?", orderID).Find(&orderItems).Error; err != nil {
+		return err
+	}
+	for _, item := range orderItems {
+		if item.ProductVariantID != 0 {
+			if err := restoreVariantStockByVariantIDInTx(tx, item.ProductVariantID, item.Quantity); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := restoreVariantStockInTx(tx, item.ProductID, item.Quantity); err != nil {
 			return err
 		}
 	}
@@ -429,6 +545,10 @@ func Order(c *gin.Context) {
 	for _, item := range cartItems {
 		if item.Quantity == 0 {
 			continue
+		}
+		if ok, msg := isProductAvailableForUser(item.ProductID, item.Size); !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "cart contains a discontinued product: " + msg})
+			return
 		}
 		totalAmount += item.UnitPrice * float64(item.Quantity)
 		totalQuantity += item.Quantity
@@ -921,32 +1041,15 @@ func CancelOrder(c *gin.Context) {
 		return
 	}
 
-	var orderstatus string
-	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("order_status", &orderstatus)
-	if orderstatus == "cancelled" {
+	var deliveryStatus string
+	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Pluck("delivery_status", &deliveryStatus)
+	if !canCancelByDeliveryStatus(deliveryStatus) {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "cannot cancel the order item, item is already cancelled bu user or admin",
+			"message": "order cancellation is only allowed when delivery status is pending",
 		})
 		return
 	}
-	if orderstatus == "shipped" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "cannot cancel the order, items are already shipped",
-		})
-		return
-	}
-	if orderstatus == "delivered" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "cannot cancel the order, items are delivered",
-		})
-		return
-	}
-	if orderstatus == "failed" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "your order is already failed due to some inventory issues",
-		})
-		return
-	}
+
 	database.DB.Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{"order_status": "cancelled", "delivery_status": "cancelled"})
 	database.DB.Model(&models.OrderItems{}).Where("order_id = ?", orderID).Updates(map[string]interface{}{"order_status": "cancelled", "delivery_status": "cancelled"})
 	if err := restoreStockForOrder(orderid); err != nil {
@@ -1015,140 +1118,301 @@ func CancelSingleOrderItem(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
+	itemID := c.Param("orderitem_id")
 
-	//plucking order item id
-	ItemID := c.Param("orderitem_id")
-	var itemid uint
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", itemid).Pluck("id", &itemid)
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM order_items where id = ?`, ItemID).Scan(&count)
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "order item id does not exist for this particular user",
-		})
+	var payload requestmodels.CancelSingleOrderItem
+	if err := c.ShouldBindJSON(&payload); err != nil && !strings.Contains(err.Error(), "EOF") {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request payload"})
 		return
 	}
 
-	//plucking orderstatus
-	var orderstatus string
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("delivery_status", &orderstatus)
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var item models.OrderItems
+		if err := tx.First(&item, itemID).Error; err != nil {
+			return fmt.Errorf("order item id does not exist for this particular user")
+		}
 
-	if orderstatus == "cancelled" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "cannot cancel the order item, item is already cancelled",
-		})
-		return
-	}
-	if orderstatus == "returned" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "cannot cancel the order item, item is already returned",
-		})
-		return
-	}
-	if orderstatus == "shipped" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "cannot cancel the order item, item is already shipped",
-		})
-		return
-	}
-	if orderstatus == "delivered" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "cannot cancel the order item, item is delivered",
-		})
-		return
-	}
-	if orderstatus == "failed" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "your order is already failed due to some inventory issues",
-		})
+		var itemBelongsToUser int64
+		if err := tx.Raw(`SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.id = ? AND o.user_id = ?`, itemID, userID).Scan(&itemBelongsToUser).Error; err != nil {
+			return err
+		}
+		if itemBelongsToUser == 0 {
+			return fmt.Errorf("order item id does not exist for this particular user")
+		}
+
+		cancelQuantity, err := validateCancelQuantity(item.Quantity, payload.Quantity)
+		if err != nil {
+			return err
+		}
+
+		var orderDeliveryStatus string
+		if err := tx.Model(&models.Order{}).Where("id = ?", item.OrderID).Pluck("delivery_status", &orderDeliveryStatus).Error; err != nil {
+			return err
+		}
+		if !canCancelByDeliveryStatus(item.DeliveryStatus) || !canCancelByDeliveryStatus(orderDeliveryStatus) {
+			return fmt.Errorf("order item cancellation is only allowed when delivery status is pending")
+		}
+
+		refundAmount := item.PaidAmount
+		if refundAmount == 0 {
+			refundAmount = item.TotalAmount
+		}
+		if refundAmount == 0 && item.UnitPrice > 0 {
+			refundAmount = item.UnitPrice * float64(item.Quantity)
+		}
+		if item.Quantity > 0 && cancelQuantity < item.Quantity {
+			refundAmount = proportionalAmount(refundAmount, cancelQuantity, item.Quantity)
+		}
+
+		remainingQuantity := item.Quantity - cancelQuantity
+		remainingTotalAmount := item.TotalAmount
+		remainingFinalAmount := item.PaidAmount
+		if cancelQuantity == item.Quantity {
+			remainingTotalAmount = 0
+			remainingFinalAmount = 0
+		} else {
+			remainingTotalAmount = proportionalAmount(item.TotalAmount, remainingQuantity, item.Quantity)
+			if item.PaidAmount > 0 {
+				remainingFinalAmount = proportionalAmount(item.PaidAmount, remainingQuantity, item.Quantity)
+			} else {
+				remainingFinalAmount = remainingTotalAmount
+			}
+		}
+
+		var remainingStatuses []string
+		if err := tx.Raw(`SELECT delivery_status FROM order_items WHERE order_id = ? AND id != ?`, item.OrderID, item.ID).Scan(&remainingStatuses).Error; err != nil {
+			return err
+		}
+		finalizeOrderCancellation := shouldCancelEntireOrder(remainingStatuses)
+
+		var order models.Order
+		if err := tx.First(&order, item.OrderID).Error; err == nil {
+			if cancelQuantity == item.Quantity {
+				if order.FinalAmount > item.PaidAmount {
+					if err := tx.Model(&models.Order{}).Where("id = ?", item.OrderID).Update("final_amount", order.FinalAmount-item.PaidAmount).Error; err != nil {
+						return err
+					}
+				}
+				if finalizeOrderCancellation {
+					if err := tx.Model(&models.Order{}).Where("id = ?", item.OrderID).Updates(map[string]interface{}{
+						"order_status":          "cancelled",
+						"delivery_status":       "cancelled",
+						"final_amount":          0.0,
+						"coupon_code":           "",
+						"coupon_discount":       0.0,
+						"offer_discount":        0.0,
+						"total_discount_amount": 0.0,
+					}).Error; err != nil {
+						return err
+					}
+					if err := restoreStockForOrderTx(tx, item.OrderID); err != nil {
+						return fmt.Errorf("failed to restore stock for cancelled order: %w", err)
+					}
+				} else if err := restoreStockForItem(tx, item, cancelQuantity); err != nil {
+					return fmt.Errorf("failed to restore stock for cancelled item: %w", err)
+				}
+			} else {
+				if order.FinalAmount > refundAmount {
+					if err := tx.Model(&models.Order{}).Where("id = ?", item.OrderID).Update("final_amount", order.FinalAmount-refundAmount).Error; err != nil {
+						return err
+					}
+				}
+				if err := restoreStockForItem(tx, item, cancelQuantity); err != nil {
+					return fmt.Errorf("failed to restore stock for cancelled item: %w", err)
+				}
+			}
+		}
+
+		if cancelQuantity == item.Quantity {
+			if err := tx.Model(&models.OrderItems{}).Where("id = ?", item.ID).Updates(map[string]interface{}{
+				"quantity":        0,
+				"order_status":    "cancelled",
+				"delivery_status": "cancelled",
+				"total_amount":    0.0,
+				"final_amount":    0.0,
+				"coupon_discount": 0.0,
+				"offer_discount":  0.0,
+				"total_discount":  0.0,
+			}).Error; err != nil {
+				return err
+			}
+		} else {
+			if err := tx.Model(&models.OrderItems{}).Where("id = ?", item.ID).Updates(map[string]interface{}{
+				"quantity":        remainingQuantity,
+				"total_amount":    remainingTotalAmount,
+				"final_amount":    remainingFinalAmount,
+				"order_status":    "pending",
+				"delivery_status": item.DeliveryStatus,
+			}).Error; err != nil {
+				return err
+			}
+
+			cancelledItem := models.OrderItems{
+				OrderID:          item.OrderID,
+				ProductID:        item.ProductID,
+				ProductVariantID: item.ProductVariantID,
+				Size:             item.Size,
+				OfferID:          item.OfferID,
+				Quantity:         cancelQuantity,
+				UnitPrice:        item.UnitPrice,
+				TotalAmount:      proportionalAmount(item.TotalAmount, cancelQuantity, item.Quantity),
+				DeliveryStatus:   "cancelled",
+				OrderStatus:      "cancelled",
+				PaymentMethod:    item.PaymentMethod,
+				CouponDiscount:   proportionalAmount(item.CouponDiscount, cancelQuantity, item.Quantity),
+				OfferDiscount:    proportionalAmount(item.OfferDiscount, cancelQuantity, item.Quantity),
+				TotalDiscount:    proportionalAmount(item.TotalDiscount, cancelQuantity, item.Quantity),
+				PaidAmount:       proportionalAmount(item.PaidAmount, cancelQuantity, item.Quantity),
+			}
+			if err := tx.Create(&cancelledItem).Error; err != nil {
+				return err
+			}
+		}
+
+		if item.PaymentMethod == "RazorPay" || item.PaymentMethod == "Wallet" {
+			var walletCount int64
+			if err := tx.Raw(`SELECT COUNT(*) FROM wallets WHERE user_id = ?`, userID).Scan(&walletCount).Error; err != nil {
+				return err
+			}
+			if walletCount == 0 {
+				wallet := models.Wallet{UserID: userID, Balance: refundAmount}
+				if err := tx.Create(&wallet).Error; err != nil {
+					return err
+				}
+			} else {
+				var balance float64
+				if err := tx.Model(&models.Wallet{}).Where("user_id = ?", userID).Pluck("balance", &balance).Error; err != nil {
+					return err
+				}
+				wallet := models.Wallet{UserID: userID, Balance: balance + refundAmount}
+				if err := tx.Model(&models.Wallet{}).Where("user_id = ?", userID).Updates(&wallet).Error; err != nil {
+					return err
+				}
+			}
+			transaction := models.WalletTransaction{
+				UserID:          userID,
+				Amount:          refundAmount,
+				TransactionType: "Credit",
+				Description:     "Refund for cancelling single order item",
+			}
+			if err := tx.Create(&transaction).Error; err != nil {
+				return err
+			}
+			now := time.Now()
+			today := now.Format("2006-01-02")
+			payment := models.Payments{
+				UserID:        userID,
+				OrderID:       item.OrderID,
+				OrderItemID:   item.ID,
+				TotalAmount:   refundAmount,
+				PaymentDate:   today,
+				PaymentType:   item.PaymentMethod,
+				PaymentStatus: "refund",
+				Description:   "refund for cancelling single order item",
+			}
+			if err := tx.Create(&payment).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 
-	var unitPrice float64
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("unit_price", &unitPrice)
-	var orderid uint
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_id", &orderid)
-	var offerdiscount float64
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("offer_discount", &offerdiscount)
-	var itemPaidAmount float64
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("final_amount", &itemPaidAmount)
-	if itemPaidAmount == 0 {
-		itemPaidAmount = (unitPrice - offerdiscount)
-	}
-	var remainingStatuses []string
-	database.DB.Raw(`SELECT delivery_status FROM order_items WHERE order_id = ? AND id != ?`, orderid, ItemID).Scan(&remainingStatuses)
-	finalizeOrderCancellation := shouldCancelEntireOrder(remainingStatuses)
-	var paymentmethod string
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("payment_method", &paymentmethod)
-	var productID uint
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("product_id", &productID)
-	var quantity uint
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("quantity", &quantity)
-	var finalamount float64
-	database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("final_amount", &finalamount)
-	if finalamount > itemPaidAmount {
-		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("final_amount", finalamount-itemPaidAmount)
+	c.JSON(http.StatusOK, gin.H{"message": "Order item cancelled successfully"})
+}
+
+func ReturnOrder(c *gin.Context) {
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims not found"})
+		return
 	}
 
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Updates(map[string]interface{}{
-		"order_status":    "cancelled",
-		"delivery_status": "cancelled",
+	customClaims, ok := claims.(*middleware.CustomClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	userID := customClaims.ID
+	orderID := c.Param("order_id")
+
+	var order models.Order
+	if err := database.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "order id does not exist for this particular user"})
+		return
+	}
+	if !canReturnByDeliveryStatus(order.DeliveryStatus) {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "return is only allowed when delivery status is delivered"})
+		return
+	}
+
+	refundAmount := order.FinalAmount
+	if refundAmount <= 0 {
+		refundAmount = order.TotalAmount
+	}
+	if refundAmount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "nothing to refund for this order"})
+		return
+	}
+
+	if err := restoreStockForOrder(order.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to restore stock for returned order"})
+		return
+	}
+
+	database.DB.Model(&models.Order{}).Where("id = ?", order.ID).Updates(map[string]interface{}{
+		"delivery_status":       "returned",
+		"order_status":          "completed",
+		"final_amount":          0.0,
+		"coupon_discount":       0.0,
+		"offer_discount":        0.0,
+		"total_discount_amount": 0.0,
+		"coupon_code":           "",
 	})
-	if finalizeOrderCancellation {
-		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Updates(map[string]interface{}{
-			"order_status":          "cancelled",
-			"delivery_status":       "cancelled",
-			"final_amount":          0.0,
-			"coupon_code":           "",
-			"coupon_discount":       0.0,
-			"offer_discount":        0.0,
-			"total_discount_amount": 0.0,
-		})
-		if err := restoreStockForOrder(orderid); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to restore stock for cancelled order"})
-			return
-		}
-	} else {
-		if err := restoreVariantStock(productID, quantity); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to restore stock for cancelled item"})
-			return
-		}
-	}
+	database.DB.Model(&models.OrderItems{}).Where("order_id = ?", order.ID).Updates(map[string]interface{}{
+		"delivery_status": "returned",
+		"order_status":    "completed",
+	})
 
-	if paymentmethod == "RazorPay" || paymentmethod == "Wallet" {
-		var count int64
-		database.DB.Raw(`SELECT COUNT(*) FROM wallets WHERE user_id = ?`, userID).Scan(&count)
-		if count == 0 {
-			wallet := models.Wallet{UserID: userID, Balance: itemPaidAmount}
+	if order.PaymentMethod == "RazorPay" || order.PaymentMethod == "Wallet" {
+		var walletCount int64
+		database.DB.Raw(`SELECT COUNT(*) FROM wallets WHERE user_id = ?`, userID).Scan(&walletCount)
+		if walletCount == 0 {
+			wallet := models.Wallet{UserID: userID, Balance: refundAmount}
 			database.DB.Create(&wallet)
 		} else {
 			var balance float64
 			database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Pluck("balance", &balance)
-			wallet := models.Wallet{UserID: userID, Balance: balance + itemPaidAmount}
+			wallet := models.Wallet{UserID: userID, Balance: balance + refundAmount}
 			database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Updates(&wallet)
 		}
 		transaction := models.WalletTransaction{
 			UserID:          userID,
-			Amount:          itemPaidAmount,
+			Amount:          refundAmount,
 			TransactionType: "Credit",
-			Description:     "Refund for cancelling single order item",
+			Description:     "Refund for returning order",
 		}
 		database.DB.Create(&transaction)
-		now := time.Now()
-		today := now.Format("2006-01-02")
-		payment := models.Payments{
-			UserID:        userID,
-			OrderID:       orderid,
-			OrderItemID:   itemid,
-			TotalAmount:   itemPaidAmount,
-			PaymentDate:   today,
-			PaymentType:   paymentmethod,
-			PaymentStatus: "refund",
-			Description:   "refund for cancelling single order item",
-		}
-		database.DB.Create(&payment)
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Order item cancelled successfully"})
+
+	now := time.Now()
+	today := now.Format("2006-01-02")
+	payment := models.Payments{
+		UserID:        userID,
+		OrderID:       order.ID,
+		TotalAmount:   refundAmount,
+		PaymentDate:   today,
+		PaymentType:   order.PaymentMethod,
+		PaymentStatus: "refund",
+		Description:   "refund for returning order",
+	}
+	database.DB.Create(&payment)
+
+	c.JSON(http.StatusOK, gin.H{"message": "order return requested successfully"})
 }
 
 func ReturnSingleOrderItem(c *gin.Context) {
@@ -1165,101 +1429,191 @@ func ReturnSingleOrderItem(c *gin.Context) {
 	}
 
 	userID := customClaims.ID
+	itemID := c.Param("orderitem_id")
 
-	ItemID := c.Param("orderitem_id")
-	var itemid uint
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("id", &itemid)
-	var count int64
-	database.DB.Raw(`SELECT COUNT(*) FROM order_items where id = ?`, ItemID).Scan(&count)
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "order item id does not exist for this particular user",
-		})
+	var payload requestmodels.ReturnSingleOrderItem
+	if err := c.ShouldBindJSON(&payload); err != nil && !strings.Contains(err.Error(), "EOF") {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request payload"})
 		return
 	}
-	var orderstatus string
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("delivery_status", &orderstatus)
 
-	if orderstatus == "delivered" {
-
-		// var paymentmethod string
-		// database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("payment_method", paymentmethod)
-
-		var paidamount float64
-		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("final_amount", &paidamount)
-		var orderid uint
-		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_id", &orderid)
-		var orderTotalAmount float64
-		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("total_amount", &orderTotalAmount)
-		var unitPrice float64
-		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("unit_price", &unitPrice)
-		var offerdiscount float64
-		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("offer_discount", &offerdiscount)
-		offerdiscounted := unitPrice - offerdiscount
-
-		orderTotalAmount = orderTotalAmount - offerdiscounted
-		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("total_amount", orderTotalAmount)
-		var finalamount float64
-		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("final_amount", &finalamount)
-		finalamount = finalamount - paidamount
-		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("final_amount", finalamount)
-		var coupondiscount float64
-		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("coupon_discount", &coupondiscount)
-		var totalDiscountAmount float64
-		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Pluck("total_discount_amount", &totalDiscountAmount)
-		totalDiscountAmount = totalDiscountAmount - coupondiscount
-		database.DB.Model(&models.Order{}).Where("id = ?", orderid).Update("total_discount_amount", totalDiscountAmount)
-		var balance float64
-		database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Pluck("balance", &balance)
-		balance = balance + paidamount
-		database.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Update("balance", balance)
-		//database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Update("paid_amount", 0.00)
-		var count1 int
-		database.DB.Raw(`SELECT COUNT(*) FROM order_items WHERE order_id = ? AND delivery_status != 'cancelled' AND delivery_status != 'returned'`, orderid).Scan(&count1)
-
-		if count1 == 0 {
-			database.DB.Model(&models.Order{}).Where("id = ?", orderid).Updates(map[string]interface{}{
-				"order_status":          "cancelled",
-				"final_amount":          0.00,
-				"coupon_discount":       0.00,
-				"offer_discount":        0.00,
-				"total_discount_amount": 0.00,
-				"coupon_code":           "",
-			})
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var item models.OrderItems
+		if err := tx.Where("id = ?", itemID).First(&item).Error; err != nil {
+			return fmt.Errorf("order item id does not exist for this particular user")
 		}
-		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Updates(map[string]interface{}{
-			"order_status":    "completed",
-			"delivery_status": "returned",
-		})
-		transaction := models.WalletTransaction{
-			UserID:          userID,
-			Amount:          paidamount,
-			TransactionType: "credit",
-			Description:     "Refund for return of single order item",
+
+		var userOrderCount int64
+		if err := tx.Raw(`SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.id = ? AND o.user_id = ?`, itemID, userID).Scan(&userOrderCount).Error; err != nil {
+			return err
 		}
-		database.DB.Create(&transaction)
+		if userOrderCount == 0 {
+			return fmt.Errorf("order item id does not exist for this particular user")
+		}
+
+		returnQuantity, err := validateReturnQuantity(item.Quantity, payload.Quantity)
+		if err != nil {
+			return err
+		}
+		if !canReturnByDeliveryStatus(item.DeliveryStatus) {
+			return fmt.Errorf("cannot return the order item until it is delivered")
+		}
+
+		var order models.Order
+		if err := tx.Where("id = ?", item.OrderID).First(&order).Error; err == nil && !canReturnByDeliveryStatus(order.DeliveryStatus) {
+			return fmt.Errorf("return is only allowed when delivery status is delivered")
+		}
+
+		refundAmount := item.PaidAmount
+		if refundAmount == 0 {
+			refundAmount = item.TotalAmount
+		}
+		if refundAmount == 0 && item.UnitPrice > 0 {
+			refundAmount = item.UnitPrice * float64(item.Quantity)
+		}
+		if item.Quantity > 0 && returnQuantity < item.Quantity {
+			refundAmount = proportionalAmount(refundAmount, returnQuantity, item.Quantity)
+		}
+
+		remainingQuantity := item.Quantity - returnQuantity
+		remainingTotalAmount := item.TotalAmount
+		remainingFinalAmount := item.PaidAmount
+		if returnQuantity == item.Quantity {
+			remainingTotalAmount = 0
+			remainingFinalAmount = 0
+		} else {
+			remainingTotalAmount = proportionalAmount(item.TotalAmount, remainingQuantity, item.Quantity)
+			if item.PaidAmount > 0 {
+				remainingFinalAmount = proportionalAmount(item.PaidAmount, remainingQuantity, item.Quantity)
+			} else {
+				remainingFinalAmount = remainingTotalAmount
+			}
+		}
+
+		if math.Abs(order.FinalAmount-refundAmount) > 0.000001 {
+			newFinalAmount := order.FinalAmount - refundAmount
+			if newFinalAmount < 0 {
+				newFinalAmount = 0
+			}
+			if err := tx.Model(&models.Order{}).Where("id = ?", item.OrderID).Update("final_amount", newFinalAmount).Error; err != nil {
+				return err
+			}
+		}
+
+		if returnQuantity == item.Quantity {
+			if err := tx.Model(&models.OrderItems{}).Where("id = ?", item.ID).Updates(map[string]interface{}{
+				"quantity":        0,
+				"order_status":    "completed",
+				"delivery_status": "returned",
+				"total_amount":    0.0,
+				"final_amount":    0.0,
+				"coupon_discount": 0.0,
+				"offer_discount":  0.0,
+				"total_discount":  0.0,
+			}).Error; err != nil {
+				return err
+			}
+		} else {
+			if err := tx.Model(&models.OrderItems{}).Where("id = ?", item.ID).Updates(map[string]interface{}{
+				"quantity":        remainingQuantity,
+				"total_amount":    remainingTotalAmount,
+				"final_amount":    remainingFinalAmount,
+				"order_status":    "completed",
+				"delivery_status": item.DeliveryStatus,
+			}).Error; err != nil {
+				return err
+			}
+
+			returnedItem := models.OrderItems{
+				OrderID:          item.OrderID,
+				ProductID:        item.ProductID,
+				ProductVariantID: item.ProductVariantID,
+				Size:             item.Size,
+				OfferID:          item.OfferID,
+				Quantity:         returnQuantity,
+				UnitPrice:        item.UnitPrice,
+				TotalAmount:      proportionalAmount(item.TotalAmount, returnQuantity, item.Quantity),
+				DeliveryStatus:   "returned",
+				OrderStatus:      "completed",
+				PaymentMethod:    item.PaymentMethod,
+				CouponDiscount:   proportionalAmount(item.CouponDiscount, returnQuantity, item.Quantity),
+				OfferDiscount:    proportionalAmount(item.OfferDiscount, returnQuantity, item.Quantity),
+				TotalDiscount:    proportionalAmount(item.TotalDiscount, returnQuantity, item.Quantity),
+				PaidAmount:       proportionalAmount(item.PaidAmount, returnQuantity, item.Quantity),
+			}
+			if err := tx.Create(&returnedItem).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := restoreStockForItem(tx, item, returnQuantity); err != nil {
+			return fmt.Errorf("failed to restore stock for returned item: %w", err)
+		}
+
+		var remainingItemCount int64
+		if err := tx.Raw(`SELECT COUNT(*) FROM order_items WHERE order_id = ? AND delivery_status != 'cancelled' AND delivery_status != 'returned'`, item.OrderID).Scan(&remainingItemCount).Error; err != nil {
+			return err
+		}
+		if remainingItemCount == 0 {
+			if err := tx.Model(&models.Order{}).Where("id = ?", item.OrderID).Updates(map[string]interface{}{
+				"delivery_status": "returned",
+				"order_status":    "completed",
+			}).Error; err != nil {
+				return err
+			}
+		}
+
+		if item.PaymentMethod == "RazorPay" || item.PaymentMethod == "Wallet" {
+			var walletCount int64
+			if err := tx.Raw(`SELECT COUNT(*) FROM wallets WHERE user_id = ?`, userID).Scan(&walletCount).Error; err != nil {
+				return err
+			}
+			if walletCount == 0 {
+				wallet := models.Wallet{UserID: userID, Balance: refundAmount}
+				if err := tx.Create(&wallet).Error; err != nil {
+					return err
+				}
+			} else {
+				var balance float64
+				if err := tx.Model(&models.Wallet{}).Where("user_id = ?", userID).Pluck("balance", &balance).Error; err != nil {
+					return err
+				}
+				wallet := models.Wallet{UserID: userID, Balance: balance + refundAmount}
+				if err := tx.Model(&models.Wallet{}).Where("user_id = ?", userID).Updates(&wallet).Error; err != nil {
+					return err
+				}
+			}
+			transaction := models.WalletTransaction{
+				UserID:          userID,
+				Amount:          refundAmount,
+				TransactionType: "Credit",
+				Description:     "Refund for returning single order item",
+			}
+			if err := tx.Create(&transaction).Error; err != nil {
+				return err
+			}
+		}
+
 		now := time.Now()
 		today := now.Format("2006-01-02")
-		var paymentmethod string
-		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("payment_method", &paymentmethod)
 		payment := models.Payments{
 			UserID:        userID,
-			OrderID:       orderid,
-			OrderItemID:   itemid,
-			TotalAmount:   paidamount,
+			OrderID:       item.OrderID,
+			OrderItemID:   item.ID,
+			TotalAmount:   refundAmount,
 			PaymentDate:   today,
-			PaymentType:   paymentmethod,
+			PaymentType:   item.PaymentMethod,
 			PaymentStatus: "refund",
 			Description:   "refund for returning single order item",
 		}
-		database.DB.Create(&payment)
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": "order status changed to return successfully",
-		})
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "cannot return an item until it is delivered",
-		})
+		if err := tx.Create(&payment).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
 	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "order item return processed successfully"})
 }

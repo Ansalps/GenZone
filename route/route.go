@@ -39,6 +39,8 @@ func RegisterUrls(router *gin.Engine) {
 	//order management
 	adminGroup.GET("orderlist", middleware.AuthMiddleware("admin"), admin.OrderList)
 	adminGroup.GET("orderlist/items/:order_id", middleware.AuthMiddleware("admin"), admin.OrderItemsList)
+	adminGroup.PUT("order/changepaymentstatus/:id", middleware.AuthMiddleware("admin"), admin.ChangePaymentStatus)
+	adminGroup.PUT("order/changedeliverystatus/:id", middleware.AuthMiddleware("admin"), admin.ChangeDeliveryStatus)
 	adminGroup.PUT("order/changestatus/:id", middleware.AuthMiddleware("admin"), admin.ChangeOrderStatus)
 
 	//coupon management
@@ -124,6 +126,8 @@ func RegisterUrls(router *gin.Engine) {
 	router.PUT("orders/item/:orderitem_id/cancel", middleware.AuthMiddleware("user"), user.CancelSingleOrderItem)
 
 	//order return
+	router.PUT("orders/:order_id/return", middleware.AuthMiddleware("user"), user.ReturnOrder)
+	router.PUT("orders/item/:orderitem_id/return", middleware.AuthMiddleware("user"), user.ReturnSingleOrderItem)
 	router.PUT("profile/userorders/returnsingleorderitem/:orderitem_id", middleware.AuthMiddleware("user"), user.ReturnSingleOrderItem)
 
 }

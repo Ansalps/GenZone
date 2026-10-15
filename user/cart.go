@@ -72,6 +72,23 @@ func getUserCartSummary(db *gorm.DB, userID uint) (int, uint, float64, error) {
 	return int(result.Count), result.TotalQty, result.TotalAmount, nil
 }
 
+func isProductAvailableForUser(productID uint, size string) (bool, string) {
+	var product models.Product
+	if err := database.DB.Where("id = ?", productID).First(&product).Error; err != nil {
+		return false, "product is unavailable"
+	}
+	if product.DeletedAt.Valid {
+		return false, "this product has been discontinued"
+	}
+	if size != "" {
+		var variant models.ProductVariant
+		if err := database.DB.Where("product_id = ? AND size = ? AND deleted_at IS NULL", productID, size).First(&variant).Error; err != nil {
+			return false, "selected size is not available for this product"
+		}
+	}
+	return true, ""
+}
+
 func Cart(c *gin.Context) {
 	claims, exists := c.Get("claims")
 	if !exists {
@@ -97,7 +114,8 @@ func Cart(c *gin.Context) {
 			ci.cart_id,
 			c.user_id,
 			ci.product_id,
-			p.product_name,
+			CASE WHEN p.deleted_at IS NOT NULL THEN 'discontinued' ELSE 'active' END AS product_status,
+			CASE WHEN p.deleted_at IS NOT NULL THEN 'Discontinued' ELSE p.product_name END AS product_name,
 			cat.category_name,
 			p.description AS product_description,
 			p.image_url AS product_image_url,
@@ -161,6 +179,7 @@ func Cart(c *gin.Context) {
 			p.description,
 			p.image_url,
 			p.popular,
+			p.deleted_at,
 			ci.size,
 			ci.quantity,
 			ci.unit_price,
@@ -224,7 +243,7 @@ func CartAdd(c *gin.Context) {
 
 	// 3. Verify product existence
 	var product models.Product
-	if err := database.DB.Where("id = ?", req.ProductID).First(&product).Error; err != nil {
+	if err := database.DB.Where("id = ? AND deleted_at IS NULL", req.ProductID).First(&product).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  false,
 			"message": "product id doesn't exist",
@@ -341,7 +360,7 @@ func CartAdd(c *gin.Context) {
 	// 8. Item does not exist -> Insert new record with requested quantity and size
 	var selectedVariant models.ProductVariant
 	if req.Size != "" {
-		if err := database.DB.Where("product_id = ? AND size = ?", product.ID, req.Size).First(&selectedVariant).Error; err != nil {
+		if err := database.DB.Where("product_id = ? AND size = ? AND deleted_at IS NULL", product.ID, req.Size).First(&selectedVariant).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  false,
 				"message": "selected size is not available for this product",
@@ -456,6 +475,11 @@ func UpdateQuantity(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"status": false, "message": "item not found in cart"})
 			return
 		}
+	}
+
+	if ok, msg := isProductAvailableForUser(uint(productID), size); !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": msg})
+		return
 	}
 
 	var availableStock uint

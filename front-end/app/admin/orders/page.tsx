@@ -133,6 +133,7 @@ export default function AdminOrdersPage() {
   const [itemsByOrder, setItemsByOrder] = useState<Record<number, OrderItem[]>>({});
   const [loading, setLoading] = useState(false);
   const [loadingItemsId, setLoadingItemsId] = useState<number | null>(null);
+  const [updatingDeliveryStatusForOrder, setUpdatingDeliveryStatusForOrder] = useState<number | null>(null);
 
   const loadUsers = async () => {
     try {
@@ -201,6 +202,46 @@ export default function AdminOrdersPage() {
     }
 
     setExpandedIds((prev) => (prev.includes(order.id) ? prev : [...prev, order.id]));
+  };
+
+  const updateDeliveryStatus = async (orderId: number, nextStatus: 'pending' | 'shipped' | 'delivered' | 'failed' | 'returned') => {
+    try {
+      setUpdatingDeliveryStatusForOrder(orderId);
+      const response = await axios.put(
+        `${API}/admin/order/changedeliverystatus/${orderId}`,
+        { delivery_status: nextStatus },
+        { withCredentials: true },
+      );
+
+      toast.success(response.data?.message || 'Delivery status updated');
+      await loadOrders();
+      await loadOrderItems(orderId);
+    } catch (error: any) {
+      console.error('Failed to update delivery status:', error);
+      toast.error(error.response?.data?.message || 'Unable to update delivery status');
+    } finally {
+      setUpdatingDeliveryStatusForOrder(null);
+    }
+  };
+
+  const updatePaymentStatus = async (orderId: number) => {
+    try {
+      setUpdatingDeliveryStatusForOrder(orderId);
+      const response = await axios.put(
+        `${API}/admin/order/changepaymentstatus/${orderId}`,
+        { payment_status: 'paid' },
+        { withCredentials: true },
+      );
+
+      toast.success(response.data?.message || 'Payment status updated');
+      await loadOrders();
+      await loadOrderItems(orderId);
+    } catch (error: any) {
+      console.error('Failed to update payment status:', error);
+      toast.error(error.response?.data?.message || 'Unable to update payment status');
+    } finally {
+      setUpdatingDeliveryStatusForOrder(null);
+    }
   };
 
   const totalRevenue = orders.reduce((sum, order) => sum + Number(order.final_amount ?? order.total_amount ?? 0), 0);
@@ -364,18 +405,63 @@ export default function AdminOrdersPage() {
                         {order.address?.default ? ' · Default address' : ''}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => toggleOrder(order)}
-                        disabled={loadingItemsId === order.id}
-                        className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {loadingItemsId === order.id
-                          ? 'Loading...'
-                          : isExpanded
-                            ? 'Hide items'
-                            : 'View items'}
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {((order.delivery_status || 'pending').toLowerCase() === 'pending') && (
+                          <button
+                            type="button"
+                            onClick={() => updateDeliveryStatus(order.id, 'shipped')}
+                            disabled={updatingDeliveryStatusForOrder === order.id}
+                            className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {updatingDeliveryStatusForOrder === order.id ? 'Updating...' : 'Mark Delivery Status as shipped'}
+                          </button>
+                        )}
+                        {((order.delivery_status || 'pending').toLowerCase() === 'shipped') && (
+                          <button
+                            type="button"
+                            onClick={() => updateDeliveryStatus(order.id, 'delivered')}
+                            disabled={updatingDeliveryStatusForOrder === order.id}
+                            className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {updatingDeliveryStatusForOrder === order.id ? 'Updating...' : 'Mark Delivery Status as delivered'}
+                          </button>
+                        )}
+                        {['pending', 'shipped'].includes((order.delivery_status || 'pending').toLowerCase()) && (
+                          <button
+                            type="button"
+                            onClick={() => updateDeliveryStatus(order.id, 'failed')}
+                            disabled={updatingDeliveryStatusForOrder === order.id}
+                            className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {updatingDeliveryStatusForOrder === order.id ? 'Updating...' : 'Mark Delivery Status as failed'}
+                          </button>
+                        )}
+                        {((order.payment_method || '').toLowerCase() === 'cod') &&
+                          ((order.delivery_status || 'pending').toLowerCase() === 'delivered') &&
+                          ((order.payment_status || 'pending').toLowerCase() !== 'paid') && (
+                            <button
+                              type="button"
+                              onClick={() => updatePaymentStatus(order.id)}
+                              disabled={updatingDeliveryStatusForOrder === order.id}
+                              className="rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-200 transition hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {updatingDeliveryStatusForOrder === order.id ? 'Updating...' : 'Mark Payment Status as paid'}
+                            </button>
+                          )}
+
+                        <button
+                          type="button"
+                          onClick={() => toggleOrder(order)}
+                          disabled={loadingItemsId === order.id}
+                          className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {loadingItemsId === order.id
+                            ? 'Loading...'
+                            : isExpanded
+                              ? 'Hide items'
+                              : 'View items'}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
