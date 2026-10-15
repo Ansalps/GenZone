@@ -31,6 +31,7 @@ type OrderItem = {
   coupon_discount?: number;
   offer_discount?: number;
   total_discount?: number;
+  final_amount?: number;
   paid_amount?: number;
 };
 

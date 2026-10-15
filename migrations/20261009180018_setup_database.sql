@@ -232,7 +232,7 @@ CREATE TABLE "public"."order_items" (
   "coupon_discount" numeric NULL DEFAULT 0,
   "offer_discount" numeric NULL DEFAULT 0,
   "total_discount" numeric NULL DEFAULT 0,
-  "paid_amount" numeric NULL DEFAULT 0,
+  "final_amount" numeric NULL DEFAULT 0,
   "delivered_date" text NULL,
   PRIMARY KEY ("id"),
   CONSTRAINT "fk_order_items_order" FOREIGN KEY ("order_id") REFERENCES "public"."orders" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION,

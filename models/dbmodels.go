@@ -198,7 +198,7 @@ type OrderItems struct {
 	CouponDiscount   float64        `gorm:"default:0.00"`
 	OfferDiscount    float64        `gorm:"default:0.00"`
 	TotalDiscount    float64        `gorm:"default:0.00"`
-	PaidAmount       float64        `gorm:"default:0.00"`
+	PaidAmount       float64        `gorm:"column:final_amount;default:0.00"`
 	DeliveredDate    string
 }
 type SalesReportItem struct {

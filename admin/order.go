@@ -71,7 +71,7 @@ func OrderItemsList(c *gin.Context) {
 	}
 	var orderitems []responsemodels.OrderItems
 
-	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
+	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.delivery_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.final_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
 	switch listorder {
 	case "":
 		sql += ` ORDER BY order_items.id DESC`
@@ -185,7 +185,7 @@ func ChangeOrderStatus(c *gin.Context) {
 				stock = stock - 1
 				database.DB.Exec("UPDATE product_variants SET stock = stock - 1 WHERE product_id = ?", v.ProductID)
 				paidamount := v.UnitPrice - v.TotalDiscount
-				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("paid_amount", paidamount)
+				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("final_amount", paidamount)
 				database.DB.Model(&models.OrderItems{}).Where("id = ?", v.ID).Update("delivered_date", today)
 			}
 

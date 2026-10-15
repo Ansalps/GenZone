@@ -31,6 +31,7 @@ type OrderItem = {
   coupon_discount?: number;
   offer_discount?: number;
   total_discount?: number;
+  final_amount?: number;
   paid_amount?: number;
 };
 
@@ -355,7 +356,7 @@ export default function OrdersPage() {
                                 </span>
                                 <span>Price: ₹{Number(item.price ?? 0).toFixed(2)}</span>
                                 <span className="text-emerald-300">Total: ₹{Number(item.total_amount ?? (item.price ?? 0) * (item.quantity ?? 1)).toFixed(2)}</span>
-                                <span className="text-cyan-300">Paid: ₹{Number(item.paid_amount ?? item.price ?? 0).toFixed(2)}</span>
+                                <span className="text-cyan-300">Final: ₹{Number(item.final_amount ?? item.paid_amount ?? item.price ?? 0).toFixed(2)}</span>
                               </div>
                             </div>
 

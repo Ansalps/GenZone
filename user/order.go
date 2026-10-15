@@ -403,7 +403,7 @@ func Order(c *gin.Context) {
 		database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? AND orders.id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID, order.ID).Scan(&responseOrder)
 		database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, order.AddressID).Scan(&address)
 		responseOrder.Address = address
-		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
+		database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.final_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
 		c.JSON(http.StatusOK, gin.H{"message": "Payment verified successfully", "order": responseOrder, "order_items": responseOrderItems, "status": "success"})
 		return
 	}
@@ -628,7 +628,7 @@ func Order(c *gin.Context) {
 	database.DB.Raw(`SELECT orders.id,orders.created_at,orders.updated_at,orders.user_id,orders.address_id,orders.total_amount,orders.payment_method,orders.order_status,orders.offer_discount,orders.coupon_discount,orders.total_discount_amount,orders.final_amount FROM orders JOIN addresses ON orders.address_id = addresses.id WHERE orders.user_id = ? AND orders.id = ? ORDER BY orders.created_at DESC LIMIT 1`, userID, order.ID).Scan(&responseOrder)
 	database.DB.Raw(`SELECT * FROM addresses WHERE id = ?`, order.AddressID).Scan(&address)
 	responseOrder.Address = address
-	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
+	database.DB.Raw(`SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.final_amount FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_items.order_id = ? ORDER BY order_items.id`, order.ID).Scan(&responseOrderItems)
 	c.JSON(http.StatusOK, gin.H{"message": "Order added successfully", "order": responseOrder, "order_items": responseOrderItems})
 }
 
@@ -716,7 +716,7 @@ func OrderItemsList(c *gin.Context) {
 	}
 	var orderitems []responsemodels.OrderItems
 
-	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.delivery_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.paid_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
+	sql := `SELECT order_items.id,order_items.created_at,order_items.updated_at,order_items.order_id,order_items.product_id,order_items.product_variant_id,order_items.size,products.product_name,order_items.quantity,order_items.unit_price AS price,order_items.total_amount,order_items.order_status,order_items.delivery_status,order_items.payment_method,order_items.coupon_discount,order_items.offer_discount,order_items.total_discount,order_items.final_amount FROM order_items join products on order_items.product_id=products.id WHERE order_items.order_id = ?`
 
 	switch listorder {
 	case "":
@@ -1071,7 +1071,7 @@ func CancelSingleOrderItem(c *gin.Context) {
 	var offerdiscount float64
 	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("offer_discount", &offerdiscount)
 	var itemPaidAmount float64
-	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("paid_amount", &itemPaidAmount)
+	database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("final_amount", &itemPaidAmount)
 	if itemPaidAmount == 0 {
 		itemPaidAmount = (unitPrice - offerdiscount)
 	}
@@ -1186,7 +1186,7 @@ func ReturnSingleOrderItem(c *gin.Context) {
 		// database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("payment_method", paymentmethod)
 
 		var paidamount float64
-		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("paid_amount", &paidamount)
+		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("final_amount", &paidamount)
 		var orderid uint
 		database.DB.Model(&models.OrderItems{}).Where("id = ?", ItemID).Pluck("order_id", &orderid)
 		var orderTotalAmount float64
